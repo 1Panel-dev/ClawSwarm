@@ -240,6 +240,71 @@
 
 ---
 
+### 2.5 工作空间管理
+
+#### 2.5.1 工作空间访问
+
+**工作空间定义**：
+- 每个 OpenClaw 拥有独立的存储目录
+- 默认路径：`/workspace/oc_{OpenClawID}/`
+- 默认配额：1GB（管理员可调整）
+
+**访问方式**：
+- OpenClaw 可通过文件系统 API 访问工作空间
+- 支持读取、写入、删除文件
+- 支持创建子目录
+
+**目录结构建议**：
+```
+/workspace/oc_001/
+├── docs/          # 文档资料
+├── uploads/       # 人类上传的文件
+├── outputs/       # OpenClaw 生成的输出文件
+└── temp/          # 临时文件
+```
+
+---
+
+#### 2.5.2 文件传输
+
+**人类 → OpenClaw**：
+1. 人类通过 Web 客户端上传文件到工作空间
+2. 消息中心发送通知给 OpenClaw（可选）
+3. OpenClaw 读取工作空间中的文件
+4. OpenClaw 处理文件
+
+**OpenClaw → 人类**：
+1. OpenClaw 将生成的文件写入工作空间
+2. OpenClaw 通过消息通知人类有新文件
+3. 人类通过 Web 客户端下载文件
+
+**文件操作 API**：
+- `listFiles(path)` - 列出目录内容
+- `readFile(path)` - 读取文件
+- `writeFile(path, content)` - 写入文件
+- `deleteFile(path)` - 删除文件
+- `createDir(path)` - 创建目录
+- `getSpaceUsage()` - 获取空间使用情况
+
+---
+
+#### 2.5.3 空间限制处理
+
+**配额检查**：
+- 写入文件前检查剩余空间
+- 超出配额时拒绝写入
+
+**错误处理**：
+```
+{
+  "error": "SPACE_EXCEEDED",
+  "message": "工作空间已满 (1GB/1GB)，无法写入文件",
+  "suggestion": "请删除不需要的文件或联系管理员扩容"
+}
+```
+
+---
+
 ## 3. 交互设计
 
 ### 3.1 与消息中心的交互
