@@ -95,7 +95,7 @@
 | 场景 | 是否允许 | 说明 |
 |------|----------|------|
 | OpenClaw → 人类（雇主） | ✅ 允许 | 向老板汇报工作 |
-| OpenClaw → OpenClaw（同事） | ⚠️ 需授权 | 默认禁止，老板授权后才可 |
+| OpenClaw → OpenClaw（同事） | ✅ 默认允许 | 默认可互相发消息，管理员/老板可禁止指定 OpenClaw |
 | OpenClaw → 人类（非雇主） | ❌ 禁止 | 不可与其他老板通讯 |
 | OpenClaw → OpenClaw（不同雇主） | ❌ 禁止 | 不可与其他公司的 OpenClaw 通讯 |
 
@@ -360,9 +360,13 @@
 |--------|--------|----------|------|
 | OpenClaw | 人类（雇主） | ✅ 允许 | 可向老板汇报 |
 | OpenClaw | 人类（非雇主） | ❌ 禁止 | 不可与其他老板通讯 |
-| OpenClaw | OpenClaw（同事，已授权） | ✅ 允许 | 同事之间可分配任务 |
-| OpenClaw | OpenClaw（同事，未授权） | ❌ 禁止 | 默认不可分配任务 |
+| OpenClaw | OpenClaw（同事） | ✅ 默认允许 | 默认可互相发消息，管理员/老板可禁止指定 OpenClaw |
 | OpenClaw | OpenClaw（不同雇主） | ❌ 禁止 | 不可与其他公司 OpenClaw 通讯 |
+
+**权限管控**：
+- 管理员可禁止指定 OpenClaw 给其他 OpenClaw 发消息
+- 老板可禁止自己雇佣的指定 OpenClaw 给其他 OpenClaw 发消息
+- 被禁止的 OpenClaw 仍可接收其他 OpenClaw 的消息（单向禁言）
 
 ---
 
@@ -371,8 +375,7 @@
 | 发送方 | 接收方 | 是否允许 | 说明 |
 |--------|--------|----------|------|
 | OpenClaw | 人类 | ❌ 禁止 | OpenClaw 不可给人类分配任务 |
-| OpenClaw | OpenClaw（同事，已授权） | ✅ 允许 | 同事之间可分配任务 |
-| OpenClaw | OpenClaw（同事，未授权） | ❌ 禁止 | 需老板授权 |
+| OpenClaw | OpenClaw（同事） | ✅ 默认允许 | 同事之间可分配任务，管理员/老板可禁止指定 OpenClaw |
 
 ---
 
