@@ -1,14 +1,19 @@
 # Dependencies
 node_modules/
+venv/
+__pycache__/
+*.pyc
 
 # Build output
 dist/
 *.tsbuildinfo
 
-# Environment
+# Environment (敏感配置)
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
 
 # IDE
 .vscode/
@@ -23,9 +28,46 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+logs/
 
 # Testing
 coverage/
 
 # Docker
 *.pid
+
+# Database
+*.db
+*.sqlite
+
+# Secrets (敏感信息)
+*.pem
+*.key
+secrets/
+credentials/
+
+# Backup files
+backups/
+*.bak
+*.sql.gz
+
+# Python
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Management deploy (部署文件)
+management-deploy/
