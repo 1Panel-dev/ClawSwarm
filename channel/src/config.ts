@@ -247,11 +247,11 @@ export const channelAccountConfigSchema = {
         },
         outboundToken: {
             type: "string",
-            description: "必填：channel 回调调度中心时使用的 Bearer Token",
+            description: "必填：channel 回调 Claw Team 调度中心时使用的 Bearer Token",
         },
         inboundSigningSecret: {
             type: "string",
-            description: "必填：调度中心调用 channel 时使用的签名密钥",
+            description: "必填：Claw Team 调度中心调用 channel 时使用的签名密钥",
         },
         gatewayBaseUrl: {
             type: "string",
