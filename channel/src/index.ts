@@ -3,16 +3,20 @@
  * 它负责把配置解析、日志、幂等、状态存储、回调客户端和 HTTP 路由组装起来。
  *
  * 调用流程：
- * 1. 宿主加载插件并调用 registerFull。
+ * 1. 宿主加载插件默认导出的对象，并调用 register(api)。
  * 2. 这里创建 logger / idempotency / messageState / runtime adapter。
  * 3. 然后注册 channel 元信息和统一的 HTTP 路由前缀。
  * 4. 后续所有真实请求都会从 http/routes.ts 进入业务链路。
  */
-import {
-    defineChannelPluginEntry,
-} from "openclaw/plugin-sdk/core";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 
-import { CHANNEL_ID, listAccountIds, pluginConfigSchema, resolveAccount } from "./config.js";
+import {
+    CHANNEL_ID,
+    channelAccountConfigSchema,
+    listAccountIds,
+    pluginConfigSchema,
+    resolveAccount,
+} from "./config.js";
 import { createLogger, wrapOpenClawLogger } from "./observability/logger.js";
 import { createIdempotencyStore } from "./store/idempotency.js";
 import { InMemoryMessageStateStore } from "./store/messageState.js";
@@ -20,20 +24,14 @@ import { createClawTeamRoutes } from "./http/routes.js";
 import { HttpClawTeamCallbackClient } from "./callback/client.js";
 import { createOpenClawRuntimeAdapter } from "./openclaw/adapters.js";
 
-// 某些宿主会在 setRuntime 阶段先下发 runtime，再进入 registerFull。
-let runtime: any = null;
-
-export default defineChannelPluginEntry({
+// 这台 OpenClaw 宿主导出的插件入口形状和 defineChannelPluginEntry 不一致，
+// 所以这里直接导出一个和宿主内置 1panel 插件同形状的对象。
+const plugin = {
     id: CHANNEL_ID,
     name: "Claw Team Channel",
     description: "Channel plugin bridging OpenClaw agents with Claw Team platform.",
     configSchema: pluginConfigSchema,
-
-    setRuntime(rt) {
-        runtime = rt;
-    },
-
-    registerFull(api) {
+    register(api: OpenClawPluginApi) {
         // 尽量复用宿主 logger，这样插件日志能和 Gateway 日志汇总到一起。
         const sink = wrapOpenClawLogger(api.logger);
         const logger = createLogger({ sink });
@@ -67,6 +65,9 @@ export default defineChannelPluginEntry({
                 capabilities: {
                     chatTypes: ["direct", "group"],
                 },
+                configSchema: {
+                    schema: channelAccountConfigSchema,
+                },
                 config: {
                     listAccountIds,
                     resolveAccount,
@@ -99,4 +100,6 @@ export default defineChannelPluginEntry({
             handler,
         });
     },
-});
+};
+
+export default plugin;

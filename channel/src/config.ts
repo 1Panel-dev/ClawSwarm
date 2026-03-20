@@ -98,163 +98,172 @@ export type GatewayRuntimeConfig = {
     allowInsecureTls: boolean;
 };
 
-// 这份 schema 提供给 OpenClaw 宿主做运行时配置声明，尽量与 openclaw.plugin.json 保持一致。
+type RawAccountConfig = Record<string, unknown>;
+
+function asString(value: unknown): string | undefined {
+    return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function asBoolean(value: unknown): boolean | undefined {
+    return typeof value === "boolean" ? value : undefined;
+}
+
+function asNumber(value: unknown): number | undefined {
+    return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function asStringArray(value: unknown): string[] | undefined {
+    if (!Array.isArray(value)) return undefined;
+    const out = value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+    return out.length > 0 ? out : undefined;
+}
+
+function parseAliasesJson(value: unknown): Record<string, string> | undefined {
+    if (typeof value !== "string" || !value.trim()) return undefined;
+    try {
+        const parsed = JSON.parse(value);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+        return Object.fromEntries(
+            Object.entries(parsed).filter(
+                (entry): entry is [string, string] => typeof entry[0] === "string" && typeof entry[1] === "string",
+            ),
+        );
+    } catch {
+        return undefined;
+    }
+}
+
+// normalizeAccountConfigInput 让代码同时兼容两种配置写法：
+// 1. 旧版嵌套结构：gateway / agentDirectory / limits / idempotency / retry
+// 2. UI 友好的扁平结构：gatewayBaseUrl / maxBroadcastAgents / retryMaxAttempts ...
+// 3. 更保守的 UI 兼容结构：allowedAgentIdsCsv / retryJitterRatioPercent
+// OpenClaw 当前控制台对 schema 支持范围比较有限，因此数组和 number 往往要退化成字符串或整数。
+function normalizeAccountConfigInput(raw: RawAccountConfig): RawAccountConfig {
+    const gateway = (raw.gateway as RawAccountConfig | undefined) ?? {};
+    const agentDirectory = (raw.agentDirectory as RawAccountConfig | undefined) ?? {};
+    const limits = (raw.limits as RawAccountConfig | undefined) ?? {};
+    const idempotency = (raw.idempotency as RawAccountConfig | undefined) ?? {};
+    const retry = (raw.retry as RawAccountConfig | undefined) ?? {};
+
+    return {
+        ...raw,
+        gateway: {
+            ...gateway,
+            baseUrl: asString(gateway.baseUrl) ?? asString(raw.gatewayBaseUrl),
+            token: asString(gateway.token) ?? asString(raw.gatewayToken),
+            model: asString(gateway.model) ?? asString(raw.gatewayModel),
+            stream: asBoolean(gateway.stream) ?? asBoolean(raw.gatewayStream),
+            allowInsecureTls:
+                asBoolean(gateway.allowInsecureTls) ?? asBoolean(raw.gatewayAllowInsecureTls),
+        },
+        agentDirectory: {
+            ...agentDirectory,
+            allowedAgentIds:
+                asStringArray(agentDirectory.allowedAgentIds) ??
+                asStringArray(raw.allowedAgentIds) ??
+                (typeof raw.allowedAgentIdsCsv === "string"
+                    ? raw.allowedAgentIdsCsv
+                          .split(",")
+                          .map((item) => item.trim())
+                          .filter((item) => item.length > 0)
+                    : undefined),
+            aliases:
+                ((agentDirectory.aliases as Record<string, string> | undefined) ?? parseAliasesJson(raw.aliasesJson)),
+        },
+        limits: {
+            ...limits,
+            maxBroadcastAgents: asNumber(limits.maxBroadcastAgents) ?? asNumber(raw.maxBroadcastAgents),
+            maxInFlightRuns: asNumber(limits.maxInFlightRuns) ?? asNumber(raw.maxInFlightRuns),
+            perAgentConcurrency: asNumber(limits.perAgentConcurrency) ?? asNumber(raw.perAgentConcurrency),
+            maxBodyBytes: asNumber(limits.maxBodyBytes) ?? asNumber(raw.maxBodyBytes),
+            timeSkewMs: asNumber(limits.timeSkewMs) ?? asNumber(raw.timeSkewMs),
+            nonceTtlSeconds: asNumber(limits.nonceTtlSeconds) ?? asNumber(raw.nonceTtlSeconds),
+        },
+        idempotency: {
+            ...idempotency,
+            mode: asString(idempotency.mode) ?? asString(raw.idempotencyMode),
+            ttlSeconds: asNumber(idempotency.ttlSeconds) ?? asNumber(raw.idempotencyTtlSeconds),
+            redisUrl: asString(idempotency.redisUrl) ?? asString(raw.redisUrl),
+        },
+        retry: {
+            ...retry,
+            maxAttempts: asNumber(retry.maxAttempts) ?? asNumber(raw.retryMaxAttempts),
+            baseDelayMs: asNumber(retry.baseDelayMs) ?? asNumber(raw.retryBaseDelayMs),
+            maxDelayMs: asNumber(retry.maxDelayMs) ?? asNumber(raw.retryMaxDelayMs),
+            jitterRatio:
+                asNumber(retry.jitterRatio) ??
+                asNumber(raw.retryJitterRatio) ??
+                (typeof raw.retryJitterRatioPercent === "number"
+                    ? raw.retryJitterRatioPercent / 100
+                    : undefined),
+            deadLetterFile: asString(retry.deadLetterFile) ?? asString(raw.retryDeadLetterFile),
+            callbackTimeoutMs:
+                asNumber(retry.callbackTimeoutMs) ?? asNumber(raw.retryCallbackTimeoutMs),
+        },
+    };
+}
+
+// 这份 schema 提供给 OpenClaw 宿主做运行时配置声明。
+// 这里尽量贴近 1panel 插件那种“极简、宽松”的 schema 风格，
+// 优先保证 Control UI 能渲染；更严格的校验仍然交给 Zod 解析阶段处理。
 export const pluginConfigSchema = {
+    type: "object",
+    properties: {
+        enabled: {
+            type: "boolean",
+        },
+        accounts: {
+            type: "object",
+            additionalProperties: {
+                type: "object",
+                properties: {
+                    enabled: { type: "boolean" },
+                    baseUrl: { type: "string" },
+                    outboundToken: { type: "string" },
+                    inboundSigningSecret: { type: "string" },
+                    gatewayBaseUrl: { type: "string" },
+                    gatewayToken: { type: "string" },
+                    gatewayModel: { type: "string" },
+                },
+            },
+        },
+    },
+} as const;
+
+// 这是注册给 registerChannel({ plugin }) 的“账号级”表单 schema。
+// OpenClaw 控制台在 Channel 配置页里，实际更像是读取这里，而不是外层 manifest 的总配置 schema。
+// 因此它必须和 1panel 的形状接近：{ configSchema: { schema: ... } }。
+export const channelAccountConfigSchema = {
     type: "object",
     additionalProperties: false,
     properties: {
-        channels: {
-            type: "object",
-            additionalProperties: true,
-            properties: {
-                [CHANNEL_ID]: {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                        accounts: {
-                            type: "object",
-                            default: {},
-                            additionalProperties: {
-                                type: "object",
-                                additionalProperties: false,
-                                required: ["baseUrl", "outboundToken", "inboundSigningSecret"],
-                                properties: {
-                                    enabled: { type: "boolean", default: true },
-                                    baseUrl: { type: "string", minLength: 1 },
-                                    outboundToken: { type: "string", minLength: 8 },
-                                    inboundSigningSecret: { type: "string", minLength: 16 },
-                                    gateway: {
-                                        type: "object",
-                                        additionalProperties: false,
-                                        properties: {
-                                            baseUrl: { type: "string", minLength: 1 },
-                                            token: { type: "string", minLength: 1 },
-                                            model: { type: "string", minLength: 1, default: "openclaw" },
-                                            stream: { type: "boolean", default: true },
-                                            allowInsecureTls: { type: "boolean", default: false },
-                                        },
-                                    },
-                                    agentDirectory: {
-                                        type: "object",
-                                        additionalProperties: false,
-                                        properties: {
-                                            allowedAgentIds: {
-                                                type: "array",
-                                                items: { type: "string", minLength: 1 },
-                                            },
-                                            aliases: {
-                                                type: "object",
-                                                additionalProperties: { type: "string", minLength: 1 },
-                                            },
-                                        },
-                                    },
-                                    limits: {
-                                        type: "object",
-                                        additionalProperties: false,
-                                        properties: {
-                                            maxBroadcastAgents: {
-                                                type: "integer",
-                                                minimum: 1,
-                                                maximum: 500,
-                                                default: 50,
-                                            },
-                                            maxInFlightRuns: {
-                                                type: "integer",
-                                                minimum: 1,
-                                                maximum: 500,
-                                                default: 20,
-                                            },
-                                            perAgentConcurrency: {
-                                                type: "integer",
-                                                minimum: 1,
-                                                maximum: 50,
-                                                default: 2,
-                                            },
-                                            maxBodyBytes: {
-                                                type: "integer",
-                                                minimum: 1024,
-                                                maximum: 2097152,
-                                                default: 1048576,
-                                            },
-                                            timeSkewMs: {
-                                                type: "integer",
-                                                minimum: 0,
-                                                maximum: 3600000,
-                                                default: 300000,
-                                            },
-                                            nonceTtlSeconds: {
-                                                type: "integer",
-                                                minimum: 30,
-                                                maximum: 3600,
-                                                default: 600,
-                                            },
-                                        },
-                                    },
-                                    idempotency: {
-                                        type: "object",
-                                        additionalProperties: false,
-                                        properties: {
-                                            mode: {
-                                                type: "string",
-                                                enum: ["memory", "redis"],
-                                                default: "memory",
-                                            },
-                                            ttlSeconds: {
-                                                type: "integer",
-                                                minimum: 10,
-                                                maximum: 604800,
-                                                default: 86400,
-                                            },
-                                            redisUrl: { type: "string", minLength: 1 },
-                                        },
-                                    },
-                                    retry: {
-                                        type: "object",
-                                        additionalProperties: false,
-                                        properties: {
-                                            maxAttempts: {
-                                                type: "integer",
-                                                minimum: 0,
-                                                maximum: 50,
-                                                default: 10,
-                                            },
-                                            baseDelayMs: {
-                                                type: "integer",
-                                                minimum: 50,
-                                                maximum: 60000,
-                                                default: 500,
-                                            },
-                                            maxDelayMs: {
-                                                type: "integer",
-                                                minimum: 100,
-                                                maximum: 600000,
-                                                default: 60000,
-                                            },
-                                            jitterRatio: {
-                                                type: "number",
-                                                minimum: 0,
-                                                maximum: 1,
-                                                default: 0.2,
-                                            },
-                                            deadLetterFile: {
-                                                type: "string",
-                                                minLength: 1,
-                                                default: "./claw-team.dlq.jsonl",
-                                            },
-                                            callbackTimeoutMs: {
-                                                type: "integer",
-                                                minimum: 100,
-                                                maximum: 60000,
-                                                default: 8000,
-                                            },
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                    },
-                },
-            },
+        enabled: {
+            type: "boolean",
+            description: "选填：是否启用这个账号",
+        },
+        baseUrl: {
+            type: "string",
+            description: "必填：Claw Team 调度中心回调地址",
+        },
+        outboundToken: {
+            type: "string",
+            description: "必填：channel 回调调度中心时使用的 Bearer Token",
+        },
+        inboundSigningSecret: {
+            type: "string",
+            description: "必填：调度中心调用 channel 时使用的签名密钥",
+        },
+        gatewayBaseUrl: {
+            type: "string",
+            description: "建议填写：OpenClaw Gateway 地址，不填时回退到默认值或环境变量",
+        },
+        gatewayToken: {
+            type: "string",
+            description: "建议填写：调用 OpenClaw Gateway 的 Bearer Token",
+        },
+        gatewayModel: {
+            type: "string",
+            description: "选填：调用 Gateway 时使用的模型名，默认 openclaw",
         },
     },
 } as const;
@@ -275,7 +284,7 @@ export function listAccountIds(cfg: any): string[] {
 export function resolveAccount(cfg: any, accountId?: string): ResolvedAccount {
     const sec = getChannelSection(cfg);
     const raw = sec?.accounts?.[accountId ?? "default"] ?? {};
-    const parsed = AccountConfigSchema.parse(raw);
+    const parsed = AccountConfigSchema.parse(normalizeAccountConfigInput(raw));
     return { ...parsed, accountId: accountId ?? "default" };
 }
 

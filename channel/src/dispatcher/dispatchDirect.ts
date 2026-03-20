@@ -135,7 +135,12 @@ export async function dispatchDirect(params: {
             text: inbound.text,
             gateway: resolveGatewayRuntimeConfig(accountConfig),
         })) {
-            if (chunk.text) {
+            // 某些 adapter 会先发增量 chunk，再补一个“完整文本 final”。
+            // 如果这里不做保护，就会把最终文本再拼进 buf 一次，导致 reply.final 重复。
+            const isAggregatedFinalDuplicate =
+                !!chunk.isFinal && !!chunk.text && buf.length > 0 && chunk.text === buf;
+
+            if (chunk.text && !isAggregatedFinalDuplicate) {
                 buf += chunk.text;
                 // 每个 chunk 都实时回调给 Claw Team，便于做流式展示。
                 await emitEvent({

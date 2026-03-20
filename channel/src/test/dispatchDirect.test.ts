@@ -7,7 +7,12 @@
 import { describe, expect, it } from "vitest";
 
 import { AccountConfigSchema, resolveGatewayRuntimeConfig } from "../config.js";
+import { dispatchDirect } from "../dispatcher/dispatchDirect.js";
 import { createMockOpenClawRuntimeAdapter, createOpenClawRuntimeAdapter } from "../openclaw/adapters.js";
+import { createLogger } from "../observability/logger.js";
+import { InMemoryMessageStateStore } from "../store/messageState.js";
+import { createIdempotencyStore } from "../store/idempotency.js";
+import type { ClawTeamEvent } from "../callback/client.js";
 
 const gateway = resolveGatewayRuntimeConfig(
     AccountConfigSchema.parse({
@@ -120,5 +125,74 @@ describe("createOpenClawRuntimeAdapter", () => {
         }
 
         expect(chunks).toEqual(["single response"]);
+    });
+
+    it("does not duplicate reply.final text when an SSE adapter emits an aggregated final chunk", async () => {
+        const accountConfig = AccountConfigSchema.parse({
+            baseUrl: "https://claw-team.example.com",
+            outboundToken: "outbound-token",
+            inboundSigningSecret: "1234567890123456",
+            gateway: {
+                baseUrl: "https://gateway.example.com",
+                token: "gateway-token",
+                model: "openclaw",
+                stream: true,
+                allowInsecureTls: false,
+            },
+        });
+        const logger = createLogger();
+        const messageState = new InMemoryMessageStateStore();
+        const idempotency = createIdempotencyStore({ mode: "memory", logger });
+        const events: ClawTeamEvent[] = [];
+
+        messageState.create({
+            messageId: "msg-test-1234",
+            traceId: "trace-1",
+            accountId: "default",
+            conversationId: "conv-1",
+            targetAgentIds: [],
+            sessionKeys: [],
+            status: "ROUTED",
+            createdAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+        });
+
+        await dispatchDirect({
+            channelId: "claw-team",
+            accountId: "default",
+            accountConfig,
+            logger,
+            idempotency,
+            messageState,
+            clawTeam: {
+                async sendEvent(event) {
+                    events.push(event);
+                },
+            },
+            openclaw: {
+                async *runAgentTextTurn() {
+                    yield { text: "hello " };
+                    yield { text: "world" };
+                    yield { text: "hello world", isFinal: true };
+                },
+            },
+            inbound: {
+                messageId: "msg-test-1234",
+                accountId: "default",
+                chat: { type: "direct", chatId: "conv-1" },
+                from: { userId: "user-1", displayName: "User" },
+                text: "hello",
+                directAgentId: "qa",
+            },
+            agentId: "qa",
+            routeKind: "DIRECT",
+            traceId: "trace-1",
+        });
+
+        const finalEvent = events.find((event) => event.eventType === "reply.final");
+        expect(finalEvent?.payload.text).toBe("hello world");
+
+        const chunkEvents = events.filter((event) => event.eventType === "reply.chunk");
+        expect(chunkEvents.map((event) => event.payload.text)).toEqual(["hello ", "world"]);
     });
 });
