@@ -1,3 +1,9 @@
+"""
+这个模型保存 channel 回调回来的原始事件。
+
+即使业务状态已经回写到 messages / message_dispatches，
+这里仍然保留原始事件，方便以后排障、审计和重放。
+"""
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, JSON, String

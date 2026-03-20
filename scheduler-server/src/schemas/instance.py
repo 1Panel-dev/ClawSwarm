@@ -1,9 +1,15 @@
+"""
+这里定义实例管理相关的请求与响应 schema。
+
+它对应的是 OpenClawInstance 模型，但会把内部 ORM 对象收敛成 API 层输入输出结构。
+"""
 from pydantic import BaseModel, Field
 
 from src.schemas.common import TimestampedModel
 
 
 class InstanceCreate(BaseModel):
+    # 这些字段就是调度中心接入一套 claw-team channel 所需的最小连接信息。
     name: str = Field(min_length=1, max_length=120)
     channel_base_url: str = Field(min_length=1, max_length=500)
     channel_account_id: str = Field(default="default", min_length=1, max_length=120)
@@ -22,6 +28,7 @@ class InstanceUpdate(BaseModel):
 
 
 class InstanceRead(TimestampedModel):
+    # 响应里不直接暴露签名密钥和 callback token，避免无意泄漏。
     id: int
     name: str
     channel_base_url: str

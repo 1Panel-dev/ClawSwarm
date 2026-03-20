@@ -1,3 +1,8 @@
+"""
+这里定义群组和群成员管理相关的 schema。
+
+第一阶段里，群组成员是跨实例群聊的业务基础，因此这里的响应结构会额外带展示字段。
+"""
 from pydantic import BaseModel, Field
 
 from src.schemas.common import TimestampedModel
@@ -24,6 +29,7 @@ class GroupMemberAddRequest(BaseModel):
 
 
 class GroupMemberRead(BaseModel):
+    # 这里把成员关系、Agent 展示名和实例名一起返回，方便前端直接渲染。
     id: int
     group_id: int
     instance_id: int

@@ -1,3 +1,11 @@
+"""
+这个文件负责前端左侧通讯录所需的聚合接口。
+
+主要职责：
+1. 一次性返回实例树、实例下的 agent，以及群组列表。
+2. 把多张表的数据整理成前端可以直接渲染的树形结构。
+3. 减少前端首次加载时的接口调用次数。
+"""
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -20,6 +28,7 @@ router = APIRouter(prefix="/api", tags=["address-book"])
 
 @router.get("/address-book", response_model=AddressBookResponse)
 def get_address_book(db: Session = Depends(db_session)) -> AddressBookResponse:
+    # 第一阶段前端先用一个聚合接口拿全量通讯录，避免刚起步时为了树结构拆太多请求。
     instances = list(db.scalars(select(OpenClawInstance).order_by(OpenClawInstance.id)))
     agents = list(db.scalars(select(AgentProfile).order_by(AgentProfile.instance_id, AgentProfile.id)))
     groups = list(db.scalars(select(ChatGroup).order_by(ChatGroup.id)))
@@ -30,6 +39,7 @@ def get_address_book(db: Session = Depends(db_session)) -> AddressBookResponse:
 
     grouped_agents: dict[int, list[AddressBookAgent]] = {}
     for agent in agents:
+        # 这里先按 instance_id 归并 agent，后面实例列表输出时可直接挂到对应实例下面。
         grouped_agents.setdefault(agent.instance_id, []).append(
             AddressBookAgent(
                 id=agent.id,
@@ -46,6 +56,7 @@ def get_address_book(db: Session = Depends(db_session)) -> AddressBookResponse:
         instance = instance_map.get(member.instance_id)
         if not agent or not instance:
             continue
+        # 群组成员既要展示 agent 名，也要展示它来自哪个实例，所以这里把两边信息合并起来。
         group_members.setdefault(member.group_id, []).append(
             AddressBookGroupMember(
                 id=member.id,
@@ -59,10 +70,12 @@ def get_address_book(db: Session = Depends(db_session)) -> AddressBookResponse:
 
     return AddressBookResponse(
         instances=[
+            # 前端左侧通讯录展示实例节点时，直接使用这里整理好的 agents 列表。
             AddressBookInstance(id=i.id, name=i.name, status=i.status, agents=grouped_agents.get(i.id, []))
             for i in instances
         ],
         groups=[
+            # 群组节点同样直接附带成员，前端不必再二次查询群成员详情。
             AddressBookGroup(id=g.id, name=g.name, description=g.description, members=group_members.get(g.id, []))
             for g in groups
         ],

@@ -1,3 +1,11 @@
+"""
+这个文件负责群组与群成员管理。
+
+第一阶段里，群组是调度中心维护的核心业务对象：
+1. 前端从这里创建群。
+2. 从这里给群添加或删除 agent 成员。
+3. 群聊发消息时，conversations.py 会读取这里维护的成员列表。
+"""
 from datetime import timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,6 +30,7 @@ def list_groups(db: Session = Depends(db_session)) -> list[ChatGroup]:
 
 @router.post("", response_model=GroupRead)
 def create_group(payload: GroupCreate, db: Session = Depends(db_session)) -> ChatGroup:
+    # 群本身只保存名称和描述，成员关系单独存放在 chat_group_members。
     item = ChatGroup(**dump_model(payload))
     db.add(item)
     db.commit()
@@ -45,6 +54,7 @@ def add_group_members(group_id: int, payload: GroupMemberAddRequest, db: Session
         raise HTTPException(status_code=404, detail="group not found")
 
     for item in payload.members:
+        # 群成员是“实例 + agent”二元组，所以这里要同时校验 instance 和 agent 都存在。
         instance = db.get(OpenClawInstance, item.instance_id)
         agent = db.get(AgentProfile, item.agent_id)
         if not instance:
@@ -78,6 +88,7 @@ def delete_group_member(group_id: int, member_id: int, db: Session = Depends(db_
 
 
 def _load_group_members(db: Session, group_id: int) -> list[GroupMemberRead]:
+    # 这里把纯关系表 chat_group_members 转成前端更容易直接用的展示结构。
     members = list(db.scalars(select(ChatGroupMember).where(ChatGroupMember.group_id == group_id).order_by(ChatGroupMember.id)))
     out: list[GroupMemberRead] = []
     for member in members:

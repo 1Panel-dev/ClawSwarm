@@ -1,3 +1,10 @@
+"""
+这个模型表示调度中心自己维护的群组。
+
+注意：
+群组本身只保存元信息；
+群成员关系放在 chat_group_members 表中。
+"""
 from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 

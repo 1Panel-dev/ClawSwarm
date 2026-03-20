@@ -11,6 +11,10 @@ class OrmModel(BaseModel):
     """
     model_config = ConfigDict(from_attributes=True)
 
+    class Config:
+        # 同时兼容 Pydantic 1 的 from_orm 路径。
+        orm_mode = True
+
 
 class ApiMessage(BaseModel):
     message: str
