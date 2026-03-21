@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
+from src.core.config import settings
 from src.integrations.channel_client import channel_client
 from src.models.agent_profile import AgentProfile
 from src.models.chat_group import ChatGroup
@@ -30,8 +31,10 @@ from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.services.local_agent_mock import simulate_local_agent_reply
 from src.schemas.common import validate_orm
 from src.schemas.conversation import (
+    build_message_read,
     ConversationListItem,
     ConversationMessagesResponse,
     ConversationRead,
@@ -187,7 +190,7 @@ def list_conversation_messages(
     dispatches = list(db.scalars(dispatch_query.order_by(MessageDispatch.created_at, MessageDispatch.id)))
     return ConversationMessagesResponse(
         conversation=validate_orm(ConversationRead, conversation),
-        messages=[validate_orm(MessageRead, item) for item in messages],
+        messages=[build_message_read(item) for item in messages],
         dispatches=[validate_orm(DispatchRead, item) for item in dispatches],
         next_message_cursor=messages[-1].id if messages else message_after,
         next_dispatch_cursor=dispatches[-1].id if dispatches else dispatch_after,
@@ -199,7 +202,7 @@ async def send_message(
     conversation_id: int,
     payload: MessageCreate,
     db: Session = Depends(db_session),
-) -> Message:
+) -> MessageRead:
     # 用户发消息时，先落一条“用户消息”，后续 dispatch 和 callback 都围绕这条 message.id 关联。
     conversation = db.get(Conversation, conversation_id)
     if not conversation:
@@ -218,17 +221,30 @@ async def send_message(
     db.refresh(message)
 
     # direct 只发给一个 agent；group 会先按 instance 分组，再分别调用对应 channel。
+    dispatch_ids: list[str] = []
     if conversation.type == "direct":
-        await _dispatch_direct(db=db, conversation=conversation, message=message)
+        dispatch_ids = await _dispatch_direct(db=db, conversation=conversation, message=message)
     else:
-        await _dispatch_group(db=db, conversation=conversation, message=message, mentions=payload.mentions)
+        dispatch_ids = await _dispatch_group(db=db, conversation=conversation, message=message, mentions=payload.mentions)
 
     db.commit()
+
+    if settings.local_agent_mock_enabled and dispatch_ids:
+        # 本地联调模式下，先把用户消息和 dispatch 落库，
+        # 再同步生成模拟 Agent 回复。
+        # 这样前端马上就能通过真实后端接口拿到完整消息流，不受后台任务时机影响。
+        simulate_local_agent_reply(
+            db=db,
+            conversation_id=conversation.id,
+            message_id=message.id,
+            dispatch_ids=dispatch_ids,
+        )
+
     db.refresh(message)
-    return message
+    return build_message_read(message)
 
 
-async def _dispatch_direct(*, db: Session, conversation: Conversation, message: Message) -> None:
+async def _dispatch_direct(*, db: Session, conversation: Conversation, message: Message) -> list[str]:
     # 单聊场景下，conversation 上直接挂了目标 instance 和 agent。
     instance = db.get(OpenClawInstance, conversation.direct_instance_id)
     agent = db.get(AgentProfile, conversation.direct_agent_id)
@@ -247,6 +263,10 @@ async def _dispatch_direct(*, db: Session, conversation: Conversation, message: 
     )
     db.add(dispatch)
     db.flush()
+    if settings.local_agent_mock_enabled:
+        dispatch.status = "accepted"
+        message.status = "accepted"
+        return [dispatch.id]
     # 这里组装的是发给 claw-team channel 的统一入站 payload，
     # 它的字段形状必须和 channel 插件侧 routes.py 约定保持一致。
     response = await channel_client.send_inbound(
@@ -263,9 +283,10 @@ async def _dispatch_direct(*, db: Session, conversation: Conversation, message: 
     dispatch.status = "accepted"
     dispatch.channel_trace_id = response.get("traceId")
     message.status = "accepted"
+    return [dispatch.id]
 
 
-async def _dispatch_group(*, db: Session, conversation: Conversation, message: Message, mentions: list[str]) -> None:
+async def _dispatch_group(*, db: Session, conversation: Conversation, message: Message, mentions: list[str]) -> list[str]:
     if not conversation.group_id:
         raise HTTPException(status_code=400, detail="group conversation missing group id")
     group = db.get(ChatGroup, conversation.group_id)
@@ -297,6 +318,8 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
     for instance_id, agent in filtered:
         by_instance.setdefault(instance_id, []).append(agent)
 
+    created_dispatch_ids: list[str] = []
+
     # 群成员可能分布在多个 OpenClaw 实例上，所以这里必须先按 instance 分组，
     # 然后分别调用各自实例上的 channel。
     for instance_id, instance_agents in by_instance.items():
@@ -318,7 +341,23 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
             )
             db.add(dispatch)
             agent_keys.append(agent.agent_key)
+            created_dispatch_ids.append(dispatch.id)
         db.flush()
+
+        if settings.local_agent_mock_enabled:
+            message.status = "accepted"
+            for agent in instance_agents:
+                dispatch = db.scalar(
+                    select(MessageDispatch).where(
+                        MessageDispatch.message_id == message.id,
+                        MessageDispatch.conversation_id == conversation.id,
+                        MessageDispatch.instance_id == instance_id,
+                        MessageDispatch.agent_id == agent.id,
+                    )
+                )
+                if dispatch:
+                    dispatch.status = "accepted"
+            continue
 
         inbound_payload = {
             "messageId": message.id,
@@ -346,3 +385,4 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
                 dispatch.status = "accepted"
                 dispatch.channel_trace_id = response.get("traceId")
         message.status = "accepted"
+    return created_dispatch_ids

@@ -27,6 +27,9 @@ class Settings(BaseModel):
     # 远程联调阶段，OpenClaw 的 channel 走的是自签证书 HTTPS。
     # 这里保留一个显式开关，避免把 verify=False 写死在业务代码里。
     channel_allow_insecure_tls: bool = _env_flag("CHANNEL_ALLOW_INSECURE_TLS", False)
+    # 本地前后端联调时，如果 OpenClaw / channel 不可用，
+    # 可以打开这个开关，由 scheduler-server 自己生成一条模拟 Agent 回复。
+    local_agent_mock_enabled: bool = _env_flag("LOCAL_AGENT_MOCK_ENABLED", False)
 
 
 settings = Settings()

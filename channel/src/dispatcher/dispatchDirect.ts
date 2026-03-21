@@ -19,6 +19,7 @@ import type { InboundMessage } from "../router/resolveRoute.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
 import type { ClawTeamCallbackClient, ClawTeamEvent } from "../callback/client.js";
 import { sendEventWithRetry } from "../callback/retry.js";
+import { buildCallbackMessageParts } from "../callback/parts.js";
 
 // dispatchDirect 是最小执行单元：单个 Agent、单个 sessionKey、单条消息。
 export async function dispatchDirect(params: {
@@ -165,7 +166,11 @@ export async function dispatchDirect(params: {
             inbound,
             agentId,
             sessionKey,
-            payload: { text: buf, routeKind },
+            payload: {
+                text: buf,
+                routeKind,
+                parts: buildCallbackMessageParts(buf),
+            },
         });
 
         if (messageState.get(inbound.messageId)) {

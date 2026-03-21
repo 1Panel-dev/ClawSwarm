@@ -1,0 +1,17 @@
+html {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background: var(--color-bg-app);
+}
+
+body {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}

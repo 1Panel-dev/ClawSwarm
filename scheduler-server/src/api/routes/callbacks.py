@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import select
@@ -104,7 +105,7 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
     if message:
         if event_type == "reply.final":
             # final 事件视为一次 agent 回复完成，因此生成一条 sender_type=agent 的消息。
-            text = str(event.get("payload", {}).get("text", ""))
+            text = _build_message_content(event.get("payload", {}))
             agent_message_id = f"msg_{event_id or dispatch.id}"
             existing_agent_message = db.get(Message, agent_message_id)
             if not existing_agent_message:
@@ -153,3 +154,58 @@ def _pick_higher_status(current_status: str | None, next_status: str | None) -> 
     current = current_status or "pending"
     target = next_status or current
     return target if order.get(target, 0) >= order.get(current, 0) else current
+
+
+def _build_message_content(payload: dict[str, Any]) -> str:
+    """
+    优先使用 callback 里已经结构化好的 parts。
+
+    当前数据库还没升级成真正的 JSON parts 存储，
+    所以这里先把 parts 回写成一段可逆 content：
+    1. markdown 直接保留文本
+    2. attachment / tool_card 用约定标记回写
+
+    这样消息接口层依然能把它重新拆成 parts，
+    前端也就能先看到真实 callback 产生的富内容。
+    """
+    raw_parts = payload.get("parts")
+    if not isinstance(raw_parts, list) or not raw_parts:
+        return str(payload.get("text", ""))
+
+    chunks: list[str] = []
+    for raw_part in raw_parts:
+        if not isinstance(raw_part, dict):
+            continue
+
+        kind = str(raw_part.get("kind", "")).strip()
+        if kind == "markdown":
+            content = str(raw_part.get("content", "")).strip()
+            if content:
+                chunks.append(content)
+            continue
+
+        if kind == "attachment":
+            name = str(raw_part.get("name", "")).strip()
+            mime_type = str(raw_part.get("mimeType") or raw_part.get("mime_type") or "").strip()
+            url = str(raw_part.get("url", "")).strip()
+            if name and url:
+                chunks.append(f"[[attachment:{name}|{mime_type}|{url}]]")
+            continue
+
+        if kind == "tool_card":
+            title = str(raw_part.get("title", "")).strip()
+            status = _normalize_tool_status(str(raw_part.get("status", "")).strip())
+            summary = str(raw_part.get("summary", "")).strip()
+            if title and summary:
+                chunks.append(f"[[tool:{title}|{status}|{summary}]]")
+
+    if chunks:
+        return "\n\n".join(chunks)
+
+    return str(payload.get("text", ""))
+
+
+def _normalize_tool_status(value: str) -> str:
+    if value in {"pending", "running", "completed", "failed"}:
+        return value
+    return "pending"

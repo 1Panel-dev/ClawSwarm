@@ -6,6 +6,8 @@ from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.models.task import Task
+from src.models.task_event import TaskEvent
 
 __all__ = [
     "AgentProfile",
@@ -16,4 +18,6 @@ __all__ = [
     "MessageCallbackEvent",
     "MessageDispatch",
     "OpenClawInstance",
+    "Task",
+    "TaskEvent",
 ]

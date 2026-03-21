@@ -8,6 +8,8 @@
 4. 查询会话列表，用于左侧最近会话区域。
 5. 支持前端轮询时做最小增量拉取。
 """
+import re
+
 from pydantic import BaseModel, Field
 
 from src.schemas.common import TimestampedModel
@@ -58,6 +60,28 @@ class MessageCreate(BaseModel):
     mentions: list[str] = Field(default_factory=list)
 
 
+class MessagePartMarkdown(BaseModel):
+    kind: str = "markdown"
+    content: str
+
+
+class MessagePartAttachment(BaseModel):
+    kind: str = "attachment"
+    name: str
+    mime_type: str | None
+    url: str
+
+
+class MessagePartToolCard(BaseModel):
+    kind: str = "tool_card"
+    title: str
+    status: str
+    summary: str
+
+
+MessagePartRead = MessagePartMarkdown | MessagePartAttachment | MessagePartToolCard
+
+
 class MessageRead(TimestampedModel):
     id: str
     conversation_id: int
@@ -65,6 +89,7 @@ class MessageRead(TimestampedModel):
     sender_label: str
     content: str
     status: str
+    parts: list[MessagePartRead]
 
 
 class DispatchRead(TimestampedModel):
@@ -88,3 +113,72 @@ class ConversationMessagesResponse(BaseModel):
     dispatches: list[DispatchRead]
     next_message_cursor: str | None
     next_dispatch_cursor: str | None
+
+
+_PART_PATTERN = re.compile(r"\[\[(attachment|tool):([^|\]]+)\|([^|\]]*)\|([^\]]+)\]\]")
+
+
+def build_message_parts(content: str) -> list[MessagePartRead]:
+    """
+    这里先做“兼容升级版”的消息拆分。
+
+    当前数据库仍然只存 content 文本，
+    所以后端接口在输出时补一个 parts 字段：
+    1. 普通文本 -> markdown part
+    2. 特殊 attachment 标记 -> attachment part
+
+    这样前端已经可以切到 parts 模型，
+    后面数据库和 callback 再升级时也不用重写消息接口。
+    """
+    parts: list[MessagePartRead] = []
+    last_index = 0
+
+    for match in _PART_PATTERN.finditer(content):
+        text_before = content[last_index:match.start()].strip()
+        if text_before:
+            parts.append(MessagePartMarkdown(content=text_before))
+
+        kind, first, second, third = match.groups()
+        if kind == "attachment":
+            parts.append(
+                MessagePartAttachment(
+                    name=first.strip(),
+                    mime_type=second.strip() or None,
+                    url=third.strip(),
+                )
+            )
+        else:
+            parts.append(
+                MessagePartToolCard(
+                    title=first.strip(),
+                    status=_normalize_tool_status(second.strip()),
+                    summary=third.strip(),
+                )
+            )
+        last_index = match.end()
+
+    rest = content[last_index:].strip()
+    if rest or not parts:
+        parts.append(MessagePartMarkdown(content=rest or content))
+
+    return parts
+
+
+def build_message_read(message) -> MessageRead:
+    return MessageRead(
+        id=message.id,
+        conversation_id=message.conversation_id,
+        sender_type=message.sender_type,
+        sender_label=message.sender_label,
+        content=message.content,
+        status=message.status,
+        created_at=message.created_at,
+        updated_at=message.updated_at,
+        parts=build_message_parts(message.content),
+    )
+
+
+def _normalize_tool_status(value: str) -> str:
+    if value in {"pending", "running", "completed", "failed"}:
+        return value
+    return "pending"

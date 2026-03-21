@@ -195,4 +195,86 @@ describe("createOpenClawRuntimeAdapter", () => {
         const chunkEvents = events.filter((event) => event.eventType === "reply.chunk");
         expect(chunkEvents.map((event) => event.payload.text)).toEqual(["hello ", "world"]);
     });
+
+    it("includes rich message parts in reply.final events", async () => {
+        const accountConfig = AccountConfigSchema.parse({
+            baseUrl: "https://claw-team.example.com",
+            outboundToken: "outbound-token",
+            inboundSigningSecret: "1234567890123456",
+            gateway: {
+                baseUrl: "https://gateway.example.com",
+                token: "gateway-token",
+                model: "openclaw",
+                stream: true,
+                allowInsecureTls: false,
+            },
+        });
+        const logger = createLogger();
+        const messageState = new InMemoryMessageStateStore();
+        const idempotency = createIdempotencyStore({ mode: "memory", logger });
+        const events: ClawTeamEvent[] = [];
+
+        messageState.create({
+            messageId: "msg-parts-1234",
+            traceId: "trace-parts",
+            accountId: "default",
+            conversationId: "conv-parts",
+            targetAgentIds: [],
+            sessionKeys: [],
+            status: "ROUTED",
+            createdAt: new Date().toISOString(),
+            lastUpdated: new Date().toISOString(),
+        });
+
+        await dispatchDirect({
+            channelId: "claw-team",
+            accountId: "default",
+            accountConfig,
+            logger,
+            idempotency,
+            messageState,
+            clawTeam: {
+                async sendEvent(event) {
+                    events.push(event);
+                },
+            },
+            openclaw: {
+                async *runAgentTextTurn() {
+                    yield {
+                        text: [
+                            "巡检摘要如下：",
+                            "",
+                            "[[tool:预发巡检|completed|共检查 12 项，全部正常]]",
+                            "",
+                            "[[attachment:巡检报告.pdf|application/pdf|https://example.com/report.pdf]]",
+                        ].join("\n"),
+                        isFinal: true,
+                    };
+                },
+            },
+            inbound: {
+                messageId: "msg-parts-1234",
+                accountId: "default",
+                chat: { type: "direct", chatId: "conv-parts" },
+                from: { userId: "user-1", displayName: "User" },
+                text: "status",
+                directAgentId: "qa",
+            },
+            agentId: "qa",
+            routeKind: "DIRECT",
+            traceId: "trace-parts",
+        });
+
+        const finalEvent = events.find((event) => event.eventType === "reply.final");
+        expect(finalEvent?.payload.parts).toEqual([
+            { kind: "markdown", content: "巡检摘要如下：" },
+            { kind: "tool_card", title: "预发巡检", status: "completed", summary: "共检查 12 项，全部正常" },
+            {
+                kind: "attachment",
+                name: "巡检报告.pdf",
+                mimeType: "application/pdf",
+                url: "https://example.com/report.pdf",
+            },
+        ]);
+    });
 });

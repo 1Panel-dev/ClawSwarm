@@ -1,0 +1,62 @@
+:root {
+  --font-sans: "IBM Plex Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 40px;
+  --space-8: 56px;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+
+  --shadow-sm: 0 10px 30px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 16px 42px rgba(15, 23, 42, 0.08);
+
+  /* Element Plus 主题变量在根上统一声明，这样组件库按钮、开关、对话框主色会跟随项目主题色。 */
+  --el-color-primary: var(--color-accent);
+  --el-color-primary-light-3: color-mix(in srgb, var(--color-accent) 70%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--color-accent) 55%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--color-accent) 35%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--color-accent) 22%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--color-accent) 12%, white);
+  --el-color-primary-dark-2: color-mix(in srgb, var(--color-accent) 82%, black);
+  --el-button-bg-color: var(--color-accent);
+  --el-button-border-color: var(--color-accent);
+  --el-button-hover-bg-color: var(--el-color-primary-light-3);
+  --el-button-hover-border-color: var(--el-color-primary-light-3);
+  --el-button-active-bg-color: var(--el-color-primary-dark-2);
+  --el-button-active-border-color: var(--el-color-primary-dark-2);
+  --el-button-text-color: var(--color-accent-contrast);
+}
+
+html[data-theme="light"] {
+  --color-bg-app: #f8f4f4;
+  --color-bg-panel: rgba(255, 255, 252, 0.92);
+  --color-bg-soft: #f0e2e2;
+  --color-text-primary: #221919;
+  --color-text-secondary: #756565;
+  --color-border: #e3d2d2;
+  --color-accent: #cf3636;
+  --color-accent-contrast: #f5f7ef;
+  --color-danger: #a33636;
+  --color-success: #6b7d39;
+}
+
+html[data-theme="monochrome"] {
+  --color-bg-app: #f0f0f0;
+  --color-bg-panel: rgba(255, 255, 255, 0.92);
+  --color-bg-soft: #e4e4e4;
+  --color-text-primary: #0f0f0f;
+  --color-text-secondary: #5d5d5d;
+  --color-border: #cdcdcd;
+  --color-accent: #111111;
+  --color-accent-contrast: #f8f8f8;
+  --color-danger: #3a3a3a;
+  --color-success: #1f1f1f;
+}

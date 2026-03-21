@@ -43,3 +43,24 @@ export interface MessageStateRecord {
     createdAt: string;
     lastUpdated: string;
 }
+
+// 这是 channel 回推给 Claw Team 调度中心的富内容片段结构。
+// 当前先支持 markdown / attachment / tool_card，后面如果 OpenClaw
+// 回调里要补图片、音频或更多工具卡片，也沿着这里扩展即可。
+export type CallbackMessagePart =
+    | {
+          kind: "markdown";
+          content: string;
+      }
+    | {
+          kind: "attachment";
+          name: string;
+          mimeType: string | null;
+          url: string;
+      }
+    | {
+          kind: "tool_card";
+          title: string;
+          status: "pending" | "running" | "completed" | "failed";
+          summary: string;
+      };
