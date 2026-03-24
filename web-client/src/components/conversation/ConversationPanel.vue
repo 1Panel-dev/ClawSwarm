@@ -8,6 +8,7 @@
 
     <div v-if="errorMessage" class="panel__error">{{ errorMessage }}</div>
     <MessageList
+      :key="conversationStore.currentConversationId ?? 'empty'"
       :messages="messages"
       :loading="loading"
       :show-typing-indicator="showTypingIndicator"
