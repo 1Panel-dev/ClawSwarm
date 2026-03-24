@@ -31,6 +31,7 @@ from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.services.conversation_events import conversation_event_hub
 from src.services.local_agent_mock import simulate_local_agent_reply
 from src.schemas.common import validate_orm
 from src.schemas.conversation import (
@@ -168,26 +169,34 @@ def list_conversation_messages(
     if not conversation:
         raise HTTPException(status_code=404, detail="conversation not found")
 
-    message_query = select(Message).where(Message.conversation_id == conversation_id)
-    dispatch_query = select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id)
-
-    if message_after:
-        cursor_message = db.get(Message, message_after)
-        if cursor_message and cursor_message.conversation_id == conversation_id:
-            message_query = message_query.where(
-                (Message.created_at > cursor_message.created_at)
-                | ((Message.created_at == cursor_message.created_at) & (Message.id > cursor_message.id))
-            )
-    if dispatch_after:
-        cursor_dispatch = db.get(MessageDispatch, dispatch_after)
-        if cursor_dispatch and cursor_dispatch.conversation_id == conversation_id:
-            dispatch_query = dispatch_query.where(
-                (MessageDispatch.created_at > cursor_dispatch.created_at)
-                | ((MessageDispatch.created_at == cursor_dispatch.created_at) & (MessageDispatch.id > cursor_dispatch.id))
-            )
-
-    messages = list(db.scalars(message_query.order_by(Message.created_at, Message.id)))
-    dispatches = list(db.scalars(dispatch_query.order_by(MessageDispatch.created_at, MessageDispatch.id)))
+    # 这里原来尝试用 messageAfter / dispatchAfter 做“只拉新增项”的增量同步，
+    # 但真实聊天里 assistant 消息会被 reply.chunk 持续更新同一条记录。
+    #
+    # 例如：
+    # 1. 先创建一条 agent message，内容只有第一段。
+    # 2. 后续 chunk / final 继续更新这条消息的 content 和 updated_at。
+    #
+    # 这时如果只按“创建时间比 cursor 新”来查，就拿不到同一条消息后续的更新，
+    # 前端就会停留在第一段内容。
+    #
+    # 第一阶段先选择更稳的策略：每次返回当前会话的完整消息和 dispatch 列表，
+    # 前端再按 id 做 merge。会话量不大时，这个方案最简单也最可靠。
+    #
+    # 后面如果消息规模明显上来，再把 cursor 升级成包含 updated_at 的真正增量 token。
+    messages = list(
+        db.scalars(
+            select(Message)
+            .where(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at, Message.id)
+        )
+    )
+    dispatches = list(
+        db.scalars(
+            select(MessageDispatch)
+            .where(MessageDispatch.conversation_id == conversation_id)
+            .order_by(MessageDispatch.created_at, MessageDispatch.id)
+        )
+    )
     return ConversationMessagesResponse(
         conversation=validate_orm(ConversationRead, conversation),
         messages=[build_message_read(item) for item in messages],
@@ -223,7 +232,7 @@ async def send_message(
     # direct 只发给一个 agent；group 会先按 instance 分组，再分别调用对应 channel。
     dispatch_ids: list[str] = []
     if conversation.type == "direct":
-        dispatch_ids = await _dispatch_direct(db=db, conversation=conversation, message=message)
+        dispatch_ids = await _dispatch_direct(db=db, conversation=conversation, message=message, payload=payload)
     else:
         dispatch_ids = await _dispatch_group(db=db, conversation=conversation, message=message, mentions=payload.mentions)
 
@@ -241,10 +250,17 @@ async def send_message(
         )
 
     db.refresh(message)
+    await conversation_event_hub.publish_update(
+        conversation.id,
+        {
+            "source": "send_message",
+            "messageId": message.id,
+        },
+    )
     return build_message_read(message)
 
 
-async def _dispatch_direct(*, db: Session, conversation: Conversation, message: Message) -> list[str]:
+async def _dispatch_direct(*, db: Session, conversation: Conversation, message: Message, payload: MessageCreate) -> list[str]:
     # 单聊场景下，conversation 上直接挂了目标 instance 和 agent。
     instance = db.get(OpenClawInstance, conversation.direct_instance_id)
     agent = db.get(AgentProfile, conversation.direct_agent_id)
@@ -278,6 +294,7 @@ async def _dispatch_direct(*, db: Session, conversation: Conversation, message: 
             "from": {"userId": "user", "displayName": "User"},
             "text": message.content,
             "directAgentId": agent.agent_key,
+            "useDedicatedDirectSession": payload.use_dedicated_direct_session,
         },
     )
     dispatch.status = "accepted"

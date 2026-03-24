@@ -25,7 +25,7 @@ import AppShell from "@/app/AppShell.vue";
   display: flex;
   height: 100%;
   min-height: 0;
-  padding: 8px;
+  padding: 4px;
 }
 
 .main-layout__frame {
@@ -47,12 +47,7 @@ import AppShell from "@/app/AppShell.vue";
   background: #ffffff;
   display: flex;
   overflow: hidden;
-  padding:
-    var(--page-shell-pad-top)
-    var(--page-shell-pad-x)
-    var(--page-shell-pad-bottom);
   box-sizing: border-box;
-  border-radius: var(--page-shell-card-radius);
 }
 
 @media (max-width: 960px) {

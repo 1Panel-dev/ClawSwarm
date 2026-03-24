@@ -15,7 +15,10 @@ import ElDrawer from "element-plus/es/components/drawer/index";
 import ElEmpty from "element-plus/es/components/empty/index";
 import { ElForm, ElFormItem } from "element-plus/es/components/form/index";
 import ElInput from "element-plus/es/components/input/index";
+import ElPopover from "element-plus/es/components/popover/index";
+import { ElRadioButton, ElRadioGroup } from "element-plus/es/components/radio/index";
 import { ElOption, ElOptionGroup, ElSelect } from "element-plus/es/components/select/index";
+import ElSwitch from "element-plus/es/components/switch/index";
 import { ElTabPane, ElTabs } from "element-plus/es/components/tabs/index";
 import { ElAutoResizer, ElTableV2 } from "element-plus/es/components/table-v2/index";
 
@@ -27,7 +30,10 @@ import "element-plus/es/components/form-item/style/css";
 import "element-plus/es/components/input/style/css";
 import "element-plus/es/components/option/style/css";
 import "element-plus/es/components/option-group/style/css";
+import "element-plus/es/components/popover/style/css";
+import "element-plus/es/components/radio/style/css";
 import "element-plus/es/components/select/style/css";
+import "element-plus/es/components/switch/style/css";
 import "element-plus/es/components/tabs/style/css";
 import "element-plus/es/components/table-v2/style/css";
 
@@ -45,7 +51,11 @@ export function registerProviders(app: App<Element>): void {
     app.component("ElInput", ElInput);
     app.component("ElOption", ElOption);
     app.component("ElOptionGroup", ElOptionGroup);
+    app.component("ElPopover", ElPopover);
+    app.component("ElRadioButton", ElRadioButton);
+    app.component("ElRadioGroup", ElRadioGroup);
     app.component("ElSelect", ElSelect);
+    app.component("ElSwitch", ElSwitch);
     app.component("ElTabs", ElTabs);
     app.component("ElTabPane", ElTabPane);
     app.component("ElAutoResizer", ElAutoResizer);

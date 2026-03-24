@@ -4,6 +4,8 @@
  */
 import { z } from "zod";
 
+import { listRealOpenClawAgents } from "./openclaw/manageAgents.js";
+
 // 统一维护 channel id，避免路由、sessionKey、配置路径出现硬编码分叉。
 export const CHANNEL_ID = "claw-team" as const;
 
@@ -306,6 +308,30 @@ export function describeAgents(acct: AccountConfig): AgentDirectoryEntry[] {
         name: id,
         openclawAgentRef: id,
     }));
+}
+
+// 优先尝试从 OpenClaw 宿主真实发现 Agent。
+// 如果 CLI 不存在、执行失败或输出无法解析，再回退到静态配置的 allowedAgentIds。
+export function discoverAgents(acct: AccountConfig): AgentDirectoryEntry[] {
+    try {
+        const agents = listRealOpenClawAgents();
+        if (agents.length > 0) {
+            const allowed = resolveAllowedAgents(acct);
+            if (allowed.length > 0) {
+                const allowedSet = new Set(allowed);
+                const filtered = agents.filter((agent) => allowedSet.has(agent.id));
+                if (filtered.length > 0) {
+                    return filtered;
+                }
+            }
+
+            return agents;
+        }
+    } catch {
+        // noop: fall back to static config
+    }
+
+    return describeAgents(acct);
 }
 
 // Gateway 连接参数采用“账号配置优先，环境变量兜底”的策略。

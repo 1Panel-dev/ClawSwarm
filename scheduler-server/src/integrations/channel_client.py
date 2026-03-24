@@ -15,18 +15,17 @@ from src.models.openclaw_instance import OpenClawInstance
 
 
 class ChannelClient:
-    async def send_inbound(self, *, instance: OpenClawInstance, payload: dict[str, Any]) -> dict[str, Any]:
-        """
-        把调度中心的一条消息转发给对应 OpenClaw 实例上的 channel。
-
-        注意：
-        1. 这里的签名规则要和 channel 插件侧完全一致。
-        2. 当前远程 OpenClaw 使用的是自签证书 HTTPS，所以 verify 是否开启由配置决定。
-        """
+    async def _signed_post(
+        self,
+        *,
+        instance: OpenClawInstance,
+        path: str,
+        payload: dict[str, Any],
+        timeout: float = 15.0,
+    ) -> dict[str, Any]:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         timestamp_ms = now_ms()
         nonce = new_nonce()
-        path = "/claw-team/v1/inbound"
         canonical = build_channel_canonical_string(
             timestamp_ms=timestamp_ms,
             nonce=nonce,
@@ -43,15 +42,32 @@ class ChannelClient:
             "x-oc-signature": signature,
         }
         url = instance.channel_base_url.rstrip("/") + path
-        # 第一阶段联调优先保证链路跑通。
-        # 如果目标 channel 使用了内网自签证书，可以通过环境变量关闭 TLS 校验。
         async with httpx.AsyncClient(
-            timeout=15.0,
+            timeout=timeout,
             verify=not settings.channel_allow_insecure_tls,
         ) as client:
             response = await client.post(url, content=body, headers=headers)
         response.raise_for_status()
         return response.json()
+
+    async def send_inbound(self, *, instance: OpenClawInstance, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        把调度中心的一条消息转发给对应 OpenClaw 实例上的 channel。
+
+        注意：
+        1. 这里的签名规则要和 channel 插件侧完全一致。
+        2. 当前远程 OpenClaw 使用的是自签证书 HTTPS，所以 verify 是否开启由配置决定。
+        """
+        path = "/claw-team/v1/inbound"
+        return await self._signed_post(instance=instance, path=path, payload=payload)
+
+    async def create_agent(self, *, instance: OpenClawInstance, payload: dict[str, Any]) -> dict[str, Any]:
+        return await self._signed_post(
+            instance=instance,
+            path="/claw-team/v1/admin/agents",
+            payload=payload,
+            timeout=60.0,
+        )
 
 
 channel_client = ChannelClient()

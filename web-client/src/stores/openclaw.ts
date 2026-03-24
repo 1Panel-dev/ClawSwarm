@@ -1,7 +1,14 @@
 import { defineStore } from "pinia";
 
 import { createAgent, disableAgent, enableAgent, fetchAgents } from "@/api/agents";
-import { createInstance, disableInstance, enableInstance, fetchInstances } from "@/api/instances";
+import {
+    connectOpenClaw,
+    createInstance,
+    disableInstance,
+    enableInstance,
+    fetchInstances,
+    syncOpenClawAgents,
+} from "@/api/instances";
 import type { AgentReadApi } from "@/types/api/agent";
 import type { InstanceReadApi } from "@/types/api/instance";
 
@@ -50,6 +57,31 @@ export const useOpenClawStore = defineStore("openclaw", {
                 return instance;
             } finally {
                 this.creating = false;
+            }
+        },
+        async quickConnectInstance(payload: {
+            name: string;
+            channel_base_url: string;
+            shared_secret: string;
+            channel_account_id?: string;
+        }) {
+            this.creating = true;
+            try {
+                const result = await connectOpenClaw(payload);
+                await this.loadInstances();
+                return result;
+            } finally {
+                this.creating = false;
+            }
+        },
+        async syncInstanceAgents(instanceId: number) {
+            this.savingId = `instance:${instanceId}:sync`;
+            try {
+                const result = await syncOpenClawAgents(instanceId);
+                await this.loadInstances();
+                return result;
+            } finally {
+                this.savingId = null;
             }
         },
         async setInstanceEnabled(instanceId: number, enabled: boolean) {

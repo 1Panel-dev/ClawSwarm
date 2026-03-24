@@ -1,19 +1,19 @@
 .page-shell-vars {
-  --page-shell-gap: 20px;
-  --page-shell-section-gap: 16px;
-  --page-shell-pad-top: 20px;
-  --page-shell-pad-x: 24px;
-  --page-shell-pad-bottom: 24px;
-  --page-shell-card-radius: 14px;
+  --page-shell-gap: 8px;
+  --page-shell-section-gap: 8px;
+  --page-shell-pad-top: 8px;
+  --page-shell-pad-x: 8px;
+  --page-shell-pad-bottom: 8px;
+  --page-shell-card-radius: 5px;
 }
 
 :root {
-  --page-shell-gap: 20px;
-  --page-shell-section-gap: 16px;
-  --page-shell-pad-top: 20px;
-  --page-shell-pad-x: 24px;
-  --page-shell-pad-bottom: 24px;
-  --page-shell-card-radius: 14px;
+  --page-shell-gap: 8px;
+  --page-shell-section-gap: 8px;
+  --page-shell-pad-top: 8px;
+  --page-shell-pad-x: 8px;
+  --page-shell-pad-bottom: 8px;
+  --page-shell-card-radius: 5px;
 }
 
 .page-shell {
@@ -23,6 +23,7 @@
   min-width: 0;
   min-height: 100%;
   align-content: start;
+  justify-items: stretch;
   gap: var(--page-shell-gap);
   padding:
     var(--page-shell-pad-top)
@@ -41,6 +42,7 @@
 
 .page-shell__header {
   display: grid;
+  width: 100%;
   gap: var(--page-shell-section-gap);
 }
 
@@ -61,6 +63,7 @@
 
 .page-shell__body {
   display: grid;
+  width: 100%;
   gap: var(--page-shell-section-gap);
   min-width: 0;
 }
@@ -91,8 +94,8 @@
 
 @media (max-width: 960px) {
   .page-shell {
-    padding: 16px;
-    gap: 16px;
+    padding: 8px;
+    gap: 8px;
   }
 
   .page-grid {

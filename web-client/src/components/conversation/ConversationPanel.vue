@@ -7,7 +7,11 @@
     </header>
 
     <div v-if="errorMessage" class="panel__error">{{ errorMessage }}</div>
-    <MessageList :messages="messages" :loading="loading" />
+    <MessageList
+      :messages="messages"
+      :loading="loading"
+      :show-typing-indicator="showTypingIndicator"
+    />
     <MessageComposer
       :sending="sending"
       :is-group="isGroupConversation"
@@ -28,6 +32,7 @@ import { computed } from "vue";
 
 import MessageComposer from "@/components/conversation/MessageComposer.vue";
 import MessageList from "@/components/conversation/MessageList.vue";
+import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
 
@@ -38,10 +43,25 @@ defineProps<{
 
 const conversationStore = useConversationStore();
 const groupStore = useGroupStore();
+const addressBookStore = useAddressBookStore();
 
 const messages = computed(() => conversationStore.messages);
+const dispatches = computed(() => conversationStore.dispatches);
 const sending = computed(() => conversationStore.sending);
-const title = computed(() => conversationStore.currentConversation?.title ?? "请选择一个会话");
+const title = computed(() => {
+    const conversation = conversationStore.currentConversation;
+    if (!conversation) {
+        return "请选择一个会话";
+    }
+    if (conversation.type === "direct" && conversation.direct_instance_id && conversation.direct_agent_id) {
+        const instance = addressBookStore.instances.find((item) => item.id === conversation.direct_instance_id);
+        const agent = instance?.agents.find((item) => item.id === conversation.direct_agent_id);
+        if (instance && agent) {
+            return `${agent.display_name} / ${instance.name}`;
+        }
+    }
+    return conversation.title ?? "请选择一个会话";
+});
 const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
 const mentionOptions = computed(() =>
     (groupStore.currentGroupDetail?.members ?? []).map((member) => ({
@@ -49,9 +69,16 @@ const mentionOptions = computed(() =>
         label: `${member.display_name} / ${member.instance_name}`,
     })),
 );
+const showTypingIndicator = computed(() =>
+    dispatches.value.some((item) => item.status === "accepted" || item.status === "streaming"),
+);
 
-async function handleSend(payload: { content: string; mentions: string[] }) {
-    await conversationStore.sendMessage(payload.content, payload.mentions);
+async function handleSend(payload: {
+    content: string;
+    mentions: string[];
+    useDedicatedDirectSession: boolean;
+}) {
+    await conversationStore.sendMessage(payload.content, payload.mentions, payload.useDedicatedDirectSession);
 }
 </script>
 

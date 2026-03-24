@@ -23,6 +23,7 @@ export function buildSessionKey(params: {
     // group 场景下需要知道是 mention 还是 broadcast，因为两者必须隔离上下文。
     routeKind?: RoutingMode;
     threadId?: string | undefined;
+    useDedicatedDirectSession?: boolean | undefined;
 }): string {
     const agentId = norm(params.agentId);
     const chatId = norm(params.chatId);
@@ -30,7 +31,14 @@ export function buildSessionKey(params: {
     const conversationId = params.threadId ? norm(params.threadId) : chatId;
 
     if (params.chatType === "direct") {
-        return `${CHANNEL_ID}:direct:${conversationId}:agent:${agentId}`;
+        if (params.useDedicatedDirectSession) {
+            // 单独聊天通道沿用 Claw Team 自己的 direct 会话命名。
+            return `${CHANNEL_ID}:direct:${conversationId}:agent:${agentId}`;
+        }
+        // 单聊场景改成对齐 OpenClaw Web UI 自身的原生 session 规则。
+        // 这样从 Claw Team 发给某个 Agent 的单聊，会直接落到
+        // OpenClaw 控制台里同一个 Agent 的既有会话里。
+        return `agent:${agentId}:${agentId}`;
     }
 
     // 群聊在 broadcast 和 mention 之间必须生成不同的 key，否则会串上下文。

@@ -35,7 +35,7 @@ import { useRouter } from "vue-router";
 import EmptyStateCard from "@/components/common/EmptyStateCard.vue";
 import ConversationPanel from "@/components/conversation/ConversationPanel.vue";
 import ConversationSidebar from "@/components/conversation/ConversationSidebar.vue";
-import { useConversationPolling } from "@/composables/useConversationPolling";
+import { useConversationTransport } from "@/composables/useConversationTransport";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
@@ -45,7 +45,7 @@ const router = useRouter();
 const conversationStore = useConversationStore();
 const addressBookStore = useAddressBookStore();
 const groupStore = useGroupStore();
-const polling = useConversationPolling();
+const transport = useConversationTransport();
 const initialized = ref(false);
 
 onMounted(async () => {
@@ -54,8 +54,7 @@ onMounted(async () => {
             await addressBookStore.loadAll();
         }
         initialized.value = true;
-        await ensureConversationSelection();
-        polling.start();
+        await handleRouteConversation(route.params.conversationId);
     } catch (error) {
         console.error("failed to initialize messages page", error);
     }
@@ -75,39 +74,37 @@ watch(
 watch(
     () => route.params.conversationId,
     async (value) => {
-        if (!initialized.value) {
-            return;
-        }
-        if (!value) {
-            await ensureConversationSelection();
-            return;
-        }
-        const conversationId = Number(value);
-        const knownConversation = addressBookStore.recentConversations.find((item) => item.id === conversationId);
-        if (!knownConversation) {
+        await handleRouteConversation(value);
+    },
+    { immediate: true },
+);
+
+async function handleRouteConversation(value: unknown) {
+    if (!initialized.value) {
+        return;
+    }
+    if (!value) {
+        await ensureConversationSelection();
+        return;
+    }
+    const conversationId = Number(value);
+    if (Number.isFinite(conversationId) && conversationStore.currentConversationId !== conversationId) {
+        try {
+            await conversationStore.openConversation(conversationId);
+        } catch (error) {
             conversationStore.currentConversationId = null;
             conversationStore.currentConversation = null;
             await router.replace("/messages");
             await ensureConversationSelection();
             return;
         }
-        if (Number.isFinite(conversationId) && conversationStore.currentConversationId !== conversationId) {
-            try {
-                await conversationStore.openConversation(conversationId);
-            } catch (error) {
-                conversationStore.currentConversationId = null;
-                conversationStore.currentConversation = null;
-                await router.replace("/messages");
-                await ensureConversationSelection();
-                return;
-            }
-        }
-        if (conversationStore.currentConversation?.type === "group" && conversationStore.currentConversation.group_id) {
-            await groupStore.loadGroupDetail(conversationStore.currentConversation.group_id);
-        }
-    },
-    { immediate: true },
-);
+    }
+    if (conversationStore.currentConversation?.type === "group" && conversationStore.currentConversation.group_id) {
+        await groupStore.loadGroupDetail(conversationStore.currentConversation.group_id);
+    } else {
+        groupStore.currentGroupDetail = null;
+    }
+}
 
 async function ensureConversationSelection() {
     if (route.params.conversationId) {

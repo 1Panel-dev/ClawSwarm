@@ -57,13 +57,25 @@
             type="button"
             @click="openConversation(item.id)"
           >
-            <div class="sidebar__avatar">{{ avatarText(item.display_title) }}</div>
+            <div
+              class="sidebar__avatar"
+              :class="{ 'sidebar__avatar--group': item.type === 'group' }"
+            >
+              {{ item.type === "group" ? "群" : avatarText(conversationDisplayName(item)) }}
+            </div>
             <div class="sidebar__item-body">
               <div class="sidebar__row">
-                <div class="sidebar__item-title">{{ item.display_title }}</div>
-                <span class="sidebar__item-time">
-                  {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
-                </span>
+                <div class="sidebar__item-title sidebar__item-title--recent">
+                  {{ conversationDisplayName(item) }}
+                </div>
+                <div class="sidebar__meta">
+                  <span class="sidebar__conversation-kind" :class="{ 'sidebar__conversation-kind--group': item.type === 'group' }">
+                    {{ item.type === "group" ? "群组" : "单聊" }}
+                  </span>
+                  <span class="sidebar__item-time">
+                    {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
+                  </span>
+                </div>
               </div>
               <div class="sidebar__item-preview">{{ item.last_message_preview ?? "暂无消息" }}</div>
             </div>
@@ -150,6 +162,7 @@ import GroupMemberDrawer from "@/components/group/GroupMemberDrawer.vue";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
+import type { ConversationListItemApi } from "@/types/api/conversation";
 import { ref } from "vue";
 
 const router = useRouter();
@@ -186,6 +199,7 @@ const filteredRecentConversations = computed(() =>
 const filteredAgentRows = computed(() =>
     instances.value.flatMap((instance) =>
         instance.agents
+            .filter((agent) => agent.enabled)
             .filter((agent) => {
                 if (!keyword.value) {
                     return true;
@@ -308,6 +322,13 @@ function avatarText(value: string) {
         .toUpperCase();
 }
 
+function conversationDisplayName(item: ConversationListItemApi) {
+    if (item.type === "direct" && item.agent_display_name && item.instance_name) {
+        return `${item.agent_display_name} / ${item.instance_name}`;
+    }
+    return item.display_title;
+}
+
 function cyclePane() {
     const keys: Array<"recent" | "agents" | "groups"> = ["recent", "agents", "groups"];
     const index = keys.indexOf(activePane.value);
@@ -427,20 +448,20 @@ function formatRelativeTime(value: string) {
 .sidebar__list {
   display: grid;
   align-content: start;
-  gap: 4px;
+  gap: 2px;
   min-height: 0;
-  padding: 0 10px var(--page-shell-pad-bottom);
+  padding: 0 8px var(--page-shell-pad-bottom);
   overflow: auto;
 }
 
 .sidebar__item {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
-  padding: 12px 12px;
+  padding: 10px 10px;
   border: none;
-  border-radius: 16px;
+  border-radius: 14px;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -460,13 +481,13 @@ function formatRelativeTime(value: string) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 50px;
-  width: 50px;
-  height: 50px;
-  border-radius: 18px;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
   background: linear-gradient(135deg, #f1d7d7, #f8efef);
   color: #734646;
-  font-size: 1rem;
+  font-size: 0.92rem;
   font-weight: 700;
 }
 
@@ -482,16 +503,22 @@ function formatRelativeTime(value: string) {
 
 .sidebar__item-body {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   flex: 1;
   min-width: 0;
 }
 
 .sidebar__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 8px;
+}
+
+.sidebar__meta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
 }
 
 .sidebar__item-title {
@@ -499,8 +526,16 @@ function formatRelativeTime(value: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 1.02rem;
+  font-size: 0.98rem;
   font-weight: 700;
+}
+
+.sidebar__item-title--recent {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.35;
 }
 
 .sidebar__item-preview {
@@ -508,13 +543,29 @@ function formatRelativeTime(value: string) {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: #9499a2;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
 }
 
 .sidebar__item-time {
   flex: 0 0 auto;
   color: #9ca1aa;
-  font-size: 0.9rem;
+  font-size: 0.74rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.sidebar__conversation-kind {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #eef1f4;
+  color: #7b818a;
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.sidebar__conversation-kind--group {
+  background: #f8e8e8;
+  color: #9a5757;
 }
 
 .sidebar__badge {

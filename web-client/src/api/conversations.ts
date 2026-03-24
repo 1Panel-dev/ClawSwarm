@@ -40,7 +40,7 @@ export async function fetchConversationMessages(
 
 export async function sendConversationMessage(
     conversationId: number,
-    payload: { content: string; mentions?: string[] },
+    payload: { content: string; mentions?: string[]; use_dedicated_direct_session?: boolean },
 ) {
     const response = await apiClient.post(`/api/conversations/${conversationId}/messages`, payload);
     return response.data;

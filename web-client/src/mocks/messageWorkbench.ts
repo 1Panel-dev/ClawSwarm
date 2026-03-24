@@ -212,7 +212,7 @@ export async function fetchMockConversationMessages(
 
 export async function sendMockConversationMessage(
     conversationId: number,
-    payload: { content: string; mentions?: string[] },
+    payload: { content: string; mentions?: string[]; useDedicatedDirectSession?: boolean },
 ): Promise<MessageReadApi> {
     const conversation = conversations.get(conversationId);
     if (!conversation) {

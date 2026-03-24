@@ -46,12 +46,14 @@ export const useConversationStore = defineStore("conversation", {
             const conversation = isMessageMockEnabled()
                 ? await createMockDirectConversation(instanceId, agentId)
                 : await createDirectConversation(instanceId, agentId);
+            await useAddressBookStore().refreshRecentConversations();
             await this.openConversation(conversation.id, conversation);
         },
         async openGroupConversation(groupId: number) {
             const conversation = isMessageMockEnabled()
                 ? await createMockGroupConversation(groupId)
                 : await createGroupConversation(groupId);
+            await useAddressBookStore().refreshRecentConversations();
             await this.openConversation(conversation.id, conversation);
         },
         async openConversation(conversationId: number, seedConversation?: ConversationReadApi) {
@@ -111,7 +113,7 @@ export const useConversationStore = defineStore("conversation", {
                 this.lastErrorMessage = error instanceof Error ? error.message : "轮询会话失败";
             }
         },
-        async sendMessage(content: string, mentions: string[] = []) {
+        async sendMessage(content: string, mentions: string[] = [], useDedicatedDirectSession = false) {
             if (!this.currentConversationId || !content.trim()) {
                 return;
             }
@@ -121,10 +123,12 @@ export const useConversationStore = defineStore("conversation", {
                     ? await sendMockConversationMessage(this.currentConversationId, {
                         content,
                         mentions,
+                        useDedicatedDirectSession,
                     })
                     : await sendConversationMessage(this.currentConversationId, {
                         content,
                         mentions,
+                        use_dedicated_direct_session: useDedicatedDirectSession,
                     });
                 this.messages = mergeById(this.messages, [message as MessageReadApi]);
                 this.nextMessageCursor = (message as MessageReadApi).id;

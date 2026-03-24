@@ -58,6 +58,7 @@ class MessageCreate(BaseModel):
     # mentions 只在群聊里有意义；direct 场景下通常为空数组。
     content: str = Field(min_length=1)
     mentions: list[str] = Field(default_factory=list)
+    use_dedicated_direct_session: bool = False
 
 
 class MessagePartMarkdown(BaseModel):

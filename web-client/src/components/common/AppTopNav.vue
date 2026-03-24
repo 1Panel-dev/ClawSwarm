@@ -10,15 +10,15 @@
         :key="item.to"
         :to="item.to"
         custom
-        v-slot="{ href, navigate }"
+        v-slot="{ href, navigate, isActive }"
       >
         <a
           :href="href"
           class="top-nav__link"
           :class="{
-            'top-nav__link--active': isCurrent(item.to),
-            'el-button el-button--default': !isCurrent(item.to),
-            'el-button el-button--primary': isCurrent(item.to),
+            'top-nav__link--active': isActive,
+            'el-button el-button--default': !isActive,
+            'el-button el-button--primary': isActive,
           }"
           @click="navigate"
         >
@@ -36,9 +36,6 @@
  * 即使 OpenClaw、任务、设置目前还只有占位页，
  * 也先把导航定下来，避免后面再大改应用骨架。
  */
-import { useRoute } from "vue-router";
-
-const route = useRoute();
 
 const navItems = [
     { label: "消息", to: "/messages" },
@@ -46,10 +43,6 @@ const navItems = [
     { label: "任务", to: "/tasks" },
     { label: "设置", to: "/settings" },
 ];
-
-function isCurrent(target: string) {
-    return route.path === target || route.path.startsWith(`${target}/`);
-}
 </script>
 
 <style scoped>

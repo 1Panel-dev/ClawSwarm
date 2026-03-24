@@ -50,7 +50,7 @@
               <el-option
                 v-for="agent in instance.agents"
                 :key="`${instance.id}-${agent.id}`"
-                :label="`${agent.display_name}${agent.role_name ? ` / ${agent.role_name}` : ''}`"
+                :label="`${agent.display_name} / ${instance.name}`"
                 :value="`${instance.id}:${agent.id}`"
                 :disabled="!agent.enabled || existingKeys.has(`${instance.id}:${agent.id}`)"
               />

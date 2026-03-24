@@ -36,6 +36,13 @@
                   {{ statusLabel(instance.status) }}
                 </span>
                 <button
+                  class="action-button action-button--ghost"
+                  :disabled="savingId === `instance:${instance.id}:sync`"
+                  @click="syncAgents(instance.id, instance.name)"
+                >
+                  同步 Agent
+                </button>
+                <button
                   class="action-button"
                   :disabled="savingId === `instance:${instance.id}`"
                   @click="toggleInstance(instance.id, instance.status !== 'active')"
@@ -166,6 +173,11 @@ async function toggleInstance(instanceId: number, enable: boolean) {
     await openClawStore.setInstanceEnabled(instanceId, enable);
 }
 
+async function syncAgents(instanceId: number, instanceName: string) {
+    const result = await openClawStore.syncInstanceAgents(instanceId);
+    ElMessage.success(`实例“${instanceName}”已同步 ${result.imported_agent_count} 个 Agent`);
+}
+
 async function toggleAgent(agentId: number, enable: boolean) {
     await openClawStore.setAgentEnabled(agentId, enable);
 }
@@ -173,13 +185,11 @@ async function toggleAgent(agentId: number, enable: boolean) {
 async function handleCreateInstance(payload: {
     name: string;
     channel_base_url: string;
-    channel_account_id: string;
-    channel_signing_secret: string;
-    callback_token: string;
+    shared_secret: string;
 }) {
-    const instance = await openClawStore.createNewInstance(payload);
+    const result = await openClawStore.quickConnectInstance(payload);
     createDrawerVisible.value = false;
-    ElMessage.success(`实例“${instance.name}”已创建`);
+    ElMessage.success(`实例“${result.instance.name}”已连接，已导入 ${result.imported_agent_count} 个 Agent`);
 }
 
 function openAgentCreate(instanceId: number, instanceName: string) {

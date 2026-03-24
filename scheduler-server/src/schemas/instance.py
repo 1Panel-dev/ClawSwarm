@@ -34,3 +34,23 @@ class InstanceRead(TimestampedModel):
     channel_base_url: str
     channel_account_id: str
     status: str
+
+
+class OpenClawConnectRequest(BaseModel):
+    # 傻瓜接入模式下，用户只需要填写这 3 个字段。
+    name: str = Field(min_length=1, max_length=120)
+    channel_base_url: str = Field(min_length=1, max_length=500)
+    shared_secret: str = Field(min_length=16, max_length=255)
+    channel_account_id: str = Field(default="default", min_length=1, max_length=120)
+
+
+class OpenClawConnectResponse(BaseModel):
+    instance: InstanceRead
+    imported_agent_count: int
+    agent_keys: list[str]
+
+
+class OpenClawSyncAgentsResponse(BaseModel):
+    instance: InstanceRead
+    imported_agent_count: int
+    agent_keys: list[str]

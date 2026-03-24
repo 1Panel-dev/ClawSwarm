@@ -60,6 +60,7 @@ export async function dispatchDirect(params: {
         chatId: inbound.chat.chatId,
         routeKind,
         threadId: inbound.chat.threadId,
+        useDedicatedDirectSession: inbound.useDedicatedDirectSession,
     });
 
     const first = await idempotency.setIfNotExists(

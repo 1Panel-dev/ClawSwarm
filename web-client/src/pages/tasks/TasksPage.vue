@@ -360,6 +360,7 @@ function formatDateTime(value: string) {
 
 <style scoped>
 .page-header {
+  width: 100%;
   gap: 18px;
 }
 
@@ -392,6 +393,7 @@ function formatDateTime(value: string) {
 
 .table-shell {
   display: grid;
+  justify-items: stretch;
   gap: 14px;
   align-content: start;
   width: 100%;
@@ -451,6 +453,7 @@ function formatDateTime(value: string) {
 
 .table-wrap {
   width: 100%;
+  min-width: 0;
   border: none;
   border-radius: 0;
   background: #ffffff;
@@ -472,6 +475,10 @@ function formatDateTime(value: string) {
   width: 100%;
   height: min(52vh, 520px);
   min-height: 360px;
+}
+
+.task-table-v2__table {
+  width: 100% !important;
 }
 
 .task-table-v2 :deep(.el-table-v2__header-row) {

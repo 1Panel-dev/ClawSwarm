@@ -45,6 +45,8 @@ export const InboundMessageSchema = z
 
         targetAgentIds: z.array(z.string().min(1)).optional(),
 
+        useDedicatedDirectSession: z.boolean().optional(),
+
         timestamp: z.number().int().optional(),
     })
     .strict();

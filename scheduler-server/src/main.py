@@ -5,7 +5,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import address_book, agents, callbacks, conversations, groups, health, instances, tasks
+from src.api.routes import address_book, agents, callbacks, conversations, groups, health, instances, tasks, ws
 from src.core.db import Base, engine
 import src.models  # noqa: F401
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router)
     app.include_router(tasks.router)
     app.include_router(callbacks.router)
+    app.include_router(ws.router)
 
     return app
 

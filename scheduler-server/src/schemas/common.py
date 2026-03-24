@@ -1,6 +1,11 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
+
+try:
+    from pydantic import ConfigDict
+except ImportError:  # pragma: no cover - pydantic v1 fallback
+    ConfigDict = None
 
 
 class OrmModel(BaseModel):
@@ -9,11 +14,12 @@ class OrmModel(BaseModel):
 
     这里统一开启 from_attributes，让 SQLAlchemy ORM 对象可以直接喂给 Pydantic 2。
     """
-    model_config = ConfigDict(from_attributes=True)
-
-    class Config:
-        # 同时兼容 Pydantic 1 的 from_orm 路径。
-        orm_mode = True
+    if hasattr(BaseModel, "model_validate") and ConfigDict is not None:
+        model_config = ConfigDict(from_attributes=True)
+    else:
+        class Config:
+            # 同时兼容 Pydantic 1 的 from_orm 路径。
+            orm_mode = True
 
 
 class ApiMessage(BaseModel):

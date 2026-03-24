@@ -17,11 +17,13 @@ import { dispatchGroup } from "../dispatcher/dispatchGroup.js";
 import { verifyInboundSignature } from "../security/signature.js";
 import type { Logger } from "../observability/logger.js";
 import type { IdempotencyStore } from "../store/idempotency.js";
-import { describeAgents, type AccountConfig } from "../config.js";
+import { describeAgents, discoverAgents, type AccountConfig } from "../config.js";
 import type { MessageStateStore } from "../store/messageState.js";
 import type { ClawTeamCallbackClient } from "../callback/client.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
+import { createRealOpenClawAgent } from "../openclaw/manageAgents.js";
 import type { GroupDescriptor } from "../types.js";
+import { z } from "zod";
 
 // 读取原始请求体时保留二进制内容，便于后续做签名校验。
 async function readRawBody(req: any, maxBytes: number): Promise<Uint8Array> {
@@ -71,7 +73,7 @@ export function createClawTeamRoutes(params: {
         // 返回当前账号允许使用的 Agent 列表，便于前后端联调。
         if (pathname === "/claw-team/v1/agents" && req.method === "GET") {
             const acct = getAccount(undefined);
-            sendJson(res, 200, describeAgents(acct));
+            sendJson(res, 200, discoverAgents(acct));
             return true;
         }
 
@@ -82,7 +84,7 @@ export function createClawTeamRoutes(params: {
                 {
                     groupId: "default",
                     name: "Default Claw Team Group",
-                    members: describeAgents(acct).map((agent) => agent.id),
+                    members: discoverAgents(acct).map((agent) => agent.id),
                 },
             ];
             sendJson(res, 200, groups);
@@ -102,8 +104,63 @@ export function createClawTeamRoutes(params: {
             sendJson(res, 200, {
                 groupId,
                 name: groupId === "default" ? "Default Claw Team Group" : groupId,
-                members: describeAgents(acct).map((agent) => agent.id),
+                members: discoverAgents(acct).map((agent) => agent.id),
             });
+            return true;
+        }
+
+        if (pathname === "/claw-team/v1/admin/agents" && req.method === "POST") {
+            const acct = getAccount(undefined);
+
+            let raw: Uint8Array;
+            try {
+                raw = await readRawBody(req, acct.limits.maxBodyBytes);
+            } catch {
+                sendJson(res, 413, { error: "body_too_large" });
+                return true;
+            }
+
+            const sig = await verifyInboundSignature({
+                req,
+                rawBody: raw,
+                pathname,
+                nowMs: Date.now(),
+                accountConfig: acct,
+                nonceStore: idempotency,
+            });
+
+            if (!sig.ok) {
+                sendJson(res, sig.status, { error: sig.reason });
+                return true;
+            }
+
+            let json: unknown;
+            try {
+                json = JSON.parse(Buffer.from(raw).toString("utf8"));
+            } catch {
+                sendJson(res, 400, { error: "invalid_json" });
+                return true;
+            }
+
+            const AgentAdminCreateSchema = z.object({
+                agentKey: z.string().min(1),
+                displayName: z.string().min(1),
+            });
+            const parsed = AgentAdminCreateSchema.safeParse(json);
+            if (!parsed.success) {
+                sendJson(res, 400, { error: "invalid_payload", detail: parsed.error.issues });
+                return true;
+            }
+
+            try {
+                const agent = createRealOpenClawAgent({
+                    agentId: parsed.data.agentKey,
+                    displayName: parsed.data.displayName,
+                });
+                sendJson(res, 201, agent);
+            } catch (error) {
+                sendJson(res, 400, { error: "agent_create_failed", detail: String(error) });
+            }
             return true;
         }
 
@@ -194,7 +251,9 @@ export function createClawTeamRoutes(params: {
                 // 这里同步写入预期 sessionKey，方便尚未执行时就能从状态里看出路由结果。
                 sessionKeys: decision.targetAgentIds.map((agentId) =>
                     inbound.chat.type === "direct"
-                        ? `${channelId}:direct:${decision.conversationId}:agent:${agentId}`
+                        ? inbound.useDedicatedDirectSession
+                            ? `${channelId}:direct:${decision.conversationId}:agent:${agentId}`
+                            : `agent:${agentId}:${agentId}`
                         : `${channelId}:group:${decision.groupId ?? inbound.chat.chatId}:${decision.kind === "GROUP_MENTION" ? "mention" : "broadcast"}:${agentId}:conv:${decision.conversationId}`,
                 ),
             });

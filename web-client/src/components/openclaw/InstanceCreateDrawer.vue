@@ -1,14 +1,14 @@
 <template>
   <el-drawer
     :model-value="visible"
-    title="新增 OpenClaw 实例"
+    title="快速连接 OpenClaw"
     size="620px"
     destroy-on-close
     @close="emit('update:visible', false)"
   >
     <div class="drawer-body">
       <p class="drawer-body__hint">
-        这里填写的是调度中心访问这套 `claw-team channel` 所需的最小连接信息。
+        只填写 OpenClaw 地址和连接密钥，Claw Team 会自动检测 channel、导入 Agent，并创建实例。
       </p>
 
       <el-form label-position="top">
@@ -16,20 +16,16 @@
           <el-input v-model="form.name" maxlength="120" placeholder="例如：OpenClaw A" />
         </el-form-item>
 
-        <el-form-item label="Channel 地址">
+        <el-form-item label="OpenClaw 地址">
           <el-input v-model="form.channel_base_url" placeholder="例如：https://172.16.200.119:18789" />
         </el-form-item>
 
-        <el-form-item label="Channel 账号 ID">
-          <el-input v-model="form.channel_account_id" placeholder="默认一般是 default" />
-        </el-form-item>
-
-        <el-form-item label="Channel 签名密钥">
-          <el-input v-model="form.channel_signing_secret" show-password placeholder="scheduler-server -> channel 验签密钥" />
-        </el-form-item>
-
-        <el-form-item label="Claw Team 调度中心回调 Token">
-          <el-input v-model="form.callback_token" show-password placeholder="channel -> scheduler-server 的 Bearer Token" />
+        <el-form-item label="连接密钥">
+          <el-input
+            v-model="form.shared_secret"
+            show-password
+            placeholder="与 OpenClaw 的 claw-team channel 中配置的连接密钥保持一致"
+          />
         </el-form-item>
       </el-form>
     </div>
@@ -38,7 +34,7 @@
       <div class="drawer-actions">
         <el-button @click="emit('update:visible', false)">取消</el-button>
         <el-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
-          创建实例
+          连接 OpenClaw
         </el-button>
       </div>
     </template>
@@ -64,18 +60,14 @@ const emit = defineEmits<{
     submit: [payload: {
         name: string;
         channel_base_url: string;
-        channel_account_id: string;
-        channel_signing_secret: string;
-        callback_token: string;
+        shared_secret: string;
     }];
 }>();
 
 const form = reactive({
     name: "",
     channel_base_url: "",
-    channel_account_id: "default",
-    channel_signing_secret: "",
-    callback_token: "",
+    shared_secret: "",
 });
 
 watch(
@@ -86,9 +78,7 @@ watch(
         }
         form.name = "";
         form.channel_base_url = "";
-        form.channel_account_id = "default";
-        form.channel_signing_secret = "";
-        form.callback_token = "";
+        form.shared_secret = "";
     },
 );
 
@@ -96,9 +86,7 @@ const canSubmit = computed(
     () =>
         !!form.name.trim()
         && !!form.channel_base_url.trim()
-        && !!form.channel_account_id.trim()
-        && !!form.channel_signing_secret.trim()
-        && !!form.callback_token.trim(),
+        && !!form.shared_secret.trim(),
 );
 
 function submit() {
@@ -108,9 +96,7 @@ function submit() {
     emit("submit", {
         name: form.name.trim(),
         channel_base_url: form.channel_base_url.trim(),
-        channel_account_id: form.channel_account_id.trim(),
-        channel_signing_secret: form.channel_signing_secret.trim(),
-        callback_token: form.callback_token.trim(),
+        shared_secret: form.shared_secret.trim(),
     });
 }
 </script>

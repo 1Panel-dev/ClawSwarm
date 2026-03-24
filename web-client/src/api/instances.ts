@@ -18,6 +18,37 @@ export async function createInstance(payload: {
     return response.data;
 }
 
+export async function connectOpenClaw(payload: {
+    name: string;
+    channel_base_url: string;
+    shared_secret: string;
+    channel_account_id?: string;
+}): Promise<{
+    instance: InstanceReadApi;
+    imported_agent_count: number;
+    agent_keys: string[];
+}> {
+    const response = await apiClient.post<{
+        instance: InstanceReadApi;
+        imported_agent_count: number;
+        agent_keys: string[];
+    }>("/api/instances/connect", payload);
+    return response.data;
+}
+
+export async function syncOpenClawAgents(instanceId: number): Promise<{
+    instance: InstanceReadApi;
+    imported_agent_count: number;
+    agent_keys: string[];
+}> {
+    const response = await apiClient.post<{
+        instance: InstanceReadApi;
+        imported_agent_count: number;
+        agent_keys: string[];
+    }>(`/api/instances/${instanceId}/sync-agents`);
+    return response.data;
+}
+
 export async function enableInstance(instanceId: number): Promise<InstanceReadApi> {
     const response = await apiClient.post<InstanceReadApi>(`/api/instances/${instanceId}/enable`);
     return response.data;

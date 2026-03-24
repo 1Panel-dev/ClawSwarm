@@ -234,11 +234,14 @@ class Stage1BackendTests(unittest.TestCase):
         )
         self.assertEqual(incremental_response.status_code, 200)
         incremental_payload = incremental_response.json()
-        self.assertEqual([item["id"] for item in incremental_payload["messages"]], ["msg_002"])
-        self.assertEqual([item["id"] for item in incremental_payload["dispatches"]], ["dsp_002"])
+        # 真实聊天里 assistant 消息会被 chunk 持续更新同一条记录，
+        # 所以第一阶段改成“每次返回当前会话完整列表”，
+        # 由前端按 id merge，避免遗漏同一条消息的后续内容。
+        self.assertEqual([item["id"] for item in incremental_payload["messages"]], ["msg_001", "msg_002"])
+        self.assertEqual([item["id"] for item in incremental_payload["dispatches"]], ["dsp_001", "dsp_002"])
         self.assertEqual(incremental_payload["next_message_cursor"], "msg_002")
         self.assertEqual(incremental_payload["next_dispatch_cursor"], "dsp_002")
-        self.assertEqual(incremental_payload["messages"][0]["parts"][0]["kind"], "markdown")
+        self.assertEqual(incremental_payload["messages"][1]["parts"][0]["kind"], "markdown")
 
     def test_message_response_exposes_attachment_parts(self) -> None:
         """
@@ -564,6 +567,130 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(rich_message["parts"][2]["kind"], "attachment")
         self.assertEqual(rich_message["parts"][2]["name"], "巡检报告.pdf")
         self.assertEqual(rich_message["parts"][2]["mime_type"], "application/pdf")
+
+    def test_callback_reply_chunk_creates_and_updates_streaming_agent_message(self) -> None:
+        """
+        为了配合 WebSocket 实时展示，reply.chunk 到来时就应该生成/更新 agent 消息，
+        而不是等到 reply.final 才一次性出现。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Stream",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw Stream / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            user_message = Message(
+                id="msg_user_stream_001",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="请流式回复",
+                status="accepted",
+            )
+            dispatch = MessageDispatch(
+                id="dsp_user_stream_001",
+                message_id=user_message.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=agent.id,
+                dispatch_mode="direct",
+                channel_message_id=user_message.id,
+                status="accepted",
+            )
+            db.add_all([user_message, dispatch])
+            db.commit()
+            conversation_id = conversation.id
+
+        headers = {"Authorization": "Bearer callback-token-123"}
+
+        first_chunk = self.client.post(
+            "/api/v1/claw-team/events",
+            json={
+                "eventId": "evt_chunk_001",
+                "eventType": "reply.chunk",
+                "correlation": {
+                    "messageId": "msg_user_stream_001",
+                    "agentId": "main",
+                    "sessionKey": "agent:main:main",
+                },
+                "payload": {"text": "第一段"},
+            },
+            headers=headers,
+        )
+        self.assertEqual(first_chunk.status_code, 200)
+
+        second_chunk = self.client.post(
+            "/api/v1/claw-team/events",
+            json={
+                "eventId": "evt_chunk_002",
+                "eventType": "reply.chunk",
+                "correlation": {
+                    "messageId": "msg_user_stream_001",
+                    "agentId": "main",
+                    "sessionKey": "agent:main:main",
+                },
+                "payload": {"text": "第二段"},
+            },
+            headers=headers,
+        )
+        self.assertEqual(second_chunk.status_code, 200)
+
+        interim_messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(interim_messages_response.status_code, 200)
+        interim_payload = interim_messages_response.json()
+        interim_agent_messages = [item for item in interim_payload["messages"] if item["sender_type"] == "agent"]
+        self.assertEqual(len(interim_agent_messages), 1)
+        self.assertEqual(interim_agent_messages[0]["status"], "streaming")
+        self.assertEqual(interim_agent_messages[0]["content"], "第一段第二段")
+
+        final_response = self.client.post(
+            "/api/v1/claw-team/events",
+            json={
+                "eventId": "evt_final_stream_001",
+                "eventType": "reply.final",
+                "correlation": {
+                    "messageId": "msg_user_stream_001",
+                    "agentId": "main",
+                    "sessionKey": "agent:main:main",
+                },
+                "payload": {"text": "第一段第二段，最终完成"},
+            },
+            headers=headers,
+        )
+        self.assertEqual(final_response.status_code, 200)
+
+        final_messages_response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(final_messages_response.status_code, 200)
+        final_payload = final_messages_response.json()
+        final_agent_messages = [item for item in final_payload["messages"] if item["sender_type"] == "agent"]
+        self.assertEqual(len(final_agent_messages), 1)
+        self.assertEqual(final_agent_messages[0]["status"], "completed")
+        self.assertEqual(final_agent_messages[0]["content"], "第一段第二段，最终完成")
 
     def test_tasks_crud_roundtrip(self) -> None:
         """

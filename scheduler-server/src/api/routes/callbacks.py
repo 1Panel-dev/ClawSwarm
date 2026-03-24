@@ -27,6 +27,7 @@ from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.services.conversation_events import conversation_event_hub
 
 router = APIRouter(prefix="/api/v1/claw-team", tags=["callbacks"])
 
@@ -102,13 +103,13 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
     dispatch.status = _pick_higher_status(dispatch.status, _map_dispatch_status(event_type))
 
     message = db.get(Message, message_id)
+    agent_message_id = f"msg_agent_{dispatch.id}"
+    agent_message = db.get(Message, agent_message_id)
     if message:
         if event_type == "reply.final":
             # final 事件视为一次 agent 回复完成，因此生成一条 sender_type=agent 的消息。
             text = _build_message_content(event.get("payload", {}))
-            agent_message_id = f"msg_{event_id or dispatch.id}"
-            existing_agent_message = db.get(Message, agent_message_id)
-            if not existing_agent_message:
+            if not agent_message:
                 db.add(
                     Message(
                         id=agent_message_id,
@@ -119,15 +120,46 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
                         status="completed",
                     )
                 )
+            else:
+                agent_message.content = text
+                agent_message.status = "completed"
             message.status = "completed"
+        elif event_type == "reply.chunk":
+            chunk_text = str(event.get("payload", {}).get("text", ""))
+            if chunk_text:
+                if not agent_message:
+                    db.add(
+                        Message(
+                            id=agent_message_id,
+                            conversation_id=dispatch.conversation_id,
+                            sender_type="agent",
+                            sender_label=agent.display_name,
+                            content=chunk_text,
+                            status="streaming",
+                        )
+                    )
+                else:
+                    agent_message.content = f"{agent_message.content}{chunk_text}"
+                    agent_message.status = "streaming"
+            message.status = _pick_higher_status(message.status, "streaming")
         elif event_type == "run.error":
+            if agent_message:
+                agent_message.status = "failed"
             message.status = "failed"
         else:
             # accepted / chunk 都还没结束，只更新用户消息的过程态。
-            next_message_status = "streaming" if event_type == "reply.chunk" else "accepted"
+            next_message_status = "accepted"
             message.status = _pick_higher_status(message.status, next_message_status)
 
     db.commit()
+    await conversation_event_hub.publish_update(
+        dispatch.conversation_id,
+        {
+            "source": "callback",
+            "eventType": event_type,
+            "messageId": message_id,
+        },
+    )
     return {"ok": True}
 
 
