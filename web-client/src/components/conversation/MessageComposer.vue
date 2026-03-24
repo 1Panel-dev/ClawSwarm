@@ -1,14 +1,14 @@
 <template>
   <form class="composer" @submit.prevent="submit">
     <div v-if="isGroup && mentionOptions.length" class="composer__mentions">
-      <div class="composer__mentions-label">定向 @Agent</div>
+      <div class="composer__mentions-label">{{ t("conversation.mentionsLabel") }}</div>
       <el-select
         v-model="mentions"
         multiple
         collapse-tags
         collapse-tags-tooltip
         filterable
-        placeholder="不选择则默认广播给群成员"
+        :placeholder="t('conversation.mentionsPlaceholder')"
         style="width: 100%"
       >
         <el-option
@@ -20,54 +20,54 @@
       </el-select>
     </div>
     <div v-else class="composer__direct-options">
-      <span class="composer__direct-options-label">使用单独聊天通道</span>
+      <span class="composer__direct-options-label">{{ t("conversation.dedicatedSession") }}</span>
       <el-switch v-model="useDedicatedDirectSession" />
     </div>
     <textarea
       v-model="content"
       class="composer__input"
       rows="4"
-      placeholder="输入消息"
+      :placeholder="t('conversation.inputPlaceholder')"
       @keydown="handleKeydown"
     />
     <div class="composer__actions">
       <div class="composer__tools">
         <el-button plain disabled>
-          附件
+          {{ t("conversation.attachment") }}
         </el-button>
       </div>
       <div class="composer__submit-group">
         <el-popover placement="top-end" :width="240" trigger="click">
           <template #reference>
             <el-button plain>
-              快捷键
+              {{ t("conversation.shortcut") }}
             </el-button>
           </template>
           <div class="composer__shortcut-popover">
-            <div class="composer__shortcut-title">发送快捷键</div>
+            <div class="composer__shortcut-title">{{ t("conversation.sendShortcut") }}</div>
             <div
               class="composer__shortcut-capture"
               :class="{ 'composer__shortcut-capture--recording': shortcutRecording }"
               tabindex="0"
               @keydown.prevent="captureShortcut"
             >
-              {{ shortcutRecording ? "请按发送快捷键" : shortcutLabel }}
+              {{ shortcutRecording ? t("conversation.pressShortcut") : shortcutLabel }}
             </div>
             <div class="composer__shortcut-actions">
               <el-button plain @click="startShortcutRecording">
-                {{ shortcutRecording ? "重新录制" : "录制快捷键" }}
+                {{ shortcutRecording ? t("conversation.rerecordShortcut") : t("conversation.recordShortcut") }}
               </el-button>
               <el-button plain @click="resetShortcut">
-                恢复默认
+                {{ t("conversation.resetDefault") }}
               </el-button>
             </div>
             <div class="composer__shortcut-hint">
-              仅支持 Enter 相关组合，例如 Enter、Ctrl/Cmd + Enter、Shift + Enter、Alt + Enter。
+              {{ t("conversation.shortcutHint") }}
             </div>
           </div>
         </el-popover>
         <el-button type="primary" native-type="submit" :disabled="sending || !content.trim()">
-          {{ sending ? "发送中..." : "发送消息" }}
+          {{ sending ? t("conversation.sending") : t("conversation.sendMessage") }}
         </el-button>
       </div>
     </div>
@@ -76,6 +76,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from "vue";
+import { useI18n } from "@/composables/useI18n";
 
 type SendShortcut = {
     altKey: boolean;
@@ -107,6 +108,7 @@ const mentions = ref<string[]>([]);
 const useDedicatedDirectSession = ref(false);
 const sendShortcut = ref<SendShortcut>({ ...DEFAULT_SHORTCUT });
 const shortcutRecording = ref(false);
+const { t } = useI18n();
 
 if (typeof window !== "undefined") {
     const storedShortcut = window.localStorage.getItem(SEND_SHORTCUT_STORAGE_KEY);
@@ -146,7 +148,7 @@ const shortcutLabel = computed(() => {
         parts.push("Alt");
     }
     parts.push("Enter");
-    return `${parts.join(" + ")} 发送`;
+    return `${parts.join(" + ")} ${t("conversation.sendMessage")}`;
 });
 
 function submit() {

@@ -1,37 +1,37 @@
 <template>
   <el-drawer
     :model-value="visible"
-    title="管理群成员"
+    :title="t('conversation.manageGroupMembers')"
     size="760px"
     destroy-on-close
     @close="emit('update:visible', false)"
   >
     <div v-if="group" class="member-drawer">
       <div class="member-dialog__intro">
-        <div>
-          <div class="member-dialog__group-name">{{ group.name }}</div>
-          <div class="member-dialog__group-desc">{{ group.description || "未填写群组描述" }}</div>
+          <div>
+            <div class="member-dialog__group-name">{{ group.name }}</div>
+            <div class="member-dialog__group-desc">{{ group.description || t("conversation.groupDescriptionEmpty") }}</div>
+          </div>
         </div>
-      </div>
 
       <div class="member-dialog__grid">
         <section class="member-card">
-          <h3 class="member-card__title">当前成员</h3>
-          <div v-if="!group.members.length" class="member-card__empty">当前还没有成员。</div>
+          <h3 class="member-card__title">{{ t("conversation.currentMembers") }}</h3>
+          <div v-if="!group.members.length" class="member-card__empty">{{ t("conversation.noMembers") }}</div>
           <div v-for="member in group.members" :key="member.id" class="member-row">
             <div>
               <div class="member-row__title">{{ member.display_name }}</div>
               <div class="member-row__meta">{{ member.instance_name }} / {{ member.agent_key }}</div>
             </div>
             <el-button text type="danger" :disabled="saving" @click="emit('remove-member', member.id)">
-              移除
+              {{ t("conversation.remove") }}
             </el-button>
           </div>
         </section>
 
         <section class="member-card">
-          <h3 class="member-card__title">添加成员</h3>
-          <div class="member-card__hint">从现有 OpenClaw Agent 中选择，支持跨实例加到同一个群。</div>
+          <h3 class="member-card__title">{{ t("conversation.addMembers") }}</h3>
+          <div class="member-card__hint">{{ t("conversation.addMembersHint") }}</div>
 
           <el-select
             v-model="selectedValues"
@@ -39,7 +39,7 @@
             filterable
             collapse-tags
             collapse-tags-tooltip
-            placeholder="选择一个或多个 Agent"
+            :placeholder="t('conversation.selectAgents')"
             style="width: 100%"
           >
             <el-option-group
@@ -64,7 +64,7 @@
               :disabled="!selectedValues.length"
               @click="submit"
             >
-              添加成员
+              {{ t("conversation.addMembers") }}
             </el-button>
           </div>
         </section>
@@ -84,6 +84,7 @@
  */
 import { computed, ref, watch } from "vue";
 
+import { useI18n } from "@/composables/useI18n";
 import type { AddressBookInstanceApi } from "@/types/api/addressBook";
 import type { GroupDetailApi } from "@/types/api/group";
 
@@ -101,6 +102,7 @@ const emit = defineEmits<{
 }>();
 
 const selectedValues = ref<string[]>([]);
+const { t } = useI18n();
 
 watch(
     () => props.visible,

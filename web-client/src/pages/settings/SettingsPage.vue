@@ -2,18 +2,18 @@
   <div class="page-shell">
     <section class="settings-hero page-card page-shell__header">
       <div>
-        <div class="settings-card__eyebrow">设置</div>
-        <h1 class="settings-card__title">界面与偏好</h1>
+        <div class="settings-card__eyebrow">{{ t("settings.eyebrow") }}</div>
+        <h1 class="settings-card__title">{{ t("settings.title") }}</h1>
         <p class="settings-card__description">
-          设置页第一阶段先把主题系统真正做起来。后续更多偏好项也会继续放在这个模块，而不是散落在各页面局部状态里。
+          {{ t("settings.description") }}
         </p>
       </div>
-      <div class="settings-hero__badge">主题系统已启用</div>
+      <div class="settings-hero__badge">{{ t("settings.badge") }}</div>
     </section>
 
     <section class="settings-grid page-grid">
       <div class="settings-card page-card">
-        <h2 class="settings-card__section-title">主题切换</h2>
+        <h2 class="settings-card__section-title">{{ t("settings.themeSection") }}</h2>
         <div class="settings-card__options">
           <button
             v-for="item in themeOptions"
@@ -29,43 +29,60 @@
       </div>
 
       <div class="settings-card page-card">
-        <h2 class="settings-card__section-title">为什么现在就做主题</h2>
+        <h2 class="settings-card__section-title">{{ t("settings.whyTheme") }}</h2>
         <ul class="settings-card__list">
-          <li>避免以后为了黑白风格大改页面颜色</li>
-          <li>组件样式统一走设计令牌，减少写死颜色</li>
-          <li>后续增加更多品牌风格时，只需要扩展 token</li>
+          <li>{{ t("settings.reason1") }}</li>
+          <li>{{ t("settings.reason2") }}</li>
+          <li>{{ t("settings.reason3") }}</li>
         </ul>
       </div>
     </section>
 
     <section class="settings-card page-card">
-      <h2 class="settings-card__section-title">后续设置项预留</h2>
+      <h2 class="settings-card__section-title">{{ t("settings.languageSection") }}</h2>
+      <p class="settings-card__description">
+        {{ t("settings.languageDesc") }}
+      </p>
+      <div class="settings-card__compare">
+        <el-select :model-value="locale" style="width: 220px" @update:model-value="handleLocaleChange">
+          <el-option
+            v-for="option in localeOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+      </div>
+    </section>
+
+    <section class="settings-card page-card">
+      <h2 class="settings-card__section-title">{{ t("settings.futureSection") }}</h2>
       <div class="settings-card__options settings-card__options--future">
         <button
           class="theme-option theme-option--disabled"
           disabled
         >
-          <div class="theme-option__title">消息偏好</div>
-          <div class="theme-option__description">后续接入已读、轮询频率和通知偏好。</div>
+          <div class="theme-option__title">{{ t("settings.messagePrefs") }}</div>
+          <div class="theme-option__description">{{ t("settings.messagePrefsDesc") }}</div>
         </button>
         <button
           class="theme-option theme-option--disabled"
           disabled
         >
-          <div class="theme-option__title">界面布局</div>
-          <div class="theme-option__description">后续接入侧栏宽度、密度和更多阅读偏好。</div>
+          <div class="theme-option__title">{{ t("settings.layoutPrefs") }}</div>
+          <div class="theme-option__description">{{ t("settings.layoutPrefsDesc") }}</div>
         </button>
       </div>
     </section>
 
     <section class="settings-card page-card">
-      <h2 class="settings-card__section-title">按钮样式对比</h2>
+      <h2 class="settings-card__section-title">{{ t("settings.buttonCompare") }}</h2>
       <p class="settings-card__description">
-        这里专门放一个 Element Plus 主按钮，方便你直接对比它和我们自定义按钮的颜色表现。
+        {{ t("settings.buttonCompareDesc") }}
       </p>
       <div class="settings-card__compare">
-        <el-button type="primary">Element Plus 主按钮</el-button>
-        <button class="settings-card__brand-button" type="button">项目自定义按钮</button>
+        <el-button type="primary">{{ t("settings.elementPrimary") }}</el-button>
+        <button class="settings-card__brand-button" type="button">{{ t("settings.customPrimary") }}</button>
       </div>
     </section>
   </div>
@@ -79,8 +96,17 @@
  * 后面无论是黑白主题还是别的品牌风格，都能在 token 层切换。
  */
 import { useTheme } from "@/composables/useTheme";
+import type { SupportedLocale } from "@/i18n";
+import { useI18n } from "@/composables/useI18n";
 
 const { themeId, themeOptions, setTheme } = useTheme();
+const { locale, localeOptions, setLocale, t } = useI18n();
+
+function handleLocaleChange(value: string | number | boolean) {
+    if (value === "en" || value === "zh-CN") {
+        setLocale(value as SupportedLocale);
+    }
+}
 </script>
 
 <style scoped>

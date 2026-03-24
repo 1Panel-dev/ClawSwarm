@@ -12,9 +12,9 @@
         />
         <EmptyStateCard
           v-else
-          eyebrow="消息"
-          title="先从左侧选择一个 Agent 或群组"
-          description="第一阶段先把消息工作台搭稳。后续会继续接入 OpenClaw 管理、任务和更多协作能力。"
+          :eyebrow="t('messagesPage.eyebrow')"
+          :title="t('messagesPage.title')"
+          :description="t('messagesPage.description')"
         />
       </section>
     </div>
@@ -35,6 +35,7 @@ import { useRouter } from "vue-router";
 import EmptyStateCard from "@/components/common/EmptyStateCard.vue";
 import ConversationPanel from "@/components/conversation/ConversationPanel.vue";
 import ConversationSidebar from "@/components/conversation/ConversationSidebar.vue";
+import { useI18n } from "@/composables/useI18n";
 import { useConversationTransport } from "@/composables/useConversationTransport";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
@@ -47,10 +48,11 @@ const addressBookStore = useAddressBookStore();
 const groupStore = useGroupStore();
 const transport = useConversationTransport();
 const initialized = ref(false);
+const { t } = useI18n();
 
 onMounted(async () => {
     try {
-        if (!addressBookStore.addressBook) {
+        if (!addressBookStore.addressBook || !addressBookStore.recentConversations.length) {
             await addressBookStore.loadAll();
         }
         initialized.value = true;
@@ -110,10 +112,12 @@ async function ensureConversationSelection() {
     if (route.params.conversationId) {
         return;
     }
-    const persistedConversationId = conversationStore.restorePersistedConversationId();
+    // 单用户模式下，消息入口始终落到后端当前的固定会话：
+    // 优先群聊，其次才是最近会话第一条。
+    // 这里故意不再读取浏览器本地状态，也不沿用当前内存里的会话，
+    // 这样无论通过哪个 IP 访问，同一个后端都会打开同一份内容。
     const targetConversationId =
-        addressBookStore.recentConversations.find((item) => item.id === persistedConversationId)?.id
-        ?? conversationStore.currentConversationId
+        addressBookStore.recentConversations.find((item) => item.type === "group")?.id
         ?? addressBookStore.recentConversations[0]?.id;
 
     if (targetConversationId) {
@@ -121,22 +125,6 @@ async function ensureConversationSelection() {
             await conversationStore.openConversation(targetConversationId);
         }
         await router.replace(`/messages/conversation/${targetConversationId}`);
-        return;
-    }
-
-    // 第一次进入且还没有任何最近会话时，自动选择一个可用 Agent 打开单聊。
-    // 这样消息页在真实前后端联调时，不需要先手动到 OpenClaw 模块建会话。
-    const defaultInstance = addressBookStore.instances.find((instance) =>
-        instance.status === "active" && instance.agents.some((agent) => agent.enabled),
-    );
-    const defaultAgent = defaultInstance?.agents.find((agent) => agent.enabled);
-    if (!defaultInstance || !defaultAgent) {
-        return;
-    }
-
-    await conversationStore.openDirectConversation(defaultInstance.id, defaultAgent.id);
-    if (conversationStore.currentConversationId) {
-        await router.replace(`/messages/conversation/${conversationStore.currentConversationId}`);
     }
 }
 </script>

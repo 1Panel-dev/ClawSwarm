@@ -1,36 +1,36 @@
 <template>
   <el-drawer
     :model-value="visible"
-    :title="`在 ${instanceName} 下新增 Agent`"
+    :title="t('openclaw.agentDrawerTitle', { name: instanceName })"
     size="560px"
     destroy-on-close
     @close="emit('update:visible', false)"
   >
     <div class="drawer-body">
       <p class="drawer-body__hint">
-        Agent 是调度中心中的可路由对象。这里填写的是消息路由和展示所需的最小信息。
+        {{ t("openclaw.agentDrawerHint") }}
       </p>
 
       <el-form label-position="top">
-        <el-form-item label="Agent Key">
+        <el-form-item :label="t('openclaw.agentKey')">
           <el-input v-model="form.agent_key" maxlength="120" placeholder="例如：main / weather / coder-01" />
         </el-form-item>
 
-        <el-form-item label="显示名称">
+        <el-form-item :label="t('openclaw.displayName')">
           <el-input v-model="form.display_name" maxlength="120" placeholder="例如：主助手 / 天气助理" />
         </el-form-item>
 
-        <el-form-item label="角色名称">
-          <el-input v-model="form.role_name" maxlength="120" placeholder="例如：assistant / 产品经理（可选）" />
+        <el-form-item :label="t('openclaw.roleName')">
+          <el-input v-model="form.role_name" maxlength="120" :placeholder="t('openclaw.rolePlaceholder')" />
         </el-form-item>
       </el-form>
     </div>
 
     <template #footer>
       <div class="drawer-actions">
-        <el-button @click="emit('update:visible', false)">取消</el-button>
+        <el-button @click="emit('update:visible', false)">{{ t("common.cancel") }}</el-button>
         <el-button type="primary" :loading="submitting" :disabled="!canSubmit" @click="submit">
-          创建 Agent
+          {{ t("openclaw.createAgent") }}
         </el-button>
       </div>
     </template>
@@ -45,6 +45,7 @@
  * 避免现在就把“记忆、知识库、技能”等高级能力塞进前端表单。
  */
 import { computed, reactive, watch } from "vue";
+import { useI18n } from "@/composables/useI18n";
 
 const props = defineProps<{
     visible: boolean;
@@ -66,6 +67,7 @@ const form = reactive({
     display_name: "",
     role_name: "",
 });
+const { t } = useI18n();
 
 watch(
     () => props.visible,

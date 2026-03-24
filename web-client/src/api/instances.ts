@@ -49,6 +49,20 @@ export async function syncOpenClawAgents(instanceId: number): Promise<{
     return response.data;
 }
 
+export async function updateOpenClawInstance(
+    instanceId: number,
+    payload: {
+        name?: string;
+        channel_base_url?: string;
+        channel_account_id?: string;
+        channel_signing_secret?: string;
+        callback_token?: string;
+    },
+): Promise<InstanceReadApi> {
+    const response = await apiClient.put<InstanceReadApi>(`/api/instances/${instanceId}`, payload);
+    return response.data;
+}
+
 export async function enableInstance(instanceId: number): Promise<InstanceReadApi> {
     const response = await apiClient.post<InstanceReadApi>(`/api/instances/${instanceId}/enable`);
     return response.data;

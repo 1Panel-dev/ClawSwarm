@@ -1,46 +1,46 @@
 <template>
   <el-drawer
     :model-value="visible"
-    title="创建任务"
+    :title="t('tasks.createTask')"
     size="640px"
     destroy-on-close
     @close="emit('update:visible', false)"
   >
     <div class="drawer-body">
       <p class="drawer-body__hint">
-        第一阶段先把任务创建的核心字段收稳：标题、描述、优先级和执行 Agent。后续接真实后端时，表单结构尽量保持不变。
+        {{ t("tasks.drawerHint") }}
       </p>
 
       <el-form label-position="top">
-        <el-form-item label="任务标题">
-          <el-input v-model="form.title" maxlength="200" placeholder="例如：完成登录页视觉重构" />
+        <el-form-item :label="t('tasks.titleField')">
+          <el-input v-model="form.title" maxlength="200" :placeholder="t('tasks.titlePlaceholder')" />
         </el-form-item>
 
-        <el-form-item label="任务描述">
+        <el-form-item :label="t('tasks.descriptionField')">
           <el-input
             v-model="form.description"
             type="textarea"
             :rows="5"
             maxlength="4000"
-            placeholder="支持先写成富文本前的纯文本说明，后续接真实任务接口时再升级为 Markdown 编辑体验。"
+            :placeholder="t('tasks.descriptionPlaceholder')"
           />
         </el-form-item>
 
         <div class="drawer-grid">
-          <el-form-item label="优先级">
+          <el-form-item :label="t('tasks.priorityField')">
             <el-select v-model="form.priority" style="width: 100%">
-              <el-option label="低" value="low" />
-              <el-option label="中" value="medium" />
-              <el-option label="高" value="high" />
-              <el-option label="紧急" value="urgent" />
+              <el-option :label="t('tasks.priorityLow')" value="low" />
+              <el-option :label="t('tasks.priorityMedium')" value="medium" />
+              <el-option :label="t('tasks.priorityHigh')" value="high" />
+              <el-option :label="t('tasks.priorityUrgent')" value="urgent" />
             </el-select>
           </el-form-item>
 
-          <el-form-item label="执行 Agent">
+          <el-form-item :label="t('tasks.assigneeField')">
             <el-select
               v-model="selectedAgentKey"
               filterable
-              placeholder="必须指定一个已启用 Agent"
+              :placeholder="t('tasks.assigneePlaceholder')"
               style="width: 100%"
             >
               <el-option-group
@@ -59,14 +59,14 @@
           </el-form-item>
         </div>
 
-        <el-form-item label="标签">
+        <el-form-item :label="t('tasks.tagsField')">
           <el-select
             v-model="form.tags"
             multiple
             filterable
             allow-create
             default-first-option
-            placeholder="可选：例如 前端 / 登录 / 排障"
+            :placeholder="t('tasks.tagsPlaceholder')"
             style="width: 100%"
           >
             <el-option
@@ -82,9 +82,9 @@
 
     <template #footer>
       <div class="drawer-actions">
-        <el-button @click="emit('update:visible', false)">取消</el-button>
+        <el-button @click="emit('update:visible', false)">{{ t("common.cancel") }}</el-button>
         <el-button type="primary" :disabled="!canSubmit" @click="submit">
-          创建任务
+          {{ t("tasks.createTask") }}
         </el-button>
       </div>
     </template>
@@ -101,6 +101,7 @@
  */
 import { computed, reactive, ref, watch } from "vue";
 
+import { useI18n } from "@/composables/useI18n";
 import type { OpenClawInstanceView } from "@/stores/openclaw";
 import type { TaskCreatePayload, TaskPriority } from "@/types/view/task";
 
@@ -122,6 +123,7 @@ const form = reactive({
     priority: "medium" as TaskPriority,
     tags: [] as string[],
 });
+const { t } = useI18n();
 
 const enabledInstances = computed(() =>
     props.instances

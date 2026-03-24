@@ -16,8 +16,6 @@ import {
 import { useAddressBookStore } from "@/stores/addressBook";
 import type { ConversationReadApi, DispatchReadApi, MessageReadApi } from "@/types/api/conversation";
 
-const LAST_CONVERSATION_STORAGE_KEY = "claw-team:last-conversation-id";
-
 function mergeById<T extends { id: string }>(base: T[], incoming: T[]): T[] {
     const map = new Map<string, T>();
     for (const item of base) {
@@ -58,7 +56,6 @@ export const useConversationStore = defineStore("conversation", {
         },
         async openConversation(conversationId: number, seedConversation?: ConversationReadApi) {
             this.currentConversationId = conversationId;
-            this.persistCurrentConversationId(conversationId);
             this.currentConversation = seedConversation ?? null;
             this.messages = [];
             this.dispatches = [];
@@ -143,23 +140,6 @@ export const useConversationStore = defineStore("conversation", {
         },
         async refreshConversationList() {
             await useAddressBookStore().refreshRecentConversations();
-        },
-        persistCurrentConversationId(conversationId: number) {
-            if (typeof window === "undefined") {
-                return;
-            }
-            window.sessionStorage.setItem(LAST_CONVERSATION_STORAGE_KEY, String(conversationId));
-        },
-        restorePersistedConversationId() {
-            if (typeof window === "undefined") {
-                return null;
-            }
-            const value = window.sessionStorage.getItem(LAST_CONVERSATION_STORAGE_KEY);
-            if (!value) {
-                return null;
-            }
-            const conversationId = Number(value);
-            return Number.isFinite(conversationId) ? conversationId : null;
         },
     },
 });

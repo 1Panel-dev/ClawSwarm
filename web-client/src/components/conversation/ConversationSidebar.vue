@@ -7,7 +7,7 @@
         class="sidebar__rail-item"
         :class="{ 'sidebar__rail-item--active': activePane === item.key }"
         type="button"
-        :title="item.label"
+        :title="t(item.labelKey)"
         @click="activePane = item.key"
       >
         <span>{{ item.icon }}</span>
@@ -21,7 +21,7 @@
             v-model="searchQuery"
             class="sidebar__search-input"
             type="text"
-            placeholder="搜索"
+            :placeholder="t('conversation.search')"
           />
         </div>
 
@@ -29,7 +29,7 @@
           v-if="activePane === 'groups'"
           class="sidebar__plus"
           type="button"
-          title="新建群组"
+          :title="t('conversation.createGroup')"
           @click="createDrawerVisible = true"
         >
           +
@@ -38,7 +38,7 @@
           v-else
           class="sidebar__plus sidebar__plus--muted"
           type="button"
-          title="切换视图"
+          :title="t('conversation.switchView')"
           @click="cyclePane"
         >
           +
@@ -47,8 +47,8 @@
 
       <section class="sidebar__list">
         <template v-if="activePane === 'recent'">
-          <div v-if="recentLoading" class="sidebar__empty">正在加载会话...</div>
-          <div v-else-if="!filteredRecentConversations.length" class="sidebar__empty">没有匹配的会话。</div>
+          <div v-if="recentLoading" class="sidebar__empty">{{ t("conversation.loadingConversations") }}</div>
+          <div v-else-if="!filteredRecentConversations.length" class="sidebar__empty">{{ t("conversation.noMatchingConversations") }}</div>
           <button
             v-for="item in filteredRecentConversations"
             :key="item.id"
@@ -68,10 +68,10 @@
               >
                 {{ conversationDisplayName(item) }}
               </div>
-              <div class="sidebar__item-preview">{{ item.last_message_preview ?? "暂无消息" }}</div>
+              <div class="sidebar__item-preview">{{ item.last_message_preview ?? t("conversation.noMessages") }}</div>
               <div class="sidebar__meta sidebar__meta--recent">
                 <span class="sidebar__conversation-kind" :class="{ 'sidebar__conversation-kind--group': item.type === 'group' }">
-                  {{ item.type === "group" ? "群组" : "单聊" }}
+                  {{ item.type === "group" ? t("conversation.group") : t("conversation.direct") }}
                 </span>
                 <span class="sidebar__item-time">
                   {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
@@ -82,7 +82,7 @@
         </template>
 
         <template v-else-if="activePane === 'agents'">
-          <div v-if="!filteredAgentRows.length" class="sidebar__empty">没有匹配的 Agent。</div>
+          <div v-if="!filteredAgentRows.length" class="sidebar__empty">{{ t("conversation.noMatchingAgents") }}</div>
           <button
             v-for="item in filteredAgentRows"
             :key="`${item.instanceId}:${item.agentId}`"
@@ -94,16 +94,16 @@
               <div class="sidebar__row">
                 <div class="sidebar__item-title" :title="item.displayName">{{ item.displayName }}</div>
                 <span class="sidebar__badge" :class="{ 'sidebar__badge--muted': !item.enabled }">
-                  {{ item.enabled ? "启用" : "禁用" }}
+                  {{ item.enabled ? t("conversation.enabled") : t("conversation.disabled") }}
                 </span>
               </div>
-              <div class="sidebar__item-preview">{{ item.instanceName }} · {{ item.roleName || "未设置角色" }}</div>
+              <div class="sidebar__item-preview">{{ item.instanceName }} · {{ item.roleName || t("conversation.roleUnset") }}</div>
             </div>
           </button>
         </template>
 
         <template v-else>
-          <div v-if="!filteredGroups.length" class="sidebar__empty">没有匹配的群组。</div>
+          <div v-if="!filteredGroups.length" class="sidebar__empty">{{ t("conversation.noMatchingGroups") }}</div>
           <button
             v-for="group in filteredGroups"
             :key="group.id"
@@ -115,10 +115,10 @@
               <div class="sidebar__row">
                 <div class="sidebar__item-title" :title="group.name">{{ group.name }}</div>
                 <button class="sidebar__ghost-button" type="button" @click.stop="manageGroup(group.id)">
-                  管理
+                  {{ t("conversation.manage") }}
                 </button>
               </div>
-              <div class="sidebar__item-preview">{{ group.members.length }} 位成员</div>
+              <div class="sidebar__item-preview">{{ t("conversation.membersCount", { count: group.members.length }) }}</div>
             </div>
           </button>
         </template>
@@ -156,6 +156,7 @@ import { useRouter } from "vue-router";
 
 import GroupCreateDrawer from "@/components/group/GroupCreateDrawer.vue";
 import GroupMemberDrawer from "@/components/group/GroupMemberDrawer.vue";
+import { useI18n } from "@/composables/useI18n";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
@@ -170,6 +171,7 @@ const createDrawerVisible = ref(false);
 const memberDrawerVisible = ref(false);
 const searchQuery = ref("");
 const activePane = ref<"recent" | "agents" | "groups">("recent");
+const { t } = useI18n();
 
 const instances = computed(() => addressBookStore.instances);
 const groups = computed(() => addressBookStore.groups);
@@ -177,9 +179,9 @@ const recentConversations = computed(() => addressBookStore.recentConversations)
 const recentLoading = computed(() => addressBookStore.recentLoading);
 const currentConversationId = computed(() => conversationStore.currentConversationId);
 const navItems = [
-    { key: "recent", label: "最近联系人", icon: "◷" },
-    { key: "agents", label: "所有联系人", icon: "◉" },
-    { key: "groups", label: "群组", icon: "◎" },
+    { key: "recent", labelKey: "conversation.recentContacts", icon: "◷" },
+    { key: "agents", labelKey: "conversation.allContacts", icon: "◉" },
+    { key: "groups", labelKey: "conversation.groups", icon: "◎" },
 ] as const;
 const keyword = computed(() => searchQuery.value.trim().toLowerCase());
 const filteredRecentConversations = computed(() =>
@@ -257,7 +259,7 @@ async function openConversation(conversationId: number) {
 async function handleCreateGroup(payload: { name: string; description: string }) {
     const group = await groupStore.createNewGroup(payload);
     createDrawerVisible.value = false;
-    ElMessage.success(`群组“${group.name}”已创建`);
+    ElMessage.success(t("conversation.creatingGroupSuccess", { name: group.name }));
     await openGroup(group.id);
 }
 
@@ -272,7 +274,7 @@ async function handleAddMembers(payload: Array<{ instance_id: number; agent_id: 
         return;
     }
     await groupStore.appendMembers(groupStore.currentGroupDetail.id, payload);
-    ElMessage.success("群成员已更新");
+    ElMessage.success(t("conversation.groupMembersUpdated"));
 }
 
 async function handleRemoveMember(memberId: number) {
@@ -280,7 +282,7 @@ async function handleRemoveMember(memberId: number) {
         return;
     }
     await groupStore.removeMember(groupStore.currentGroupDetail.id, memberId);
-    ElMessage.success("已移除群成员");
+    ElMessage.success(t("conversation.groupMemberRemoved"));
 }
 
 function normalizeMessageStatus(status: string) {
@@ -298,18 +300,18 @@ function normalizeMessageStatus(status: string) {
 
 function messageStatusLabel(status: string) {
     if (status === "completed") {
-        return "已完成";
+        return t("conversation.statusCompleted");
     }
     if (status === "failed") {
-        return "失败";
+        return t("conversation.statusFailed");
     }
     if (status === "streaming") {
-        return "回复中";
+        return t("conversation.statusStreaming");
     }
     if (status === "accepted") {
-        return "已接受";
+        return t("conversation.statusAccepted");
     }
-    return "处理中";
+    return t("conversation.statusPending");
 }
 
 function avatarText(value: string) {

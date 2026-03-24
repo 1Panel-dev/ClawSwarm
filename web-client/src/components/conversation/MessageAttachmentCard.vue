@@ -4,12 +4,12 @@
     <div class="attachment-card__body">
       <div class="attachment-card__name">{{ name }}</div>
       <div class="attachment-card__meta">
-        <span class="attachment-card__meta-pill">附件</span>
+        <span class="attachment-card__meta-pill">{{ t("conversation.attachment") }}</span>
         <span>{{ displayMimeType }}</span>
       </div>
     </div>
     <a class="attachment-card__action" :href="url" target="_blank" rel="noreferrer">
-      打开
+      {{ t("conversation.openAttachment") }}
     </a>
   </div>
 </template>
@@ -23,19 +23,21 @@
  * 后面协议升级后，这个组件可以直接复用。
  */
 import { computed } from "vue";
+import { useI18n } from "@/composables/useI18n";
 
 const props = defineProps<{
     name: string;
     mimeType: string | null;
     url: string;
 }>();
+const { t } = useI18n();
 
 const extensionLabel = computed(() => {
     const ext = props.name.split(".").at(-1)?.trim().toUpperCase();
     return ext && ext.length <= 4 ? ext : "FILE";
 });
 
-const displayMimeType = computed(() => props.mimeType || "通用文件");
+const displayMimeType = computed(() => props.mimeType || t("conversation.genericFile"));
 </script>
 
 <style scoped>

@@ -12,19 +12,29 @@
         custom
         v-slot="{ href, navigate, isActive }"
       >
-        <a
+        <el-button
           :href="href"
           class="top-nav__link"
-          :class="{
-            'top-nav__link--active': isActive,
-            'el-button el-button--default': !isActive,
-            'el-button el-button--primary': isActive,
-          }"
+          :type="isActive ? 'primary' : 'default'"
           @click="navigate"
         >
-          <span>{{ item.label }}</span>
-        </a>
+          <span>{{ t(item.labelKey) }}</span>
+        </el-button>
       </RouterLink>
+      <el-select
+        :model-value="locale"
+        class="top-nav__locale"
+        size="default"
+        :aria-label="t('nav.language')"
+        @update:model-value="handleLocaleChange"
+      >
+        <el-option
+          v-for="option in localeOptions"
+          :key="option.value"
+          :label="option.label"
+          :value="option.value"
+        />
+      </el-select>
     </nav>
   </header>
 </template>
@@ -36,13 +46,23 @@
  * 即使 OpenClaw、任务、设置目前还只有占位页，
  * 也先把导航定下来，避免后面再大改应用骨架。
  */
+import type { SupportedLocale } from "@/i18n";
+import { useI18n } from "@/composables/useI18n";
+
+const { locale, localeOptions, setLocale, t } = useI18n();
 
 const navItems = [
-    { label: "消息", to: "/messages" },
-    { label: "OpenClaw", to: "/openclaws" },
-    { label: "任务", to: "/tasks" },
-    { label: "设置", to: "/settings" },
+    { labelKey: "nav.messages", to: "/messages" },
+    { labelKey: "nav.openclaw", to: "/openclaws" },
+    { labelKey: "nav.tasks", to: "/tasks" },
+    { labelKey: "nav.settings", to: "/settings" },
 ];
+
+function handleLocaleChange(value: string | number | boolean) {
+    if (value === "en" || value === "zh-CN") {
+        setLocale(value as SupportedLocale);
+    }
+}
 </script>
 
 <style scoped>
@@ -70,27 +90,18 @@ const navItems = [
 
 .top-nav__links {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
+.top-nav__locale {
+  width: 132px;
+}
+
 .top-nav__link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 14px;
-  text-decoration: none;
   white-space: nowrap;
   font-weight: 600;
   font-size: 0.95rem;
-}
-
-.top-nav__link:hover {
-  text-decoration: none;
-}
-
-.top-nav__link--active {
-  color: #ffffff;
 }
 
 .top-nav :deep(.el-button) {

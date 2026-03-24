@@ -8,6 +8,7 @@ import {
     enableInstance,
     fetchInstances,
     syncOpenClawAgents,
+    updateOpenClawInstance,
 } from "@/api/instances";
 import type { AgentReadApi } from "@/types/api/agent";
 import type { InstanceReadApi } from "@/types/api/instance";
@@ -70,6 +71,34 @@ export const useOpenClawStore = defineStore("openclaw", {
                 const result = await connectOpenClaw(payload);
                 await this.loadInstances();
                 return result;
+            } finally {
+                this.creating = false;
+            }
+        },
+        async updateInstance(
+            instanceId: number,
+            payload: {
+                name: string;
+                channel_base_url: string;
+                shared_secret?: string;
+                channel_account_id?: string;
+            },
+        ) {
+            this.creating = true;
+            try {
+                const instance = await updateOpenClawInstance(instanceId, {
+                    name: payload.name,
+                    channel_base_url: payload.channel_base_url,
+                    channel_account_id: payload.channel_account_id ?? "default",
+                    ...(payload.shared_secret
+                        ? {
+                            channel_signing_secret: payload.shared_secret,
+                            callback_token: payload.shared_secret,
+                        }
+                        : {}),
+                });
+                await this.loadInstances();
+                return instance;
             } finally {
                 this.creating = false;
             }

@@ -1,7 +1,7 @@
 <template>
   <div class="page-shell">
     <section class="page-header page-shell__header">
-      <h1 class="page-header__title page-shell__title">任务管理</h1>
+      <h1 class="page-header__title page-shell__title">{{ t("tasks.title") }}</h1>
 
       <el-tabs :model-value="activeStatusTab" class="tasks-tabs" @tab-change="handleTabChange">
         <el-tab-pane
@@ -17,7 +17,7 @@
       <header class="toolbar">
         <div class="toolbar__left">
           <el-button type="primary" @click="createDrawerVisible = true">
-            创建任务
+            {{ t("tasks.createTask") }}
           </el-button>
         </div>
 
@@ -26,11 +26,11 @@
             :model-value="filters.keyword"
             clearable
             class="toolbar__search"
-            placeholder="按任务名称 / 任务内容搜索"
+            :placeholder="t('tasks.searchPlaceholder')"
             @update:model-value="handleKeywordChange"
           />
           <el-button :loading="taskLoading" @click="reloadTasks">
-            刷新
+            {{ t("tasks.refresh") }}
           </el-button>
           <span class="toolbar__mode" :class="`toolbar__mode--${backendMode}`">
             {{ backendModeLabel }}
@@ -43,7 +43,7 @@
           {{ loadError }}
         </div>
         <div v-if="taskLoading" class="table-empty">
-          正在加载任务…
+          {{ t("tasks.loading") }}
         </div>
         <div v-else class="task-table-v2">
           <el-auto-resizer>
@@ -76,7 +76,7 @@
 
     <el-drawer
       :model-value="detailDrawerVisible"
-      title="任务详情"
+      :title="t('tasks.detailTitle')"
       size="760px"
       destroy-on-close
       @close="detailDrawerVisible = false"
@@ -106,6 +106,7 @@ import type { Column } from "element-plus/es/components/table-v2/index";
 
 import TaskDetailPane from "@/components/task/TaskDetailPane.vue";
 import TaskCreateDrawer from "@/components/task/TaskCreateDrawer.vue";
+import { useI18n } from "@/composables/useI18n";
 import { useOpenClawStore } from "@/stores/openclaw";
 import { useTaskStore } from "@/stores/task";
 import type { TaskCreatePayload, TaskStatus } from "@/types/view/task";
@@ -120,6 +121,7 @@ const virtualLoadStep = 500;
 const virtualPreloadThresholdRows = 120;
 const loadedTaskCount = ref(virtualLoadStep);
 const tableViewportHeight = 460;
+const { t } = useI18n();
 
 const filters = computed(() => taskStore.filters);
 const instances = computed(() => openClawStore.instances);
@@ -133,29 +135,29 @@ const loadedTasks = computed(() =>
 );
 const backendModeLabel = computed(() => {
     if (backendMode.value === "server") {
-        return "真实后端";
+        return t("tasks.serverMode");
     }
     if (backendMode.value === "demo") {
-        return "演示数据";
+        return t("tasks.demoMode");
     }
-    return "初始化中";
+    return t("tasks.initializing");
 });
 const emptyStateText = computed(() => {
     if (backendMode.value === "server") {
-        return "真实任务系统里还没有任务。你可以先点击左上角“创建任务”试一条。";
+        return t("tasks.noServerTasks");
     }
-    return "当前筛选条件下还没有任务。";
+    return t("tasks.noFilteredTasks");
 });
 const statusTabs = [
-    { value: "in_progress", label: "进行中任务" },
-    { value: "completed", label: "已完成任务" },
-    { value: "terminated", label: "已终止任务" },
-    { value: "all", label: "全部任务" },
+    { value: "in_progress", label: t("tasks.tabInProgress") },
+    { value: "completed", label: t("tasks.tabCompleted") },
+    { value: "terminated", label: t("tasks.tabTerminated") },
+    { value: "all", label: t("tasks.tabAll") },
 ] as const;
 const columns = computed<Column[]>(() => [
     {
         key: "title",
-        title: "任务标题",
+        title: t("tasks.columnTitle"),
         dataKey: "title",
         width: 260,
         flexGrow: 2.6,
@@ -163,7 +165,7 @@ const columns = computed<Column[]>(() => [
     },
     {
         key: "agent",
-        title: "执行 Agent",
+        title: t("tasks.columnAgent"),
         dataKey: "agent",
         width: 120,
         flexGrow: 1,
@@ -171,7 +173,7 @@ const columns = computed<Column[]>(() => [
     },
     {
         key: "instance",
-        title: "OpenClaw",
+        title: t("tasks.columnInstance"),
         dataKey: "instance",
         width: 180,
         flexGrow: 1.5,
@@ -179,7 +181,7 @@ const columns = computed<Column[]>(() => [
     },
     {
         key: "status",
-        title: "状态",
+        title: t("tasks.columnStatus"),
         dataKey: "status",
         width: 100,
         cellRenderer: ({ rowData }) =>
@@ -187,7 +189,7 @@ const columns = computed<Column[]>(() => [
     },
     {
         key: "startedAt",
-        title: "开始时间",
+        title: t("tasks.columnStartedAt"),
         dataKey: "startedAt",
         width: 150,
         flexGrow: 1.1,
@@ -195,7 +197,7 @@ const columns = computed<Column[]>(() => [
     },
     {
         key: "endedAt",
-        title: "结束时间",
+        title: t("tasks.columnEndedAt"),
         dataKey: "endedAt",
         width: 140,
         flexGrow: 1,
@@ -203,7 +205,7 @@ const columns = computed<Column[]>(() => [
     },
     {
         key: "actions",
-        title: "操作",
+        title: t("tasks.columnActions"),
         dataKey: "actions",
         width: 180,
         flexGrow: 1,
@@ -216,7 +218,7 @@ const columns = computed<Column[]>(() => [
                         size: "small",
                         onClick: () => openTaskDetail(rowData.id),
                     },
-                    { default: () => "查看" },
+                    { default: () => t("tasks.view") },
                 ),
                 ...(rowData.status === "in_progress"
                     ? [

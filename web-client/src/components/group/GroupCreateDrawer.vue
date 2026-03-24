@@ -1,27 +1,27 @@
 <template>
   <el-drawer
     :model-value="visible"
-    title="创建群组"
+    :title="t('conversation.create')"
     size="520px"
     destroy-on-close
     @close="emit('update:visible', false)"
   >
     <div class="drawer-body">
       <p class="drawer-body__hint">
-        群组由 Claw Team 调度中心维护。第一阶段先支持创建群组与后续添加成员。
+        {{ t("conversation.drawerGroupHint") }}
       </p>
 
       <el-form label-position="top">
-        <el-form-item label="群组名称">
-          <el-input v-model="name" maxlength="120" placeholder="例如：项目开发群" />
+        <el-form-item :label="t('conversation.groupName')">
+          <el-input v-model="name" maxlength="120" :placeholder="t('conversation.groupNamePlaceholder')" />
         </el-form-item>
-        <el-form-item label="群组描述">
+        <el-form-item :label="t('conversation.groupDescription')">
           <el-input
             v-model="description"
             type="textarea"
             :rows="3"
             maxlength="500"
-            placeholder="可选：说明这个群组的用途"
+            :placeholder="t('conversation.groupDescriptionPlaceholder')"
           />
         </el-form-item>
       </el-form>
@@ -29,9 +29,9 @@
 
     <template #footer>
       <div class="drawer-actions">
-        <el-button @click="emit('update:visible', false)">取消</el-button>
+        <el-button @click="emit('update:visible', false)">{{ t("conversation.cancel") }}</el-button>
         <el-button type="primary" :loading="submitting" :disabled="!name.trim()" @click="submit">
-          创建群组
+          {{ t("conversation.create") }}
         </el-button>
       </div>
     </template>
@@ -46,6 +46,7 @@
  * 后续如果要接更复杂的群组属性，不需要重做消息页主结构。
  */
 import { ref, watch } from "vue";
+import { useI18n } from "@/composables/useI18n";
 
 const props = defineProps<{
     visible: boolean;
@@ -59,6 +60,7 @@ const emit = defineEmits<{
 
 const name = ref("");
 const description = ref("");
+const { t } = useI18n();
 
 watch(
     () => props.visible,

@@ -1,10 +1,10 @@
 <template>
   <div ref="containerRef" class="message-list">
     <div v-if="loading && !messages.length" class="message-list__empty">
-      正在加载会话消息...
+      {{ t("conversation.loadingMessages") }}
     </div>
     <div v-else-if="!messages.length" class="message-list__empty">
-      还没有消息，先发一条试试看。
+      {{ t("conversation.emptyMessages") }}
     </div>
     <div
       v-for="message in messageViews"
@@ -46,18 +46,19 @@
       <span class="message-list__typing-dot" />
       <span class="message-list__typing-dot" />
       <span class="message-list__typing-dot" />
-      <span class="message-list__typing-text">正在回复...</span>
+      <span class="message-list__typing-text">{{ t("conversation.replying") }}</span>
     </div>
     <div ref="bottomRef" class="message-list__bottom-anchor" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 
 import MessageAttachmentCard from "@/components/conversation/MessageAttachmentCard.vue";
 import MessageMarkdown from "@/components/conversation/MessageMarkdown.vue";
 import MessageToolCard from "@/components/conversation/MessageToolCard.vue";
+import { useI18n } from "@/composables/useI18n";
 import type { MessageReadApi } from "@/types/api/conversation";
 import { toMessageView } from "@/types/view/message";
 
@@ -70,11 +71,24 @@ const props = defineProps<{
 const containerRef = ref<HTMLElement | null>(null);
 const bottomRef = ref<HTMLElement | null>(null);
 const messageViews = computed(() => props.messages.map((item) => toMessageView(item)));
+const hasInitializedScroll = ref(false);
+const { locale, t } = useI18n();
+const scrollTrigger = computed(() => {
+    const lastMessage = props.messages.at(-1);
+    return [
+        props.loading ? "loading" : "ready",
+        props.messages.length,
+        props.showTypingIndicator ? "typing" : "idle",
+        lastMessage?.id ?? "",
+        lastMessage?.updated_at ?? "",
+        lastMessage?.content ?? "",
+    ].join("|");
+});
 
-async function scrollToBottom() {
+async function scrollToBottom(behavior: ScrollBehavior = "smooth") {
     await nextTick();
     if (bottomRef.value) {
-        bottomRef.value.scrollIntoView({ behavior: "smooth", block: "end" });
+        bottomRef.value.scrollIntoView({ behavior, block: "end" });
         return;
     }
     if (containerRef.value) {
@@ -82,36 +96,32 @@ async function scrollToBottom() {
     }
 }
 
-onMounted(() => {
-    void scrollToBottom();
-});
+async function syncScrollPosition() {
+    // 首次进入会话时，消息通常是异步拉取的。
+    // 只有等第一批数据真正落地后，才把位置直接定到底部；
+    // 后续新增消息或流式更新，再使用平滑滚动。
+    if (!hasInitializedScroll.value) {
+        if (props.loading && !props.messages.length) {
+            return;
+        }
+        await scrollToBottom("auto");
+        hasInitializedScroll.value = true;
+        return;
+    }
+
+    await scrollToBottom("smooth");
+}
 
 watch(
-    () => props.messages.length,
+    scrollTrigger,
     () => {
-        void scrollToBottom();
+        void syncScrollPosition();
     },
-);
-
-watch(
-    () => {
-        const lastMessage = props.messages.at(-1);
-        return lastMessage ? `${lastMessage.id}:${lastMessage.updated_at}:${lastMessage.content}` : "";
-    },
-    () => {
-        void scrollToBottom();
-    },
-);
-
-watch(
-    () => props.showTypingIndicator,
-    () => {
-        void scrollToBottom();
-    },
+    { immediate: true, flush: "post" },
 );
 
 function formatDateTime(value: string) {
-    return new Intl.DateTimeFormat("zh-CN", {
+    return new Intl.DateTimeFormat(locale.value, {
         month: "numeric",
         day: "numeric",
         hour: "2-digit",

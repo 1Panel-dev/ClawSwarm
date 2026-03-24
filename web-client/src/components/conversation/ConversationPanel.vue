@@ -32,6 +32,7 @@ import { computed } from "vue";
 
 import MessageComposer from "@/components/conversation/MessageComposer.vue";
 import MessageList from "@/components/conversation/MessageList.vue";
+import { useI18n } from "@/composables/useI18n";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
@@ -44,6 +45,7 @@ defineProps<{
 const conversationStore = useConversationStore();
 const groupStore = useGroupStore();
 const addressBookStore = useAddressBookStore();
+const { t } = useI18n();
 
 const messages = computed(() => conversationStore.messages);
 const dispatches = computed(() => conversationStore.dispatches);
@@ -51,7 +53,7 @@ const sending = computed(() => conversationStore.sending);
 const title = computed(() => {
     const conversation = conversationStore.currentConversation;
     if (!conversation) {
-        return "请选择一个会话";
+        return t("conversation.selectConversation");
     }
     if (conversation.type === "direct" && conversation.direct_instance_id && conversation.direct_agent_id) {
         const instance = addressBookStore.instances.find((item) => item.id === conversation.direct_instance_id);
@@ -60,7 +62,7 @@ const title = computed(() => {
             return `${agent.display_name} / ${instance.name}`;
         }
     }
-    return conversation.title ?? "请选择一个会话";
+    return conversation.title ?? t("conversation.selectConversation");
 });
 const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
 const mentionOptions = computed(() =>
