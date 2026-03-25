@@ -28,6 +28,7 @@ export interface TaskTimelineEntryView {
 
 export interface TaskView {
     id: string;
+    parentTaskId?: string | null;
     title: string;
     description: string;
     priority: TaskPriority;
@@ -41,6 +42,8 @@ export interface TaskView {
     updatedAt: string;
     commentCount: number;
     timeline: TaskTimelineEntryView[];
+    children: TaskView[];
+    level?: number;
 }
 
 export interface TaskFilterState {
@@ -55,4 +58,10 @@ export interface TaskCreatePayload {
     priority: TaskPriority;
     tags: string[];
     assignee: TaskAssigneeView;
+    children: Array<{
+        title: string;
+        description: string;
+        priority: TaskPriority;
+        tags: string[];
+    }>;
 }

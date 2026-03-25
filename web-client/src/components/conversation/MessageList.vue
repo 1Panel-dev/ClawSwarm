@@ -17,6 +17,17 @@
       <div class="message-list__meta">
         <span class="message-list__sender">{{ message.senderLabel }}</span>
         <div class="message-list__meta-side">
+          <ElButton
+            class="message-list__copy-button"
+            text
+            @click="copyMessage(message)"
+            :title="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
+            :aria-label="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
+          >
+            <el-icon class="message-list__copy-icon" aria-hidden="true">
+              <CopyDocument />
+            </el-icon>
+          </ElButton>
           <span>{{ formatDateTime(message.updatedAt) }}</span>
         </div>
       </div>
@@ -41,6 +52,19 @@
           />
         </template>
       </div>
+      <div class="message-list__actions">
+        <ElButton
+          class="message-list__copy-button"
+          text
+          @click="copyMessage(message)"
+          :title="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
+          :aria-label="copiedMessageId === message.id ? t('conversation.copied') : t('conversation.copy')"
+        >
+          <el-icon class="message-list__copy-icon" aria-hidden="true">
+            <CopyDocument />
+          </el-icon>
+        </ElButton>
+      </div>
     </div>
     <div v-if="showTypingIndicator" class="message-list__typing">
       <span class="message-list__typing-dot" />
@@ -53,13 +77,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from "vue";
+import { CopyDocument } from "@element-plus/icons-vue";
+import { computed, nextTick, onBeforeUnmount, ref, watch } from "vue";
 
 import MessageAttachmentCard from "@/components/conversation/MessageAttachmentCard.vue";
 import MessageMarkdown from "@/components/conversation/MessageMarkdown.vue";
 import MessageToolCard from "@/components/conversation/MessageToolCard.vue";
 import { useI18n } from "@/composables/useI18n";
 import type { MessageReadApi } from "@/types/api/conversation";
+import type { MessagePartView, MessageView } from "@/types/view/message";
 import { toMessageView } from "@/types/view/message";
 
 const props = defineProps<{
@@ -72,7 +98,9 @@ const containerRef = ref<HTMLElement | null>(null);
 const bottomRef = ref<HTMLElement | null>(null);
 const messageViews = computed(() => props.messages.map((item) => toMessageView(item)));
 const hasInitializedScroll = ref(false);
+const copiedMessageId = ref<string | null>(null);
 const { locale, t } = useI18n();
+let copiedResetTimer: ReturnType<typeof setTimeout> | null = null;
 const scrollTrigger = computed(() => {
     const lastMessage = props.messages.at(-1);
     return [
@@ -128,6 +156,46 @@ function formatDateTime(value: string) {
         minute: "2-digit",
     }).format(new Date(value));
 }
+
+function formatMessagePart(part: MessagePartView): string {
+    if (part.kind === "markdown") {
+        return part.content.trim();
+    }
+    if (part.kind === "attachment") {
+        return [part.name, part.url].filter(Boolean).join("\n");
+    }
+    return [part.title, part.summary].filter(Boolean).join("\n");
+}
+
+function serializeMessage(message: MessageView): string {
+    return message.parts
+        .map((part) => formatMessagePart(part))
+        .filter(Boolean)
+        .join("\n\n")
+        .trim();
+}
+
+async function copyMessage(message: MessageView) {
+    const text = serializeMessage(message);
+    if (!text) {
+        return;
+    }
+    await navigator.clipboard.writeText(text);
+    copiedMessageId.value = message.id;
+    if (copiedResetTimer) {
+        clearTimeout(copiedResetTimer);
+    }
+    copiedResetTimer = setTimeout(() => {
+        copiedMessageId.value = null;
+        copiedResetTimer = null;
+    }, 1800);
+}
+
+onBeforeUnmount(() => {
+    if (copiedResetTimer) {
+        clearTimeout(copiedResetTimer);
+    }
+});
 </script>
 
 <style scoped>
@@ -185,6 +253,26 @@ function formatDateTime(value: string) {
   gap: 8px;
 }
 
+.message-list__copy-button {
+  --el-button-hover-text-color: #6f7784;
+  --el-button-hover-bg-color: #f4f5f7;
+  --el-button-active-text-color: #5f6773;
+  --el-button-active-bg-color: #eceef2;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid #e3e6eb;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #8d95a3;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+}
+
+.message-list__copy-icon {
+  font-size: 16px;
+}
+
 .message-list__content {
   min-width: 0;
 }
@@ -192,6 +280,12 @@ function formatDateTime(value: string) {
 .message-list__parts {
   display: grid;
   gap: 10px;
+}
+
+.message-list__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 .message-list__bottom-anchor {

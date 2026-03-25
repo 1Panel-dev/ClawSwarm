@@ -18,6 +18,12 @@ export async function createTask(payload: {
     tags: string[];
     assignee_instance_id: number;
     assignee_agent_id: number;
+    children?: Array<{
+        title: string;
+        description: string;
+        priority: string;
+        tags: string[];
+    }>;
 }): Promise<TaskReadApi> {
     const response = await apiClient.post<TaskReadApi>("/api/tasks", payload);
     return response.data;

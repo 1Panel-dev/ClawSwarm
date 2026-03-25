@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes import address_book, agents, callbacks, conversations, groups, health, instances, tasks, ws
-from src.core.db import Base, engine
+from src.core.db import Base, engine, ensure_runtime_schema
 import src.models  # noqa: F401
 
 
@@ -15,6 +15,7 @@ def create_app() -> FastAPI:
 
     # 第一阶段先直接用 create_all 建表，后续再切换到 Alembic 管理迁移。
     Base.metadata.create_all(bind=engine)
+    ensure_runtime_schema()
 
     # 本地前后端联调默认是：
     # - scheduler-server: 127.0.0.1:8080

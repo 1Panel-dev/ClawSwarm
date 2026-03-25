@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 import tempfile
 import unittest
 from pathlib import Path
@@ -692,6 +693,88 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(final_agent_messages[0]["status"], "completed")
         self.assertEqual(final_agent_messages[0]["content"], "第一段第二段，最终完成")
 
+    def test_stale_streaming_dispatch_is_finalized_when_loading_messages(self) -> None:
+        """
+        如果 OpenClaw 在回复过程中重启，dispatch 可能永远停在 streaming。
+        会话读取时应当把超时未结束的记录自动收尾，避免前端一直显示“正在回复”。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Recover",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="Recover / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            user_message = Message(
+                id="msg_user_recover_001",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="这条回复被中断了",
+                status="streaming",
+            )
+            dispatch = MessageDispatch(
+                id="dsp_user_recover_001",
+                message_id=user_message.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=agent.id,
+                dispatch_mode="direct",
+                channel_message_id=user_message.id,
+                status="streaming",
+            )
+            agent_message = Message(
+                id="msg_agent_dsp_user_recover_001",
+                conversation_id=conversation.id,
+                sender_type="agent",
+                sender_label="Main Agent",
+                content="回复到一半",
+                status="streaming",
+            )
+            db.add_all([user_message, dispatch, agent_message])
+            db.commit()
+
+            old_timestamp = datetime.utcnow() - timedelta(minutes=5)
+            dispatch.updated_at = old_timestamp
+            user_message.updated_at = old_timestamp
+            agent_message.updated_at = old_timestamp
+            db.commit()
+            conversation_id = conversation.id
+
+        response = self.client.get(f"/api/conversations/{conversation_id}/messages")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        dispatches = {item["id"]: item for item in payload["dispatches"]}
+        messages = {item["id"]: item for item in payload["messages"]}
+
+        self.assertEqual(dispatches["dsp_user_recover_001"]["status"], "failed")
+        self.assertEqual(messages["msg_user_recover_001"]["status"], "failed")
+        self.assertEqual(messages["msg_agent_dsp_user_recover_001"]["status"], "failed")
+
     def test_tasks_crud_roundtrip(self) -> None:
         """
         任务模块第一阶段至少要能真实完成：
@@ -759,6 +842,210 @@ class Stage1BackendTests(unittest.TestCase):
             task = db.get(Task, created["id"])
             self.assertIsNotNone(task)
             self.assertEqual(task.status, "completed")
+
+    def test_tasks_support_parent_and_child_structure(self) -> None:
+        """
+        第一阶段允许两级任务：
+        一个父任务下面挂若干子任务，但不能再往下继续拆。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Hierarchy",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="hierarchy-agent",
+                display_name="层级 Agent",
+                role_name="executor",
+                enabled=True,
+            )
+            db.add(agent)
+            db.commit()
+            instance_id = instance.id
+            agent_id = agent.id
+
+        create_response = self.client.post(
+            "/api/tasks",
+            json={
+                "title": "完成登录模块收尾",
+                "description": "把登录模块收敛到可交付状态。",
+                "priority": "high",
+                "tags": ["登录"],
+                "assignee_instance_id": instance_id,
+                "assignee_agent_id": agent_id,
+                "children": [
+                    {
+                        "title": "补齐登录页交互",
+                        "description": "完善输入反馈和错误提示。",
+                        "priority": "high",
+                        "tags": ["前端"],
+                    },
+                    {
+                        "title": "补齐登录测试",
+                        "description": "增加关键流程测试覆盖。",
+                        "priority": "medium",
+                        "tags": ["测试"],
+                    },
+                ],
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+        created = create_response.json()
+        self.assertIsNone(created["parent_task_id"])
+        self.assertEqual(len(created["children"]), 2)
+        self.assertEqual(created["children"][0]["parent_task_id"], created["id"])
+        self.assertEqual(created["children"][1]["parent_task_id"], created["id"])
+
+        list_response = self.client.get("/api/tasks", params={"status": "all", "keyword": "登录模块"})
+        self.assertEqual(list_response.status_code, 200)
+        listed = list_response.json()
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]["id"], created["id"])
+        self.assertEqual(len(listed[0]["children"]), 2)
+
+    def test_tasks_reject_third_level_children(self) -> None:
+        """
+        子任务不允许继续创建孙任务，避免层级无限扩展。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Third Level",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="nested-agent",
+                display_name="嵌套 Agent",
+                role_name="executor",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            parent = Task(
+                id="task_parent_001",
+                title="父任务",
+                description="父任务",
+                priority="medium",
+                status="in_progress",
+                source="server",
+                assignee_instance_id=instance.id,
+                assignee_agent_id=agent.id,
+                tags_json='["父任务"]',
+                comment_count=1,
+            )
+            child = Task(
+                id="task_child_001",
+                parent_task_id=parent.id,
+                title="子任务",
+                description="子任务",
+                priority="medium",
+                status="in_progress",
+                source="server",
+                assignee_instance_id=instance.id,
+                assignee_agent_id=agent.id,
+                tags_json='["子任务"]',
+                comment_count=1,
+            )
+            db.add_all([parent, child])
+            db.commit()
+            instance_id = instance.id
+            agent_id = agent.id
+
+        response = self.client.post(
+            "/api/tasks",
+            json={
+                "title": "孙任务",
+                "description": "不应被允许。",
+                "priority": "medium",
+                "tags": [],
+                "assignee_instance_id": instance_id,
+                "assignee_agent_id": agent_id,
+                "parent_task_id": "task_child_001",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "third-level tasks are not supported")
+
+    def test_delete_task_removes_direct_children(self) -> None:
+        """
+        删除父任务时，应一并删除它的直接子任务和时间线事件。
+        """
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Delete",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="delete-agent",
+                display_name="删除 Agent",
+                role_name="executor",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            parent = Task(
+                id="task_delete_parent_001",
+                title="待删除父任务",
+                description="测试删除",
+                priority="medium",
+                status="in_progress",
+                source="server",
+                assignee_instance_id=instance.id,
+                assignee_agent_id=agent.id,
+                tags_json='["删除"]',
+                comment_count=1,
+            )
+            child = Task(
+                id="task_delete_child_001",
+                parent_task_id=parent.id,
+                title="待删除子任务",
+                description="测试删除",
+                priority="medium",
+                status="in_progress",
+                source="server",
+                assignee_instance_id=instance.id,
+                assignee_agent_id=agent.id,
+                tags_json='["删除"]',
+                comment_count=1,
+            )
+            db.add_all([parent, child])
+            db.commit()
+
+        response = self.client.delete("/api/tasks/task_delete_parent_001")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["task_id"], "task_delete_parent_001")
+        self.assertTrue(payload["deleted"])
+        self.assertEqual(payload["deleted_child_count"], 1)
+
+        with self.SessionLocal() as db:
+            self.assertIsNone(db.get(Task, "task_delete_parent_001"))
+            self.assertIsNone(db.get(Task, "task_delete_child_001"))
 
     def test_task_append_comment(self) -> None:
         """

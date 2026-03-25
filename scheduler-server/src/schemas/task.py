@@ -31,6 +31,7 @@ class TaskTimelineEntryRead(BaseModel):
 
 class TaskRead(TimestampedModel):
     id: str
+    parent_task_id: str | None = None
     title: str
     description: str
     priority: str
@@ -42,6 +43,14 @@ class TaskRead(TimestampedModel):
     ended_at: datetime | None
     comment_count: int
     timeline: list[TaskTimelineEntryRead]
+    children: list["TaskRead"] = Field(default_factory=list)
+
+
+class TaskChildCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    description: str = Field(min_length=1, max_length=4000)
+    priority: str = Field(default="medium")
+    tags: list[str] = Field(default_factory=list)
 
 
 class TaskCreate(BaseModel):
@@ -51,6 +60,8 @@ class TaskCreate(BaseModel):
     tags: list[str] = Field(default_factory=list)
     assignee_instance_id: int
     assignee_agent_id: int
+    parent_task_id: str | None = None
+    children: list[TaskChildCreate] = Field(default_factory=list)
 
 
 class TaskActionPayload(BaseModel):
@@ -66,3 +77,12 @@ class TaskCommentResult(BaseModel):
     task_id: str
     comment_count: int
     latest_entry: TaskTimelineEntryRead
+
+
+class TaskDeleteResult(BaseModel):
+    task_id: str
+    deleted: bool
+    deleted_child_count: int
+
+
+TaskRead.update_forward_refs()

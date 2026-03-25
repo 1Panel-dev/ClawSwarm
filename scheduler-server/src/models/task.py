@@ -24,6 +24,7 @@ class Task(Base, TimestampMixin):
     __tablename__ = "tasks"
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    parent_task_id: Mapped[str | None] = mapped_column(ForeignKey("tasks.id"), index=True, nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text)
     priority: Mapped[str] = mapped_column(String(20), default="medium")

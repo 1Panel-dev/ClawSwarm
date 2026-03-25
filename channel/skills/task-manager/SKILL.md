@@ -1,6 +1,6 @@
 ---
 name: task-manager
-description: Use this skill when a user wants an Agent to turn a chat request into one or more actionable tasks in the Claw Team task system, or when the Agent needs to query, comment on, complete, or terminate existing tasks. Use it for task decomposition, task creation, and task lifecycle updates; do not use it for ordinary Q&A or one-off answers.
+description: Use this skill when a user asks an Agent to turn multi-step work into tracked tasks, or when the Agent needs to query, comment on, complete, or terminate tasks while reporting progress back through Claw Team chat. Do not use it for ordinary Q&A or one-off answers.
 ---
 
 # Task Manager
@@ -26,21 +26,26 @@ Do not use this skill when:
 
 ## Default Workflow
 
-Follow this workflow unless the user explicitly says to create tasks immediately:
+Follow this workflow unless the user has already clearly switched into execution mode:
 
 1. Decide whether the request should become tasks at all.
-2. If it should, decompose the work into clear, single-purpose tasks.
-3. Pick a specific Agent for each task.
-4. Present the task draft to the user and ask for confirmation.
-5. After confirmation, create the tasks in Claw Team.
-6. During execution, append progress comments instead of constantly rewriting task fields.
-7. Only mark tasks completed or terminated when the state is truly clear.
+2. If it should, decide whether one task is enough or whether the work needs a parent task with child tasks.
+3. Decompose the work into clear, single-purpose tasks.
+4. Assign every task to the current Agent itself.
+5. If the user is still discussing or refining the request, present the task draft and ask for confirmation.
+6. If the user has already clearly asked the Agent to execute a multi-step task, create the tasks immediately.
+7. During execution, append progress comments instead of constantly rewriting task fields.
+8. Report meaningful progress and completion updates back to the owner through Claw Team chat.
+9. Only mark tasks completed or terminated when the state is truly clear.
 
 First-stage default:
 
 - Prefer **confirm first, then create**.
-- Prefer **flat tasks**, not parent/child tasks.
-- Every task must be assigned to **one specific Agent**.
+- If the user clearly requests execution of a multi-step task, **decompose and create immediately**.
+- Support **at most two levels**: parent task and child task.
+- Every child task must already be a **smallest executable unit** and must not be split again.
+- Every task must be assigned to **the current Agent itself**.
+- If a conflicting or obsolete task is found, surface it to the human owner and ask whether it should be deleted.
 
 ## Skill Actions
 
@@ -51,6 +56,7 @@ This skill currently assumes five actions:
 3. `append_task_comment`
 4. `complete_task`
 5. `terminate_task`
+6. `delete_task`
 
 For the JSON contract, read:
 
@@ -61,9 +67,10 @@ For the JSON contract, read:
 Before creating tasks, always check:
 
 1. Is the request specific enough to become tracked work?
-2. Can each task be assigned to one concrete Agent?
+2. Can each task be assigned to the current Agent?
 3. Is there already a similar task in the system?
-4. Does this need multiple tasks, or would one task be enough?
+4. Does this need one task, or a parent task with child tasks?
+5. Has the user clearly asked to execute the work now, or is confirmation still required?
 
 For the detailed rules, read:
 
@@ -74,10 +81,13 @@ For the detailed rules, read:
 When splitting work into tasks:
 
 - Keep each task focused on one main outcome.
+- Use a parent task only when one goal naturally contains several concrete deliverables.
+- Keep child tasks small enough to execute directly; do not create a third level.
 - Use action-oriented titles.
 - Put scope, constraints, and expected output into the description.
 - Use 0-3 tags only.
 - Default priority to `medium` unless there is a clear reason otherwise.
+- Assign every task to the current Agent that is holding the conversation.
 
 For the detailed decomposition guidance, read:
 
@@ -119,11 +129,14 @@ Recommended usage split:
 
 Do not add these in the first stage:
 
-- Parent/child tasks
 - Multi-agent automatic orchestration
 - Arbitrary full-field task updates
-- Delete task
 - Approval workflow
 - Complex permission model
 
 Keep the system conservative and auditable first.
+
+Notes for the current stage:
+
+- Parent/child is allowed, but only up to two levels.
+- Deletion is not a silent action. The Agent should identify conflicting tasks and ask the human owner for confirmation before removal.

@@ -112,13 +112,10 @@ async function ensureConversationSelection() {
     if (route.params.conversationId) {
         return;
     }
-    // 单用户模式下，消息入口始终落到后端当前的固定会话：
-    // 优先群聊，其次才是最近会话第一条。
-    // 这里故意不再读取浏览器本地状态，也不沿用当前内存里的会话，
-    // 这样无论通过哪个 IP 访问，同一个后端都会打开同一份内容。
-    const targetConversationId =
-        addressBookStore.recentConversations.find((item) => item.type === "group")?.id
-        ?? addressBookStore.recentConversations[0]?.id;
+    // 单用户模式下，消息入口直接回到后端最近一条会话。
+    // 不再优先群聊，也不依赖浏览器本地状态，
+    // 这样不同访问地址仍然会落到同一份最新对话。
+    const targetConversationId = addressBookStore.recentConversations[0]?.id;
 
     if (targetConversationId) {
         if (conversationStore.currentConversationId !== targetConversationId) {

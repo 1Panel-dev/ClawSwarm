@@ -5,6 +5,7 @@
   "description": "Channel plugin bridging OpenClaw agents with Claw Team platform (direct/group/@mention).",
   "kind": "channel",
   "channels": ["claw-team"],
+  "skills": ["./skills"],
   "configSchema": {
     "type": "object",
     "properties": {

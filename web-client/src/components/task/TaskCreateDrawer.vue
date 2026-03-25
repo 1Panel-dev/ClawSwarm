@@ -77,6 +77,77 @@
             />
           </el-select>
         </el-form-item>
+
+        <section class="child-section">
+          <header class="child-section__header">
+            <div>
+              <h3 class="child-section__title">{{ t("tasks.childTasksTitle") }}</h3>
+              <p class="child-section__hint">{{ t("tasks.childTasksHint") }}</p>
+            </div>
+            <el-button plain @click="addChildTask">
+              {{ t("tasks.addChildTask") }}
+            </el-button>
+          </header>
+
+          <div v-if="form.children.length" class="child-list">
+            <article
+              v-for="(child, index) in form.children"
+              :key="child.id"
+              class="child-card"
+            >
+              <div class="child-card__header">
+                <div class="child-card__title">{{ t("tasks.childTaskLabel", { index: index + 1 }) }}</div>
+                <el-button text type="danger" @click="removeChildTask(child.id)">
+                  {{ t("common.remove") }}
+                </el-button>
+              </div>
+
+              <el-form-item :label="t('tasks.titleField')">
+                <el-input v-model="child.title" maxlength="200" :placeholder="t('tasks.childTitlePlaceholder')" />
+              </el-form-item>
+
+              <el-form-item :label="t('tasks.descriptionField')">
+                <el-input
+                  v-model="child.description"
+                  type="textarea"
+                  :rows="3"
+                  maxlength="4000"
+                  :placeholder="t('tasks.childDescriptionPlaceholder')"
+                />
+              </el-form-item>
+
+              <div class="drawer-grid">
+                <el-form-item :label="t('tasks.priorityField')">
+                  <el-select v-model="child.priority" style="width: 100%">
+                    <el-option :label="t('tasks.priorityLow')" value="low" />
+                    <el-option :label="t('tasks.priorityMedium')" value="medium" />
+                    <el-option :label="t('tasks.priorityHigh')" value="high" />
+                    <el-option :label="t('tasks.priorityUrgent')" value="urgent" />
+                  </el-select>
+                </el-form-item>
+
+                <el-form-item :label="t('tasks.tagsField')">
+                  <el-select
+                    v-model="child.tags"
+                    multiple
+                    filterable
+                    allow-create
+                    default-first-option
+                    :placeholder="t('tasks.tagsPlaceholder')"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="tag in tagSuggestions"
+                      :key="`${child.id}:${tag}`"
+                      :label="tag"
+                      :value="tag"
+                    />
+                  </el-select>
+                </el-form-item>
+              </div>
+            </article>
+          </div>
+        </section>
       </el-form>
     </div>
 
@@ -122,6 +193,13 @@ const form = reactive({
     description: "",
     priority: "medium" as TaskPriority,
     tags: [] as string[],
+    children: [] as Array<{
+        id: string;
+        title: string;
+        description: string;
+        priority: TaskPriority;
+        tags: string[];
+    }>,
 });
 const { t } = useI18n();
 
@@ -169,6 +247,7 @@ watch(
         form.description = "";
         form.priority = "medium";
         form.tags = [];
+        form.children = [];
         selectedAgentKey.value = "";
     },
 );
@@ -183,7 +262,32 @@ function submit() {
         priority: form.priority,
         tags: form.tags.map((tag) => tag.trim()).filter(Boolean),
         assignee: selectedAssignee.value,
+        // 第一阶段只支持“父任务 + 子任务”两级输入，
+        // 提交时把无效子任务先过滤掉，避免后端收到空标题/空描述。
+        children: form.children
+            .map((child) => ({
+                title: child.title.trim(),
+                description: child.description.trim(),
+                priority: child.priority,
+                tags: child.tags.map((tag) => tag.trim()).filter(Boolean),
+            }))
+            .filter((child) => child.title && child.description),
     });
+}
+
+function addChildTask() {
+    // 子任务只做最小执行单元录入，不再继续往下拆孙任务。
+    form.children.push({
+        id: crypto.randomUUID(),
+        title: "",
+        description: "",
+        priority: "medium",
+        tags: [],
+    });
+}
+
+function removeChildTask(childId: string) {
+    form.children = form.children.filter((child) => child.id !== childId);
 }
 </script>
 
@@ -210,6 +314,56 @@ function submit() {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.child-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}
+
+.child-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.child-section__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.child-section__hint {
+  margin: 6px 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  font-size: 0.92rem;
+}
+
+.child-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.child-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-panel);
+}
+
+.child-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.child-card__title {
+  font-weight: 700;
 }
 
 @media (max-width: 800px) {

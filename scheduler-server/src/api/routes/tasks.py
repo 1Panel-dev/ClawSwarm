@@ -31,6 +31,7 @@ from src.schemas.task import (
     TaskCommentCreate,
     TaskCommentResult,
     TaskCreate,
+    TaskDeleteResult,
     TaskRead,
     TaskTimelineEntryRead,
 )
@@ -44,7 +45,9 @@ def list_tasks(
     keyword: str = Query(default=""),
     db: Session = Depends(db_session),
 ) -> list[TaskRead]:
-    query = select(Task)
+    # 顶层列表只返回父任务/独立任务，子任务挂在 children 里，
+    # 这样前端既能按层级渲染，也不会在顶层重复显示一份子任务。
+    query = select(Task).where(Task.parent_task_id.is_(None))
     if status != "all":
         query = query.where(Task.status == status)
 
@@ -69,9 +72,21 @@ def create_task(payload: TaskCreate, db: Session = Depends(db_session)) -> TaskR
     if not instance or not agent:
         raise HTTPException(status_code=404, detail="instance or agent not found")
 
+    if payload.parent_task_id and payload.children:
+        raise HTTPException(status_code=400, detail="child task creation cannot include nested children")
+
+    parent_task: Task | None = None
+    if payload.parent_task_id:
+        parent_task = db.get(Task, payload.parent_task_id)
+        if not parent_task:
+            raise HTTPException(status_code=404, detail="parent task not found")
+        if parent_task.parent_task_id is not None:
+            raise HTTPException(status_code=400, detail="third-level tasks are not supported")
+
     now = datetime.now(timezone.utc)
     task = Task(
         id=f"task_{uuid.uuid4().hex[:24]}",
+        parent_task_id=payload.parent_task_id,
         title=payload.title.strip(),
         description=payload.description.strip(),
         priority=payload.priority,
@@ -95,6 +110,36 @@ def create_task(payload: TaskCreate, db: Session = Depends(db_session)) -> TaskR
             at=now,
         )
     )
+    if payload.children:
+        # 第一阶段只允许“父 + 子”两级，所以子任务沿用父任务的执行人，
+        # 不在这里再开放跨 Agent 指派或更深层拆分。
+        for child in payload.children:
+            child_task = Task(
+                id=f"task_{uuid.uuid4().hex[:24]}",
+                parent_task_id=task.id,
+                title=child.title.strip(),
+                description=child.description.strip(),
+                priority=child.priority,
+                status="in_progress",
+                source="server",
+                assignee_instance_id=instance.id,
+                assignee_agent_id=agent.id,
+                tags_json=json.dumps(_normalize_tags(child.tags), ensure_ascii=False),
+                comment_count=1,
+                started_at=now,
+                ended_at=None,
+            )
+            db.add(child_task)
+            db.add(
+                TaskEvent(
+                    id=f"taskevt_{uuid.uuid4().hex[:24]}",
+                    task_id=child_task.id,
+                    type="system",
+                    label="任务已创建",
+                    content=f"系统已将任务分配给 Agent[{agent.display_name}]。",
+                    at=now,
+                )
+            )
     db.commit()
     db.refresh(task)
     return _build_task_read(db, task)
@@ -190,14 +235,36 @@ def terminate_task(task_id: str, payload: TaskActionPayload, db: Session = Depen
     return _build_task_read(db, task)
 
 
+@router.delete("/{task_id}", response_model=TaskDeleteResult)
+def delete_task(task_id: str, db: Session = Depends(db_session)) -> TaskDeleteResult:
+    task = db.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="task not found")
+
+    # 删除父任务时同步删除它的直接子任务。
+    # 这里故意只做一层，和当前“两级任务”约束保持一致。
+    child_tasks = list(db.scalars(select(Task).where(Task.parent_task_id == task.id).order_by(Task.id.asc())))
+    delete_ids = [child.id for child in child_tasks] + [task.id]
+    deleted_child_count = len(child_tasks)
+
+    db.query(TaskEvent).filter(TaskEvent.task_id.in_(delete_ids)).delete(synchronize_session=False)
+    db.query(Task).filter(Task.id.in_(delete_ids)).delete(synchronize_session=False)
+    db.commit()
+
+    return TaskDeleteResult(task_id=task_id, deleted=True, deleted_child_count=deleted_child_count)
+
+
 def _build_task_read(db: Session, task: Task) -> TaskRead:
     instance = db.get(OpenClawInstance, task.assignee_instance_id)
     agent = db.get(AgentProfile, task.assignee_agent_id)
     timeline = list(
         db.scalars(select(TaskEvent).where(TaskEvent.task_id == task.id).order_by(TaskEvent.at.asc(), TaskEvent.id.asc()))
     )
+    # 读模型时把直接子任务一并组回去，前端就不需要自己再做一次 parent/child join。
+    child_tasks = list(db.scalars(select(Task).where(Task.parent_task_id == task.id).order_by(Task.created_at.asc(), Task.id.asc())))
     return TaskRead(
         id=task.id,
+        parent_task_id=task.parent_task_id,
         title=task.title,
         description=task.description,
         priority=task.priority,
@@ -226,6 +293,7 @@ def _build_task_read(db: Session, task: Task) -> TaskRead:
             )
             for entry in timeline
         ],
+        children=[_build_task_read(db, child) for child in child_tasks],
     )
 
 

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Task Manager"
-  short_description: "把对话需求拆成任务并写入 Claw Team 任务系统"
-  default_prompt: "使用 $task-manager 把当前需求拆成任务并录入 Claw Team 任务系统。"

@@ -19,6 +19,7 @@ export interface TaskTimelineEntryApi {
 
 export interface TaskReadApi {
     id: string;
+    parent_task_id?: string | null;
     title: string;
     description: string;
     priority: TaskPriorityApi;
@@ -32,4 +33,5 @@ export interface TaskReadApi {
     updated_at: string;
     comment_count: number;
     timeline: TaskTimelineEntryApi[];
+    children: TaskReadApi[];
 }

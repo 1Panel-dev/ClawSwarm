@@ -9,6 +9,7 @@ This file defines the suggested JSON contract for the Task Manager skill.
 - `append_task_comment`
 - `complete_task`
 - `terminate_task`
+- `delete_task`
 
 ## Shared Enums
 
@@ -33,17 +34,17 @@ This file defines the suggested JSON contract for the Task Manager skill.
 {
   "tasks": [
     {
-      "title": "重构登录页交互与校验",
-      "description": "整理登录页输入反馈、提交态和错误提示，确保移动端和桌面端交互一致。",
+      "title": "Refactor login page interaction and validation",
+      "description": "Improve login-page input feedback, submit states, and error messages so mobile and desktop behavior stay consistent.",
       "priority": "high",
-      "tags": ["前端", "登录"],
+      "tags": ["frontend", "login"],
       "assignee": {
         "instance_id": 1,
         "agent_id": 2
       }
     }
   ],
-  "reason": "用户确认将需求拆成任务并录入系统"
+  "reason": "The owner confirmed that this request should be decomposed into tasks and recorded in the system."
 }
 ```
 
@@ -61,13 +62,13 @@ This file defines the suggested JSON contract for the Task Manager skill.
   "created": [
     {
       "task_id": "task_abc123",
-      "title": "重构登录页交互与校验",
+      "title": "Refactor login page interaction and validation",
       "status": "in_progress",
       "assignee": {
         "instance_id": 1,
-        "instance_name": "OpenClaw 主节点",
+        "instance_name": "OpenClaw Main",
         "agent_id": 2,
-        "agent_name": "程序员"
+        "agent_name": "Engineer"
       }
     }
   ]
@@ -81,7 +82,7 @@ This file defines the suggested JSON contract for the Task Manager skill.
 ```json
 {
   "status": "all",
-  "keyword": "登录",
+  "keyword": "login",
   "limit": 20
 }
 ```
@@ -93,7 +94,7 @@ This file defines the suggested JSON contract for the Task Manager skill.
   "items": [
     {
       "task_id": "task_abc123",
-      "title": "重构登录页交互与校验",
+      "title": "Refactor login page interaction and validation",
       "status": "in_progress",
       "priority": "high",
       "updated_at": "2026-03-21T13:00:00+08:00"
@@ -109,7 +110,7 @@ This file defines the suggested JSON contract for the Task Manager skill.
 ```json
 {
   "task_id": "task_abc123",
-  "comment": "已完成表单校验规则整理，正在处理错误提示样式。",
+  "comment": "Validation rules are organized. I am now refining the error message styling.",
   "author_type": "agent"
 }
 ```
@@ -122,8 +123,8 @@ This file defines the suggested JSON contract for the Task Manager skill.
   "comment_count": 3,
   "latest_entry": {
     "type": "agent",
-    "label": "Agent 更新",
-    "content": "已完成表单校验规则整理，正在处理错误提示样式。",
+    "label": "Agent Update",
+    "content": "Validation rules are organized. I am now refining the error message styling.",
     "at": "2026-03-21T13:20:00+08:00"
   }
 }
@@ -136,7 +137,7 @@ This file defines the suggested JSON contract for the Task Manager skill.
 ```json
 {
   "task_id": "task_abc123",
-  "comment": "任务已完成，相关页面和校验逻辑已更新。"
+  "comment": "The task is complete. The related page and validation logic have been updated."
 }
 ```
 
@@ -157,7 +158,7 @@ This file defines the suggested JSON contract for the Task Manager skill.
 ```json
 {
   "task_id": "task_abc123",
-  "comment": "需求方向变化，当前任务暂停。"
+  "comment": "The direction has changed, so this task is being stopped."
 }
 ```
 
@@ -171,12 +172,30 @@ This file defines the suggested JSON contract for the Task Manager skill.
 }
 ```
 
+## delete_task
+
+### Input
+
+```json
+{
+  "task_id": "task_abc123"
+}
+```
+
+### Output
+
+```json
+{
+  "task_id": "task_abc123",
+  "deleted": true,
+  "deleted_child_count": 2
+}
+```
+
 ## First-Stage Exclusions
 
 Do not include these yet:
 
 - `update_task`
-- `delete_task`
 - `assign_task`
 - `accept_task`
-- `create_subtasks`

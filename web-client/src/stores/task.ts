@@ -13,6 +13,7 @@ function createDemoTasks(): TaskView[] {
     return [
         {
             id: "task_ui_login",
+            parentTaskId: null,
             title: "重构登录页交互与表单校验",
             description: "整理登录页输入反馈、提交态和错误提示，确保移动端和桌面端交互一致。",
             priority: "high",
@@ -54,9 +55,11 @@ function createDemoTasks(): TaskView[] {
                     at: "2026-03-20T10:10:00+08:00",
                 },
             ],
+            children: [],
         },
         {
             id: "task_content_plan",
+            parentTaskId: null,
             title: "整理产品介绍页文案结构",
             description: "为官网首页输出更清晰的分区文案，包括标题、卖点和 CTA 区域说明。",
             priority: "medium",
@@ -91,9 +94,11 @@ function createDemoTasks(): TaskView[] {
                     at: "2026-03-19T15:40:00+08:00",
                 },
             ],
+            children: [],
         },
         {
             id: "task_ops_report",
+            parentTaskId: null,
             title: "排查统计报表同步延迟",
             description: "检查调度中心到报表服务的同步链路，定位为什么昨日数据延迟入库。",
             priority: "urgent",
@@ -135,6 +140,7 @@ function createDemoTasks(): TaskView[] {
                     at: "2026-03-18T18:05:00+08:00",
                 },
             ],
+            children: [],
         },
     ];
 }
@@ -143,13 +149,54 @@ function byUpdatedDesc(a: TaskView, b: TaskView) {
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
-function replaceTask(items: TaskView[], nextTask: TaskView) {
-    return items.map((task) => (task.id === nextTask.id ? nextTask : task)).sort(byUpdatedDesc);
+function replaceTask(items: TaskView[], nextTask: TaskView): TaskView[] {
+    // 完成/终止动作可能发生在父任务或子任务上，
+    // 所以这里递归替换，避免子任务状态更新后丢回顶层找不到。
+    return items
+        .map((task) => {
+            if (task.id === nextTask.id) {
+                return nextTask;
+            }
+            if (task.children.length) {
+                return {
+                    ...task,
+                    children: replaceTask(task.children, nextTask),
+                };
+            }
+            return task;
+        })
+        .sort(byUpdatedDesc);
+}
+
+function findTask(items: TaskView[], taskId: string | null): TaskView | null {
+    if (!taskId) {
+        return null;
+    }
+    for (const task of items) {
+        if (task.id === taskId) {
+            return task;
+        }
+        const child = findTask(task.children, taskId);
+        if (child) {
+            return child;
+        }
+    }
+    return null;
+}
+
+function flattenTasks(items: TaskView[], level = 0): TaskView[] {
+    // 任务页继续沿用虚拟滚动表格，不改树组件。
+    // 所以先在 store 层把层级任务拍平成带 level 的行数据。
+    return items.flatMap((task) => [
+        { ...task, level },
+        ...flattenTasks(task.children, level + 1),
+    ]);
 }
 
 function toTaskView(task: TaskReadApi): TaskView {
     return {
         id: task.id,
+        parentTaskId: task.parent_task_id ?? null,
         title: task.title,
         description: task.description,
         priority: task.priority,
@@ -175,6 +222,8 @@ function toTaskView(task: TaskReadApi): TaskView {
             content: entry.content,
             at: entry.at,
         })),
+        // 读后端层级结构时直接递归转 ViewModel，后续列表和详情共用一份数据。
+        children: task.children.map(toTaskView).sort(byUpdatedDesc),
     };
 }
 
@@ -195,7 +244,7 @@ export const useTaskStore = defineStore("task", {
     getters: {
         filteredTasks(state): TaskView[] {
             const keyword = state.filters.keyword.trim().toLowerCase();
-            return state.items
+            return flattenTasks(state.items)
                 .filter((task) => {
                     if (state.filters.status !== "all" && task.status !== state.filters.status) {
                         return false;
@@ -214,11 +263,10 @@ export const useTaskStore = defineStore("task", {
                         ...task.tags,
                     ];
                     return haystacks.some((value) => value.toLowerCase().includes(keyword));
-                })
-                .sort(byUpdatedDesc);
+                });
         },
         selectedTask(state): TaskView | null {
-            return state.items.find((task) => task.id === state.selectedTaskId) ?? null;
+            return findTask(state.items, state.selectedTaskId);
         },
         stats(state) {
             return {
@@ -276,6 +324,7 @@ export const useTaskStore = defineStore("task", {
                         tags: payload.tags,
                         assignee_instance_id: payload.assignee.instanceId,
                         assignee_agent_id: payload.assignee.agentId,
+                        children: payload.children,
                     });
                     const task = toTaskView(created);
                     this.items = [task, ...this.items.filter((item) => item.id !== task.id)].sort(byUpdatedDesc);
@@ -292,6 +341,7 @@ export const useTaskStore = defineStore("task", {
                             tags: payload.tags,
                             assignee_instance_id: payload.assignee.instanceId,
                             assignee_agent_id: payload.assignee.agentId,
+                            children: payload.children,
                         });
                         const task = toTaskView(created);
                         this.items = [task, ...this.items.filter((item) => item.id !== task.id)].sort(byUpdatedDesc);
@@ -306,6 +356,7 @@ export const useTaskStore = defineStore("task", {
                 const now = new Date().toISOString();
                 const task: TaskView = {
                     id: `task_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+                    parentTaskId: null,
                     title: payload.title,
                     description: payload.description,
                     priority: payload.priority,
@@ -327,7 +378,37 @@ export const useTaskStore = defineStore("task", {
                             at: now,
                         },
                     ],
+                    children: payload.children.map((child) => ({
+                        id: `task_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+                        parentTaskId: null,
+                        title: child.title,
+                        description: child.description,
+                        priority: child.priority,
+                        status: "in_progress",
+                        source: "local-demo",
+                        assignee: payload.assignee,
+                        tags: child.tags,
+                        startedAt: now,
+                        endedAt: null,
+                        createdAt: now,
+                        updatedAt: now,
+                        commentCount: 1,
+                        timeline: [
+                            {
+                                id: `timeline_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+                                type: "system",
+                                label: "任务已创建",
+                                content: `系统已将任务分配给 Agent[${payload.assignee.agentName}]。`,
+                                at: now,
+                            },
+                        ],
+                        children: [],
+                    })),
                 };
+                task.children = task.children.map((child) => ({
+                    ...child,
+                    parentTaskId: task.id,
+                }));
                 this.items = [task, ...this.items].sort(byUpdatedDesc);
                 this.selectedTaskId = task.id;
                 return task;

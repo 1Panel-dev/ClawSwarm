@@ -6,23 +6,25 @@ This file defines how an Agent should turn a user request into clean task record
 
 Each task should represent one clear outcome with one concrete assignee.
 
+In the first stage, that assignee is always the current Agent itself.
+
 ## Good Task Titles
 
 Prefer:
 
-- 动作 + 对象
+- action + object
 
 Examples:
 
-- 重构登录页交互与校验
-- 排查统计报表同步延迟
-- 整理官网首页文案结构
+- Refactor login page interaction and validation
+- Investigate dashboard sync latency
+- Reorganize homepage copy structure
 
 Avoid vague titles like:
 
-- 登录页
-- 看一下
-- 优化一下
+- Login page
+- Take a look
+- Optimize it
 
 ## Task Descriptions
 
@@ -35,24 +37,17 @@ Descriptions should include:
 
 Example:
 
-> 需要整理登录页输入反馈、提交态和错误提示，确保桌面端和移动端表现一致。重点关注手机号输入校验、接口报错展示和按钮 loading 状态。
+> Improve login-page input feedback, submit states, and error messaging so desktop and mobile behavior stay consistent. Focus on phone-number validation, API error presentation, and button loading states.
 
 ## Assignee Selection
 
 Every task must be assigned to one concrete Agent.
 
-Preferred order:
+First-stage rule:
 
-1. user-specified Agent
-2. best-fit Agent by task type
-3. ask for clarification if uncertain
-
-Example mapping:
-
-- coding -> 程序员 / 工程类 Agent
-- writing -> 作家 / 内容类 Agent
-- analysis -> 数据分析 / 运维类 Agent
-- design -> 设计类 Agent
+1. use the current Agent handling the conversation
+2. do not auto-assign to another Agent
+3. if another Agent would be a better fit, mention that in chat rather than silently reassigning
 
 ## Priority Guidance
 
@@ -75,10 +70,10 @@ Prefer:
 
 Examples:
 
-- 前端
-- 登录
-- 报表
-- 排障
+- frontend
+- login
+- reporting
+- debugging
 
 ## Duplicate Avoidance
 
@@ -96,8 +91,19 @@ If a task already exists, prefer:
 - appending a comment
 - or telling the user an existing task already covers it
 
-## First-Stage Scope
+If the conflict is strong enough that an old task may need deletion:
 
-Use flat tasks only.
+- do not delete it silently
+- surface the conflict to the owner
+- ask for explicit deletion confirmation
 
-Do not create parent/child tasks in the first stage.
+## Task Hierarchy
+
+Use one of these two shapes only:
+
+1. one standalone task
+2. one parent task with child tasks
+
+Do not create a third level.
+
+Every child task must already be small enough to execute directly.

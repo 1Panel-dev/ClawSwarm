@@ -129,7 +129,7 @@ const taskLoading = computed(() => taskStore.loading);
 const loadError = computed(() => taskStore.loadError);
 const backendMode = computed(() => taskStore.backendMode);
 const filteredTasks = computed(() => taskStore.filteredTasks);
-const detailTask = computed(() => taskStore.items.find((item) => item.id === detailTaskId.value) ?? null);
+const detailTask = computed(() => taskStore.selectedTask);
 const loadedTasks = computed(() =>
     filteredTasks.value.slice(0, Math.min(filteredTasks.value.length, loadedTaskCount.value)),
 );
@@ -161,7 +161,29 @@ const columns = computed<Column[]>(() => [
         dataKey: "title",
         width: 260,
         flexGrow: 2.6,
-        cellRenderer: ({ rowData }) => h("div", { class: "task-cell task-cell--title" }, rowData.title),
+        cellRenderer: ({ rowData }) =>
+            h(
+                "div",
+                {
+                    class: "task-cell task-cell--title",
+                    // 同一张虚拟表里靠缩进表达层级，不额外切换组件或开树表。
+                    style: { paddingInlineStart: `${12 + (rowData.level ?? 0) * 22}px` },
+                    title: rowData.title,
+                },
+                [
+                    h(
+                        "span",
+                        {
+                            class: [
+                                "task-cell__kind",
+                                (rowData.level ?? 0) > 0 ? "task-cell__kind--child" : "task-cell__kind--parent",
+                            ],
+                        },
+                        (rowData.level ?? 0) > 0 ? "子" : "父",
+                    ),
+                    h("span", { class: "task-cell__title-text" }, rowData.title),
+                ],
+            ),
     },
     {
         key: "agent",
@@ -229,7 +251,7 @@ const columns = computed<Column[]>(() => [
                                 size: "small",
                                 onClick: () => handleCompleteTask(rowData.id),
                             },
-                            { default: () => "完成" },
+                            { default: () => t("tasks.complete") },
                         ),
                         h(
                             ElButton,
@@ -240,7 +262,7 @@ const columns = computed<Column[]>(() => [
                                 plain: true,
                                 onClick: () => handleTerminateTask(rowData.id),
                             },
-                            { default: () => "终止" },
+                            { default: () => t("tasks.terminate") },
                         ),
                     ]
                     : []),
@@ -297,6 +319,8 @@ async function handleTerminateTask(taskId: string) {
 
 function openTaskDetail(taskId: string) {
     detailTaskId.value = taskId;
+    // 详情侧边栏要支持点开子任务，所以选中逻辑统一走 store 的递归查找。
+    taskStore.selectTask(taskId);
     detailDrawerVisible.value = true;
 }
 
@@ -520,30 +544,42 @@ function formatDateTime(value: string) {
 }
 
 .task-cell--title {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
   padding: 8px 0;
   font-weight: 700;
-  line-height: 1.55;
-  white-space: normal;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }
 
-.task-cell__title {
-  font-weight: 700;
-  line-height: 1.45;
-}
-
-.task-cell__description {
+.task-cell__kind {
+  flex: 0 0 auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 20px;
+  text-align: center;
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
-  line-height: 1.55;
-  display: -webkit-box;
+  background: color-mix(in srgb, var(--color-border) 55%, white);
+}
+
+.task-cell__kind--parent {
+  color: color-mix(in srgb, var(--color-accent) 85%, black);
+  background: color-mix(in srgb, var(--color-accent) 12%, white);
+}
+
+.task-cell__kind--child {
+  color: var(--color-text-secondary);
+  background: color-mix(in srgb, var(--color-border) 70%, white);
+}
+
+.task-cell__title-text {
+  min-width: 0;
   overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tag,

@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pathlib
 import sys
 import urllib.error
 import urllib.parse
@@ -24,6 +25,62 @@ from typing import Any
 
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8080"
+
+
+def candidate_openclaw_config_paths() -> list[pathlib.Path]:
+    env_path = os.environ.get("OPENCLAW_CONFIG_PATH", "").strip()
+    home = pathlib.Path.home()
+    candidates = [
+        pathlib.Path(env_path) if env_path else None,
+        home / ".openclaw" / "openclaw.json",
+        pathlib.Path("/data/.clawdbot/openclaw.json"),
+        pathlib.Path("/home/node/.openclaw/openclaw.json"),
+    ]
+    seen: set[str] = set()
+    resolved: list[pathlib.Path] = []
+    for path in candidates:
+        if path is None:
+            continue
+        raw = str(path)
+        if raw in seen:
+            continue
+        seen.add(raw)
+        resolved.append(path)
+    return resolved
+
+
+def discover_scheduler_base_url() -> str | None:
+    # OpenClaw 里运行 skill 时，优先从宿主 openclaw.json 读 claw-team 的 baseUrl，
+    # 这样用户不需要再额外给 task skill 单独配置 scheduler 地址。
+    for config_path in candidate_openclaw_config_paths():
+        try:
+            raw = config_path.read_text(encoding="utf-8")
+            data = json.loads(raw)
+        except Exception:
+            continue
+
+        account = (
+            data.get("channels", {})
+            .get("claw-team", {})
+            .get("accounts", {})
+            .get("default", {})
+        )
+        base_url = str(account.get("baseUrl", "")).strip()
+        if base_url:
+            return base_url
+    return None
+
+
+def resolve_base_url() -> str:
+    env_value = os.environ.get("SCHEDULER_SERVER_BASE_URL", "").strip()
+    if env_value:
+        return env_value
+
+    discovered = discover_scheduler_base_url()
+    if discovered:
+        return discovered
+
+    return DEFAULT_BASE_URL
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,14 +93,15 @@ def parse_args() -> argparse.Namespace:
             "append_task_comment",
             "complete_task",
             "terminate_task",
+            "delete_task",
         ],
         help="Task action to execute.",
     )
     parser.add_argument("--input", help="Optional JSON file path. If omitted, read JSON from stdin when available.")
     parser.add_argument(
         "--base-url",
-        default=os.environ.get("SCHEDULER_SERVER_BASE_URL", DEFAULT_BASE_URL),
-        help="scheduler-server base URL. Defaults to SCHEDULER_SERVER_BASE_URL or http://127.0.0.1:8080",
+        default=resolve_base_url(),
+        help="scheduler-server base URL. Defaults to SCHEDULER_SERVER_BASE_URL, claw-team.baseUrl in openclaw.json, or http://127.0.0.1:8080",
     )
     return parser.parse_args()
 
@@ -113,6 +171,8 @@ def action_create_tasks(base_url: str, payload: dict[str, Any]) -> dict[str, Any
     created: list[dict[str, Any]] = []
     for item in tasks:
         assignee = item.get("assignee") or {}
+        # 这里直接透传 parent_task_id / children，
+        # 让 skill 的结构化 payload 能和后端两级任务模型保持一致。
         response = request_json(
             "POST",
             f"{base_url}/api/tasks",
@@ -123,14 +183,18 @@ def action_create_tasks(base_url: str, payload: dict[str, Any]) -> dict[str, Any
                 "tags": item.get("tags", []),
                 "assignee_instance_id": assignee.get("instance_id"),
                 "assignee_agent_id": assignee.get("agent_id"),
+                "parent_task_id": item.get("parent_task_id"),
+                "children": item.get("children", []),
             },
         )
         created.append(
             {
                 "task_id": response["id"],
+                "parent_task_id": response.get("parent_task_id"),
                 "title": response["title"],
                 "status": response["status"],
                 "assignee": response["assignee"],
+                "children": response.get("children", []),
             }
         )
     return {"created": created}
@@ -194,6 +258,18 @@ def action_terminate_task(base_url: str, payload: dict[str, Any]) -> dict[str, A
     }
 
 
+def action_delete_task(base_url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    task_id = payload.get("task_id")
+    if not task_id:
+        raise SystemExit(json.dumps({"error": {"code": "INVALID_INPUT", "message": "`task_id` is required"}}, ensure_ascii=False))
+    response = request_json("DELETE", f"{base_url}/api/tasks/{task_id}")
+    return {
+        "task_id": response["task_id"],
+        "deleted": response["deleted"],
+        "deleted_child_count": response.get("deleted_child_count", 0),
+    }
+
+
 def main() -> None:
     args = parse_args()
     payload = load_payload(args.input)
@@ -207,8 +283,10 @@ def main() -> None:
         result = action_append_task_comment(base_url, payload)
     elif args.action == "complete_task":
         result = action_complete_task(base_url, payload)
-    else:
+    elif args.action == "terminate_task":
         result = action_terminate_task(base_url, payload)
+    else:
+        result = action_delete_task(base_url, payload)
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

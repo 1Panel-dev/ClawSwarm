@@ -15,6 +15,7 @@
 """
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -47,6 +48,8 @@ from src.schemas.conversation import (
 )
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
+
+STALE_DISPATCH_TIMEOUT = timedelta(seconds=90)
 
 
 @router.get("", response_model=list[ConversationListItem])
@@ -169,6 +172,8 @@ def list_conversation_messages(
     if not conversation:
         raise HTTPException(status_code=404, detail="conversation not found")
 
+    _finalize_stale_dispatches(db=db, conversation_id=conversation_id)
+
     # 这里原来尝试用 messageAfter / dispatchAfter 做“只拉新增项”的增量同步，
     # 但真实聊天里 assistant 消息会被 reply.chunk 持续更新同一条记录。
     #
@@ -204,6 +209,46 @@ def list_conversation_messages(
         next_message_cursor=messages[-1].id if messages else message_after,
         next_dispatch_cursor=dispatches[-1].id if dispatches else dispatch_after,
     )
+
+
+def _finalize_stale_dispatches(db: Session, conversation_id: int) -> None:
+    """
+    OpenClaw 重启或连接中断时，可能遗留一直停在 accepted/streaming 的 dispatch。
+
+    前端只要看到会话里仍有 streaming/accepted，就会持续显示“正在回复...”，
+    所以这里在读取消息时顺手做一次保守收尾：
+    1. 超过超时时间仍未收到新 callback 的 dispatch 标记为 failed
+    2. 关联的用户消息和流式 agent 消息也一起收成 failed
+
+    这样至少不会让会话永远挂在回复中。
+    """
+    threshold = datetime.now(timezone.utc).replace(tzinfo=None) - STALE_DISPATCH_TIMEOUT
+    stale_dispatches = list(
+        db.scalars(
+            select(MessageDispatch).where(
+                MessageDispatch.conversation_id == conversation_id,
+                MessageDispatch.status.in_(("accepted", "streaming")),
+                MessageDispatch.updated_at < threshold,
+            )
+        )
+    )
+    if not stale_dispatches:
+        return
+
+    for dispatch in stale_dispatches:
+        dispatch.status = "failed"
+        if not dispatch.error_message:
+            dispatch.error_message = "dispatch timed out while waiting for channel completion"
+
+        user_message = db.get(Message, dispatch.message_id)
+        if user_message and user_message.status in {"accepted", "streaming"}:
+            user_message.status = "failed"
+
+        agent_message = db.get(Message, f"msg_agent_{dispatch.id}")
+        if agent_message and agent_message.status == "streaming":
+            agent_message.status = "failed"
+
+    db.commit()
 
 
 @router.post("/{conversation_id}/messages", response_model=MessageRead)

@@ -36,6 +36,40 @@ def fetch_channel_agents(instance: OpenClawInstance) -> list[dict]:
     return [item for item in payload if isinstance(item, dict)]
 
 
+def upsert_instance_agent(
+    db: Session,
+    *,
+    instance_id: int,
+    agent_key: str,
+    display_name: str,
+    role_name: str | None = None,
+    enabled: bool = True,
+) -> AgentProfile:
+    agent = db.scalar(
+        select(AgentProfile).where(
+            AgentProfile.instance_id == instance_id,
+            AgentProfile.agent_key == agent_key,
+        )
+    )
+    if agent is None:
+        agent = AgentProfile(
+            instance_id=instance_id,
+            agent_key=agent_key,
+            display_name=display_name,
+            role_name=role_name,
+            enabled=enabled,
+        )
+        db.add(agent)
+    else:
+        agent.display_name = display_name
+        if role_name is not None:
+            agent.role_name = role_name
+        agent.enabled = enabled
+
+    db.flush()
+    return agent
+
+
 def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload: list[dict]) -> None:
     imported_keys: set[str] = set()
     for agent_data in agents_payload:
@@ -45,24 +79,13 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
             continue
 
         imported_keys.add(agent_key)
-        agent = db.scalar(
-            select(AgentProfile).where(
-                AgentProfile.instance_id == instance.id,
-                AgentProfile.agent_key == agent_key,
-            )
+        upsert_instance_agent(
+            db,
+            instance_id=instance.id,
+            agent_key=agent_key,
+            display_name=display_name,
+            enabled=True,
         )
-        if agent is None:
-            agent = AgentProfile(
-                instance_id=instance.id,
-                agent_key=agent_key,
-                display_name=display_name,
-                role_name=None,
-                enabled=True,
-            )
-            db.add(agent)
-        else:
-            agent.display_name = display_name
-            agent.enabled = True
 
     if imported_keys:
         existing_agents = db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance.id)).all()
@@ -87,7 +110,7 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
         raise HTTPException(status_code=404, detail="instance not found")
 
     try:
-        await channel_client.create_agent(
+        created_remote_agent = await channel_client.create_agent(
             instance=instance,
             payload={
                 "agentKey": payload.agent_key,
@@ -99,21 +122,34 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
         detail = response.text if response is not None else str(exc)
         raise HTTPException(status_code=400, detail=f"failed to create real agent: {detail}") from exc
 
-    sync_instance_agents(db, instance, fetch_channel_agents(instance))
-    db.commit()
-    agent = db.scalar(
-        select(AgentProfile).where(
-            AgentProfile.instance_id == instance_id,
-            AgentProfile.agent_key == payload.agent_key,
-        )
+    agent_key = str(created_remote_agent.get("id") or created_remote_agent.get("openclawAgentRef") or payload.agent_key).strip()
+    display_name = str(created_remote_agent.get("name") or payload.display_name).strip() or payload.display_name
+
+    # 远端真实创建成功后，先确保本地记录落库。
+    # 这样即使 /agents 列表存在瞬时延迟，也不会把成功创建误判成 500。
+    agent = upsert_instance_agent(
+        db,
+        instance_id=instance_id,
+        agent_key=agent_key,
+        display_name=display_name,
+        role_name=payload.role_name,
+        enabled=payload.enabled,
     )
-    if not agent:
-        raise HTTPException(status_code=500, detail="agent created remotely but sync failed")
+
+    try:
+        agents_payload = fetch_channel_agents(instance)
+    except HTTPException:
+        agents_payload = []
+
+    if agents_payload:
+        if not any(str(item.get("id") or item.get("openclawAgentRef") or "").strip() == agent_key for item in agents_payload):
+            agents_payload.append(created_remote_agent)
+        sync_instance_agents(db, instance, agents_payload)
 
     if payload.role_name is not None:
         agent.role_name = payload.role_name
-        db.commit()
 
+    db.commit()
     db.refresh(agent)
     return agent
 
