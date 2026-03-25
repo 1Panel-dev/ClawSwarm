@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-import { createAgent, disableAgent, enableAgent, fetchAgents } from "@/api/agents";
+import { createAgent, disableAgent, enableAgent, fetchAgentProfile, fetchAgents, updateAgent } from "@/api/agents";
 import {
     connectOpenClaw,
     createInstance,
@@ -24,6 +24,8 @@ export const useOpenClawStore = defineStore("openclaw", {
         savingId: null as string | null,
         creating: false,
         creatingAgentForInstanceId: null as number | null,
+        editingAgentId: null as number | null,
+        loadingAgentProfileId: null as number | null,
     }),
     actions: {
         async loadInstances() {
@@ -137,6 +139,10 @@ export const useOpenClawStore = defineStore("openclaw", {
                 agent_key: string;
                 display_name: string;
                 role_name?: string | null;
+                identity_md?: string | null;
+                soul_md?: string | null;
+                user_md?: string | null;
+                memory_md?: string | null;
                 enabled?: boolean;
             },
         ) {
@@ -150,6 +156,35 @@ export const useOpenClawStore = defineStore("openclaw", {
                 return agent;
             } finally {
                 this.creatingAgentForInstanceId = null;
+            }
+        },
+        async loadAgentProfile(agentId: number) {
+            this.loadingAgentProfileId = agentId;
+            try {
+                return await fetchAgentProfile(agentId);
+            } finally {
+                this.loadingAgentProfileId = null;
+            }
+        },
+        async updateExistingAgent(
+            agentId: number,
+            payload: {
+                display_name?: string | null;
+                role_name?: string | null;
+                identity_md?: string | null;
+                soul_md?: string | null;
+                user_md?: string | null;
+                memory_md?: string | null;
+                enabled?: boolean;
+            },
+        ): Promise<AgentReadApi> {
+            this.editingAgentId = agentId;
+            try {
+                const agent = await updateAgent(agentId, payload);
+                await this.loadInstances();
+                return agent;
+            } finally {
+                this.editingAgentId = null;
             }
         },
     },

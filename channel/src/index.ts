@@ -120,6 +120,7 @@ const plugin = {
             messageState,
             clawTeamFactory,
             openclaw,
+            loadHostConfig: () => api.runtime?.config?.loadConfig?.(),
         });
 
         // 所有入站 HTTP 接口都统一挂在 /claw-team/v1/ 前缀下。

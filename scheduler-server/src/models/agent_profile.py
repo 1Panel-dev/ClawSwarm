@@ -24,3 +24,4 @@ class AgentProfile(Base, TimestampMixin):
     display_name: Mapped[str] = mapped_column(String(120))
     role_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_via_claw_team: Mapped[bool] = mapped_column(Boolean, default=False)

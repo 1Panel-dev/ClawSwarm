@@ -69,17 +69,21 @@ def ensure_runtime_schema() -> None:
     """
     inspector = inspect(engine)
     table_names = set(inspector.get_table_names())
-    if "tasks" not in table_names:
-        return
-
-    columns = {column["name"] for column in inspector.get_columns("tasks")}
     statements: list[str] = []
 
-    # 旧开发库最开始没有 parent_task_id，这里只补我们当前确实需要的列和索引，
-    # 不把启动阶段偷偷演变成一套复杂迁移系统。
-    if "parent_task_id" not in columns:
-        statements.append("ALTER TABLE tasks ADD COLUMN parent_task_id VARCHAR(64)")
-        statements.append("CREATE INDEX IF NOT EXISTS ix_tasks_parent_task_id ON tasks (parent_task_id)")
+    if "tasks" in table_names:
+        columns = {column["name"] for column in inspector.get_columns("tasks")}
+
+        # 旧开发库最开始没有 parent_task_id，这里只补我们当前确实需要的列和索引，
+        # 不把启动阶段偷偷演变成一套复杂迁移系统。
+        if "parent_task_id" not in columns:
+            statements.append("ALTER TABLE tasks ADD COLUMN parent_task_id VARCHAR(64)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_tasks_parent_task_id ON tasks (parent_task_id)")
+
+    if "agent_profiles" in table_names:
+        agent_columns = {column["name"] for column in inspector.get_columns("agent_profiles")}
+        if "created_via_claw_team" not in agent_columns:
+            statements.append("ALTER TABLE agent_profiles ADD COLUMN created_via_claw_team BOOLEAN DEFAULT 0")
 
     if not statements:
         return

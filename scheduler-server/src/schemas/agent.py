@@ -13,12 +13,20 @@ class AgentCreate(BaseModel):
     agent_key: str = Field(min_length=1, max_length=120)
     display_name: str = Field(min_length=1, max_length=120)
     role_name: str | None = Field(default=None, max_length=120)
+    identity_md: str | None = None
+    soul_md: str | None = None
+    user_md: str | None = None
+    memory_md: str | None = None
     enabled: bool = True
 
 
 class AgentUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     role_name: str | None = Field(default=None, max_length=120)
+    identity_md: str | None = None
+    soul_md: str | None = None
+    user_md: str | None = None
+    memory_md: str | None = None
     enabled: bool | None = None
 
 
@@ -29,3 +37,11 @@ class AgentRead(TimestampedModel):
     display_name: str
     role_name: str | None
     enabled: bool
+    created_via_claw_team: bool
+
+
+class AgentProfileRead(AgentRead):
+    identity_md: str
+    soul_md: str
+    user_md: str
+    memory_md: str

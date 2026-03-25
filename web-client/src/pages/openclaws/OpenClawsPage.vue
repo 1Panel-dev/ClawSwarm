@@ -78,6 +78,14 @@
                     {{ agent.enabled ? t("conversation.enabled") : t("conversation.disabled") }}
                   </span>
                   <button
+                    v-if="canEditAgent(agent)"
+                    class="action-button action-button--ghost"
+                    :disabled="savingId === `agent:${agent.id}` || loadingAgentProfileId === agent.id"
+                    @click="openAgentEdit(instance.id, instance.name, agent)"
+                  >
+                    {{ t("openclaw.editAgent") }}
+                  </button>
+                  <button
                     class="action-button action-button--ghost"
                     :disabled="savingId === `agent:${agent.id}`"
                     @click="toggleAgent(agent.id, !agent.enabled)"
@@ -122,9 +130,11 @@
 
     <AgentCreateDrawer
       v-model:visible="agentDrawerVisible"
-      :submitting="creatingAgent"
+      :submitting="creatingAgent || editingAgent"
       :instance-name="activeInstanceName"
-      @submit="handleCreateAgent"
+      :mode="agentDrawerMode"
+      :initial-value="editingAgentProfile"
+      @submit="handleAgentSubmit"
     />
   </div>
 </template>
@@ -144,15 +154,27 @@ import AgentCreateDrawer from "@/components/openclaw/AgentCreateDrawer.vue";
 import InstanceCreateDrawer from "@/components/openclaw/InstanceCreateDrawer.vue";
 import { useI18n } from "@/composables/useI18n";
 import { useOpenClawStore } from "@/stores/openclaw";
+import type { AgentReadApi } from "@/types/api/agent";
 import type { InstanceReadApi } from "@/types/api/instance";
 
 const openClawStore = useOpenClawStore();
 const createDrawerVisible = ref(false);
 const editDrawerVisible = ref(false);
 const agentDrawerVisible = ref(false);
+const agentDrawerMode = ref<"create" | "edit">("create");
 const activeInstanceId = ref<number | null>(null);
 const activeInstanceName = ref("");
 const editingInstance = ref<InstanceReadApi | null>(null);
+const editingAgentProfile = ref<{
+    agent_id: number;
+    agent_key: string;
+    display_name: string;
+    role_name: string | null;
+    identity_md: string;
+    soul_md: string;
+    user_md: string;
+    memory_md: string;
+} | null>(null);
 
 const instances = computed(() => openClawStore.instances);
 const loading = computed(() => openClawStore.loading);
@@ -162,6 +184,10 @@ const { t } = useI18n();
 const creatingAgent = computed(
     () => activeInstanceId.value !== null && openClawStore.creatingAgentForInstanceId === activeInstanceId.value,
 );
+const editingAgent = computed(
+    () => editingAgentProfile.value !== null && openClawStore.editingAgentId === editingAgentProfile.value.agent_id,
+);
+const loadingAgentProfileId = computed(() => openClawStore.loadingAgentProfileId);
 
 onMounted(async () => {
     if (!instances.value.length) {
@@ -187,6 +213,12 @@ function statusClass(status: string) {
         return "status-pill--offline";
     }
     return "status-pill--disabled";
+}
+
+function canEditAgent(agent: AgentReadApi) {
+    // 兼容历史数据：旧版本没有 created_via_claw_team 标记时，
+    // 先保持非 main Agent 可编辑，避免把原来就从 ClawTeam 创建的 Agent 隐掉。
+    return agent.created_via_claw_team || agent.agent_key.trim().toLowerCase() !== "main";
 }
 
 async function toggleInstance(instanceId: number, enable: boolean) {
@@ -281,13 +313,42 @@ function handleEditInstanceSubmit(payload: {
 function openAgentCreate(instanceId: number, instanceName: string) {
     activeInstanceId.value = instanceId;
     activeInstanceName.value = instanceName;
+    agentDrawerMode.value = "create";
+    editingAgentProfile.value = null;
     agentDrawerVisible.value = true;
 }
 
+async function openAgentEdit(instanceId: number, instanceName: string, agent: AgentReadApi) {
+    try {
+        activeInstanceId.value = instanceId;
+        activeInstanceName.value = instanceName;
+        agentDrawerMode.value = "edit";
+        const profile = await openClawStore.loadAgentProfile(agent.id);
+        editingAgentProfile.value = {
+            agent_id: profile.id,
+            agent_key: profile.agent_key,
+            display_name: profile.display_name,
+            role_name: profile.role_name,
+            identity_md: profile.identity_md,
+            soul_md: profile.soul_md,
+            user_md: profile.user_md,
+            memory_md: profile.memory_md,
+        };
+        agentDrawerVisible.value = true;
+    } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : String(error));
+    }
+}
+
 async function handleCreateAgent(payload: {
+    mode: "create";
     agent_key: string;
     display_name: string;
     role_name: string;
+    identity_md?: string;
+    soul_md?: string;
+    user_md?: string;
+    memory_md?: string;
 }) {
     if (activeInstanceId.value === null) {
         return;
@@ -295,6 +356,56 @@ async function handleCreateAgent(payload: {
     const agent = await openClawStore.createNewAgent(activeInstanceId.value, payload);
     agentDrawerVisible.value = false;
     ElMessage.success(t("openclaw.agentCreateSuccess", { name: agent.display_name }));
+}
+
+async function handleEditAgent(payload: {
+    mode: "edit";
+    agent_id: number;
+    agent_key: string;
+    display_name: string;
+    role_name: string;
+    identity_md?: string;
+    soul_md?: string;
+    user_md?: string;
+    memory_md?: string;
+}) {
+    const agent = await openClawStore.updateExistingAgent(payload.agent_id, {
+        display_name: payload.display_name,
+        role_name: payload.role_name,
+        identity_md: payload.identity_md,
+        soul_md: payload.soul_md,
+        user_md: payload.user_md,
+        memory_md: payload.memory_md,
+    });
+    agentDrawerVisible.value = false;
+    editingAgentProfile.value = null;
+    ElMessage.success(t("openclaw.agentUpdateSuccess", { name: agent.display_name }));
+}
+
+function handleAgentSubmit(payload: {
+    mode: "create";
+    agent_key: string;
+    display_name: string;
+    role_name: string;
+    identity_md?: string;
+    soul_md?: string;
+    user_md?: string;
+    memory_md?: string;
+} | {
+    mode: "edit";
+    agent_id: number;
+    agent_key: string;
+    display_name: string;
+    role_name: string;
+    identity_md?: string;
+    soul_md?: string;
+    user_md?: string;
+    memory_md?: string;
+}) {
+    if (payload.mode === "edit") {
+        return handleEditAgent(payload);
+    }
+    return handleCreateAgent(payload);
 }
 </script>
 

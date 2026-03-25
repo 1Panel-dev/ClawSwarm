@@ -16,9 +16,22 @@ from src.integrations.channel_client import channel_client
 from src.models.agent_profile import AgentProfile
 from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
-from src.schemas.agent import AgentCreate, AgentRead, AgentUpdate
+from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate
+from src.schemas.common import validate_orm
 
 router = APIRouter(prefix="/api", tags=["agents"])
+
+
+def can_edit_agent_profile(agent: AgentProfile) -> bool:
+    """
+    兼容历史数据：
+    1. 新创建的 Agent 直接看 created_via_claw_team。
+    2. 旧数据在加字段前没有来源标记，这里先把非 main Agent 视为可编辑，
+       避免把此前确实在 ClawTeam 创建的 Agent 全部误判成只读。
+    """
+    if agent.created_via_claw_team:
+        return True
+    return agent.agent_key.strip().lower() != "main"
 
 
 def fetch_channel_agents(instance: OpenClawInstance) -> list[dict]:
@@ -44,6 +57,7 @@ def upsert_instance_agent(
     display_name: str,
     role_name: str | None = None,
     enabled: bool = True,
+    created_via_claw_team: bool | None = None,
 ) -> AgentProfile:
     agent = db.scalar(
         select(AgentProfile).where(
@@ -58,6 +72,7 @@ def upsert_instance_agent(
             display_name=display_name,
             role_name=role_name,
             enabled=enabled,
+            created_via_claw_team=created_via_claw_team or False,
         )
         db.add(agent)
     else:
@@ -65,6 +80,8 @@ def upsert_instance_agent(
         if role_name is not None:
             agent.role_name = role_name
         agent.enabled = enabled
+        if created_via_claw_team is not None:
+            agent.created_via_claw_team = created_via_claw_team
 
     db.flush()
     return agent
@@ -115,6 +132,10 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
             payload={
                 "agentKey": payload.agent_key,
                 "displayName": payload.display_name,
+                "identityMd": payload.identity_md,
+                "soulMd": payload.soul_md,
+                "userMd": payload.user_md,
+                "memoryMd": payload.memory_md,
             },
         )
     except httpx.HTTPError as exc:
@@ -134,6 +155,7 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
         display_name=display_name,
         role_name=payload.role_name,
         enabled=payload.enabled,
+        created_via_claw_team=True,
     )
 
     try:
@@ -154,12 +176,78 @@ async def create_agent(instance_id: int, payload: AgentCreate, db: Session = Dep
     return agent
 
 
-@router.put("/agents/{agent_id}", response_model=AgentRead)
-def update_agent(agent_id: int, payload: AgentUpdate, db: Session = Depends(db_session)) -> AgentProfile:
+@router.get("/agents/{agent_id}/profile", response_model=AgentProfileRead)
+async def get_agent_profile(agent_id: int, db: Session = Depends(db_session)) -> AgentProfileRead:
     agent = db.get(AgentProfile, agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail="agent not found")
-    for key, value in dump_model(payload, exclude_unset=True).items():
+    if not can_edit_agent_profile(agent):
+        raise HTTPException(status_code=403, detail="agent profile is read-only")
+
+    instance = db.get(OpenClawInstance, agent.instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="instance not found")
+
+    try:
+        profile = await channel_client.get_agent_profile(
+            instance=instance,
+            agent_key=agent.agent_key,
+        )
+    except httpx.HTTPError as exc:
+        response = getattr(exc, "response", None)
+        detail = response.text if response is not None else str(exc)
+        raise HTTPException(status_code=400, detail=f"failed to load agent profile: {detail}") from exc
+
+    return AgentProfileRead(
+        **dump_model(validate_orm(AgentRead, agent)),
+        identity_md=str(profile.get("identityMd") or ""),
+        soul_md=str(profile.get("soulMd") or ""),
+        user_md=str(profile.get("userMd") or ""),
+        memory_md=str(profile.get("memoryMd") or ""),
+    )
+
+
+@router.put("/agents/{agent_id}", response_model=AgentRead)
+async def update_agent(agent_id: int, payload: AgentUpdate, db: Session = Depends(db_session)) -> AgentProfile:
+    agent = db.get(AgentProfile, agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail="agent not found")
+    if not can_edit_agent_profile(agent):
+        raise HTTPException(status_code=403, detail="agent profile is read-only")
+
+    instance = db.get(OpenClawInstance, agent.instance_id)
+    if not instance:
+        raise HTTPException(status_code=404, detail="instance not found")
+
+    payload_data = dump_model(payload, exclude_unset=True)
+
+    remote_payload: dict[str, str] = {}
+    if payload.display_name is not None:
+        remote_payload["displayName"] = payload.display_name
+    if payload.identity_md is not None:
+        remote_payload["identityMd"] = payload.identity_md
+    if payload.soul_md is not None:
+        remote_payload["soulMd"] = payload.soul_md
+    if payload.user_md is not None:
+        remote_payload["userMd"] = payload.user_md
+    if payload.memory_md is not None:
+        remote_payload["memoryMd"] = payload.memory_md
+
+    if remote_payload:
+        try:
+            await channel_client.update_agent(
+                instance=instance,
+                agent_key=agent.agent_key,
+                payload=remote_payload,
+            )
+        except httpx.HTTPError as exc:
+            response = getattr(exc, "response", None)
+            detail = response.text if response is not None else str(exc)
+            raise HTTPException(status_code=400, detail=f"failed to update real agent: {detail}") from exc
+
+    for key, value in payload_data.items():
+        if key in {"identity_md", "soul_md", "user_md", "memory_md"}:
+            continue
         setattr(agent, key, value)
     db.commit()
     db.refresh(agent)

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -15,21 +16,23 @@ from src.models.openclaw_instance import OpenClawInstance
 
 
 class ChannelClient:
-    async def _signed_post(
+    async def _signed_request(
         self,
         *,
         instance: OpenClawInstance,
+        method: str,
         path: str,
-        payload: dict[str, Any],
+        payload: dict[str, Any] | None = None,
         timeout: float = 15.0,
     ) -> dict[str, Any]:
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        normalized_method = method.upper()
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8") if payload is not None else b""
         timestamp_ms = now_ms()
         nonce = new_nonce()
         canonical = build_channel_canonical_string(
             timestamp_ms=timestamp_ms,
             nonce=nonce,
-            method="POST",
+            method=normalized_method,
             path=path,
             body_sha256_hex=sha256_hex(body),
         )
@@ -46,7 +49,12 @@ class ChannelClient:
             timeout=timeout,
             verify=not settings.channel_allow_insecure_tls,
         ) as client:
-            response = await client.post(url, content=body, headers=headers)
+            response = await client.request(
+                normalized_method,
+                url,
+                content=body if payload is not None else None,
+                headers=headers,
+            )
         response.raise_for_status()
         return response.json()
 
@@ -59,12 +67,33 @@ class ChannelClient:
         2. 当前远程 OpenClaw 使用的是自签证书 HTTPS，所以 verify 是否开启由配置决定。
         """
         path = "/claw-team/v1/inbound"
-        return await self._signed_post(instance=instance, path=path, payload=payload)
+        return await self._signed_request(instance=instance, method="POST", path=path, payload=payload)
 
     async def create_agent(self, *, instance: OpenClawInstance, payload: dict[str, Any]) -> dict[str, Any]:
-        return await self._signed_post(
+        return await self._signed_request(
             instance=instance,
+            method="POST",
             path="/claw-team/v1/admin/agents",
+            payload=payload,
+            timeout=60.0,
+        )
+
+    async def get_agent_profile(self, *, instance: OpenClawInstance, agent_key: str) -> dict[str, Any]:
+        encoded_agent_key = quote(agent_key, safe="")
+        return await self._signed_request(
+            instance=instance,
+            method="GET",
+            path=f"/claw-team/v1/admin/agents/{encoded_agent_key}/profile",
+            payload=None,
+            timeout=30.0,
+        )
+
+    async def update_agent(self, *, instance: OpenClawInstance, agent_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+        encoded_agent_key = quote(agent_key, safe="")
+        return await self._signed_request(
+            instance=instance,
+            method="PUT",
+            path=f"/claw-team/v1/admin/agents/{encoded_agent_key}/profile",
             payload=payload,
             timeout=60.0,
         )

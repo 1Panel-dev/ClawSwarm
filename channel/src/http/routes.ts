@@ -21,7 +21,11 @@ import { describeAgents, discoverAgents, type AccountConfig } from "../config.js
 import type { MessageStateStore } from "../store/messageState.js";
 import type { ClawTeamCallbackClient } from "../callback/client.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
-import { createRealOpenClawAgent } from "../openclaw/manageAgents.js";
+import {
+    createRealOpenClawAgent,
+    getRealOpenClawAgentProfile,
+    updateRealOpenClawAgent,
+} from "../openclaw/manageAgents.js";
 import type { GroupDescriptor } from "../types.js";
 import { z } from "zod";
 
@@ -56,8 +60,9 @@ export function createClawTeamRoutes(params: {
     messageState: MessageStateStore;
     clawTeamFactory: (acct: AccountConfig) => ClawTeamCallbackClient;
     openclaw: OpenClawRuntimeAdapter;
+    loadHostConfig?: () => unknown;
 }) {
-    const { channelId, getAccount, logger, idempotency, messageState, clawTeamFactory, openclaw } = params;
+    const { channelId, getAccount, logger, idempotency, messageState, clawTeamFactory, openclaw, loadHostConfig } = params;
 
     // 返回给 registerHttpRoute 的 handler。
     return async function handler(req: any, res: any): Promise<boolean> {
@@ -145,6 +150,10 @@ export function createClawTeamRoutes(params: {
             const AgentAdminCreateSchema = z.object({
                 agentKey: z.string().min(1),
                 displayName: z.string().min(1),
+                identityMd: z.string().optional(),
+                soulMd: z.string().optional(),
+                userMd: z.string().optional(),
+                memoryMd: z.string().optional(),
             });
             const parsed = AgentAdminCreateSchema.safeParse(json);
             if (!parsed.success) {
@@ -156,12 +165,109 @@ export function createClawTeamRoutes(params: {
                 const agent = createRealOpenClawAgent({
                     agentId: parsed.data.agentKey,
                     displayName: parsed.data.displayName,
+                    profileFiles: {
+                        identityMd: parsed.data.identityMd,
+                        soulMd: parsed.data.soulMd,
+                        userMd: parsed.data.userMd,
+                        memoryMd: parsed.data.memoryMd,
+                    },
+                    cfg: loadHostConfig?.() as any,
                 });
                 sendJson(res, 201, agent);
             } catch (error) {
                 sendJson(res, 400, { error: "agent_create_failed", detail: String(error) });
             }
             return true;
+        }
+
+        if (pathname.startsWith("/claw-team/v1/admin/agents/") && pathname.endsWith("/profile")) {
+            const segments = pathname.split("/").filter(Boolean);
+            const rawAgentKey = segments.at(-2);
+            const agentKey = rawAgentKey ? decodeURIComponent(rawAgentKey) : "";
+            if (!agentKey) {
+                sendJson(res, 404, { error: "agent_not_found" });
+                return true;
+            }
+
+            const acct = getAccount(undefined);
+            let raw: Uint8Array | null = null;
+
+            if (req.method === "PUT") {
+                try {
+                    raw = await readRawBody(req, acct.limits.maxBodyBytes);
+                } catch {
+                    sendJson(res, 413, { error: "body_too_large" });
+                    return true;
+                }
+
+                const sig = await verifyInboundSignature({
+                    req,
+                    rawBody: raw,
+                    pathname,
+                    nowMs: Date.now(),
+                    accountConfig: acct,
+                    nonceStore: idempotency,
+                });
+
+                if (!sig.ok) {
+                    sendJson(res, sig.status, { error: sig.reason });
+                    return true;
+                }
+            }
+
+            if (req.method === "GET") {
+                try {
+                    const profile = getRealOpenClawAgentProfile({
+                        agentId: agentKey,
+                        cfg: loadHostConfig?.() as any,
+                    });
+                    sendJson(res, 200, profile);
+                } catch (error) {
+                    sendJson(res, 400, { error: "agent_profile_read_failed", detail: String(error) });
+                }
+                return true;
+            }
+
+            if (req.method === "PUT") {
+                let json: unknown;
+                try {
+                    json = JSON.parse(Buffer.from(raw ?? new Uint8Array()).toString("utf8"));
+                } catch {
+                    sendJson(res, 400, { error: "invalid_json" });
+                    return true;
+                }
+
+                const AgentAdminUpdateSchema = z.object({
+                    displayName: z.string().min(1).optional(),
+                    identityMd: z.string().optional(),
+                    soulMd: z.string().optional(),
+                    userMd: z.string().optional(),
+                    memoryMd: z.string().optional(),
+                });
+                const parsed = AgentAdminUpdateSchema.safeParse(json);
+                if (!parsed.success) {
+                    sendJson(res, 400, { error: "invalid_payload", detail: parsed.error.issues });
+                    return true;
+                }
+
+                try {
+                    const agent = updateRealOpenClawAgent({
+                        agentId: agentKey,
+                        displayName: parsed.data.displayName,
+                        profileFiles: {
+                            identityMd: parsed.data.identityMd,
+                            soulMd: parsed.data.soulMd,
+                            userMd: parsed.data.userMd,
+                            memoryMd: parsed.data.memoryMd,
+                        },
+                        cfg: loadHostConfig?.() as any,
+                    });
+                    sendJson(res, 200, agent);
+                } catch (error) {
+                    sendJson(res, 400, { error: "agent_update_failed", detail: String(error) });
+                }
+                return true;
+            }
         }
 
         // 这是最核心的 webhook：Claw Team 后端把用户消息投递到这里。
