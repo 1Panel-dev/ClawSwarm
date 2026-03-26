@@ -334,6 +334,80 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(stop_response.status_code, 200)
         self.assertEqual(stop_response.json()["status"], "stopped")
 
+    def test_send_text_can_start_agent_dialogue_by_ct_ids(self) -> None:
+        with self.SessionLocal() as db:
+            instance_a = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-a",
+                status="active",
+            )
+            instance_b = OpenClawInstance(
+                name="OpenClaw B",
+                channel_base_url="https://example.org",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-abcdef",
+                callback_token="callback-token-b",
+                status="active",
+            )
+            db.add_all([instance_a, instance_b])
+            db.flush()
+
+            source_agent = AgentProfile(
+                instance_id=instance_a.id,
+                agent_key="main",
+                ct_id="CTA-0001",
+                display_name="main",
+                role_name="项目经理",
+                enabled=True,
+            )
+            target_agent = AgentProfile(
+                instance_id=instance_b.id,
+                agent_key="testbot2",
+                ct_id="CTA-0010",
+                display_name="TestBot2",
+                role_name="执行工程师",
+                enabled=True,
+            )
+            db.add_all([source_agent, target_agent])
+            db.commit()
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-send-text"})):
+            response = self.client.post(
+                "/api/v1/claw-team/send-text",
+                headers={"authorization": "Bearer callback-token-a"},
+                json={
+                    "kind": "agent_dialogue.start",
+                    "sourceCtId": "CTA-0001",
+                    "targetCtId": "CTA-0010",
+                    "topic": "讨论登录接口",
+                    "message": "我需要你确认登录接口字段和返回结构。",
+                    "windowSeconds": 300,
+                    "softMessageLimit": 12,
+                    "hardMessageLimit": 20,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+
+        with self.SessionLocal() as db:
+            dialogue = db.get(AgentDialogue, payload["dialogueId"])
+            self.assertIsNotNone(dialogue)
+            assert dialogue is not None
+            self.assertEqual(dialogue.initiator_type, "agent")
+            self.assertGreater(dialogue.conversation_id, 0)
+
+            opening_message = db.get(Message, payload["openingMessageId"])
+            self.assertIsNotNone(opening_message)
+            assert opening_message is not None
+            self.assertEqual(opening_message.sender_type, "agent")
+            self.assertEqual(opening_message.sender_label, "main")
+            self.assertEqual(opening_message.content, "我需要你确认登录接口字段和返回结构。")
+
     def test_agent_dialogue_intervention_dispatches_to_next_agent_when_active(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(

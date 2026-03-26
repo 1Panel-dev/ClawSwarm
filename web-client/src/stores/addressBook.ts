@@ -5,11 +5,15 @@ import { fetchConversationList } from "@/api/conversations";
 import { fetchMockAddressBook, fetchMockConversationList, isMessageMockEnabled } from "@/mocks/messageWorkbench";
 import type { AddressBookResponseApi } from "@/types/api/addressBook";
 import type { ConversationListItemApi } from "@/types/api/conversation";
-import { parseServerDateTime } from "@/utils/datetime";
 
 const HIDDEN_RECENT_STORAGE_KEY = "claw-team:hidden-recent-conversations";
 
-type HiddenRecentConversationMap = Record<string, string>;
+type HiddenRecentConversationEntry = {
+    hidden_at: string;
+    last_message_id: string | null;
+};
+
+type HiddenRecentConversationMap = Record<string, HiddenRecentConversationEntry>;
 
 export const useAddressBookStore = defineStore("addressBook", {
     state: () => ({
@@ -24,14 +28,11 @@ export const useAddressBookStore = defineStore("addressBook", {
         groups: (state) => state.addressBook?.groups ?? [],
         visibleRecentConversations: (state) =>
             state.recentConversations.filter((item) => {
-                const hiddenAt = state.hiddenRecentConversationMap[String(item.id)];
-                if (!hiddenAt) {
+                const hiddenEntry = state.hiddenRecentConversationMap[String(item.id)];
+                if (!hiddenEntry) {
                     return true;
                 }
-                if (!item.last_message_at) {
-                    return false;
-                }
-                return parseServerDateTime(item.last_message_at).getTime() > new Date(hiddenAt).getTime();
+                return item.last_message_id !== hiddenEntry.last_message_id;
             }),
     },
     actions: {
@@ -74,9 +75,13 @@ export const useAddressBookStore = defineStore("addressBook", {
             this.reconcileHiddenRecentConversations();
         },
         hideRecentConversation(conversationId: number) {
+            const currentConversation = this.recentConversations.find((item) => item.id === conversationId);
             this.hiddenRecentConversationMap = {
                 ...this.hiddenRecentConversationMap,
-                [String(conversationId)]: new Date().toISOString(),
+                [String(conversationId)]: {
+                    hidden_at: new Date().toISOString(),
+                    last_message_id: currentConversation?.last_message_id ?? null,
+                },
             };
             persistHiddenRecentConversationMap(this.hiddenRecentConversationMap);
         },
@@ -85,11 +90,13 @@ export const useAddressBookStore = defineStore("addressBook", {
             const nextMap: HiddenRecentConversationMap = { ...this.hiddenRecentConversationMap };
             for (const item of this.recentConversations) {
                 const key = String(item.id);
-                const hiddenAt = nextMap[key];
-                if (!hiddenAt || !item.last_message_at) {
+                const hiddenEntry = nextMap[key];
+                if (!hiddenEntry) {
                     continue;
                 }
-                if (parseServerDateTime(item.last_message_at).getTime() > new Date(hiddenAt).getTime()) {
+                // 最近联系人只是在当前消息快照下暂时隐藏。
+                // 只要最后一条消息变了，就说明这条会话重新活跃，应当自动回到列表中。
+                if (item.last_message_id !== hiddenEntry.last_message_id) {
                     delete nextMap[key];
                     changed = true;
                 }
@@ -116,7 +123,7 @@ function loadHiddenRecentConversationMap(): HiddenRecentConversationMap {
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
             return {};
         }
-        return parsed as HiddenRecentConversationMap;
+        return normalizeHiddenRecentConversationMap(parsed as Record<string, unknown>);
     } catch {
         return {};
     }
@@ -127,4 +134,32 @@ function persistHiddenRecentConversationMap(value: HiddenRecentConversationMap) 
         return;
     }
     window.localStorage.setItem(HIDDEN_RECENT_STORAGE_KEY, JSON.stringify(value));
+}
+
+function normalizeHiddenRecentConversationMap(value: Record<string, unknown>): HiddenRecentConversationMap {
+    const entries = Object.entries(value).flatMap(([conversationId, rawEntry]) => {
+        if (typeof rawEntry === "string") {
+            // 兼容旧格式：以前只记录隐藏时间。
+            return [[conversationId, { hidden_at: rawEntry, last_message_id: null } satisfies HiddenRecentConversationEntry] as const];
+        }
+        if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
+            return [];
+        }
+        const hiddenAt =
+            typeof (rawEntry as { hidden_at?: unknown }).hidden_at === "string"
+                ? (rawEntry as { hidden_at: string }).hidden_at
+                : null;
+        const lastMessageId = (rawEntry as { last_message_id?: unknown }).last_message_id;
+        if (!hiddenAt) {
+            return [];
+        }
+        return [[
+            conversationId,
+            {
+                hidden_at: hiddenAt,
+                last_message_id: typeof lastMessageId === "string" ? lastMessageId : null,
+            } satisfies HiddenRecentConversationEntry,
+        ] as const];
+    });
+    return Object.fromEntries(entries);
 }

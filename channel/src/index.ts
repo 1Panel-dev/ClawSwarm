@@ -24,6 +24,13 @@ import { createClawTeamRoutes } from "./http/routes.js";
 import { HttpClawTeamCallbackClient } from "./callback/client.js";
 import { createOpenClawRuntimeAdapter } from "./openclaw/adapters.js";
 import { registerWebchatTranscriptMirror } from "./openclaw/webchatMirror.js";
+import {
+    looksLikeClawTeamCtId,
+    normalizeTargetCtId,
+    resolveClawTeamMessagingTarget,
+    resolveClawTeamTarget,
+    sendClawTeamText,
+} from "./outbound/sendText.js";
 
 function describeRuntimeShape(runtime: unknown) {
     if (!runtime || typeof runtime !== "object") {
@@ -102,11 +109,82 @@ const plugin = {
                     listAccountIds,
                     resolveAccount,
                 },
+                messaging: {
+                    // message 工具会先走 messaging.targetResolver，再进入 outbound.sendText。
+                    // 这里把 CTA-xxxx 识别成 direct user target，才能让宿主认可这是合法目标。
+                    targetResolver: {
+                        looksLikeId: (raw: string, normalized?: string) => looksLikeClawTeamCtId(raw, normalized),
+                        hint: "Use a CT ID like CTA-0009",
+                        resolveTarget: async ({ input, normalized }: { input: string; normalized: string }) => {
+                            const resolved = await resolveClawTeamMessagingTarget({ input });
+                            if (!resolved) {
+                                logger.warn(
+                                    {
+                                        rawTarget: input,
+                                        normalizedTarget: normalized,
+                                    },
+                                    "Claw Team messaging.resolveTarget could not resolve target",
+                                );
+                            }
+                            return resolved;
+                        },
+                    },
+                    inferTargetChatType: ({ to }: { to: string }) =>
+                        looksLikeClawTeamCtId(to) ? "direct" : undefined,
+                    parseExplicitTarget: ({ raw }: { raw: string }) => {
+                        try {
+                            return {
+                                to: normalizeTargetCtId(raw),
+                                chatType: "direct" as const,
+                            };
+                        } catch {
+                            logger.warn(
+                                {
+                                    rawTarget: raw,
+                                },
+                                "Claw Team messaging.parseExplicitTarget rejected target",
+                            );
+                            return null;
+                        }
+                    },
+                    formatTargetDisplay: ({ target }: { target: string }) => target,
+                },
                 outbound: {
-                    // 当前这版插件只处理“外部系统推送进来 -> Agent 执行 -> 回调回去”的链路。
+                    // 当前先支持最小的结构化 sendText。
+                    // OpenClaw 侧把目标 CT ID 放在 to，正文放一个 JSON 模板；
+                    // 插件内部会把它转成正式的 Claw Team 业务请求，而不是直接调用 callback 入口。
                     deliveryMode: "direct",
-                    async sendText() {
-                        throw new Error("sendText not implemented for claw-team");
+                    resolveTarget({ to }) {
+                        const result = resolveClawTeamTarget(to);
+                        if (!result.ok) {
+                            const rawTarget = String(to ?? "");
+                            logger.warn(
+                                {
+                                    rawTarget,
+                                    rawTargetLength: rawTarget.length,
+                                    rawTargetCodePoints: Array.from(rawTarget).map((char) => char.codePointAt(0)),
+                                    error: result.error.message,
+                                },
+                                "Claw Team resolveTarget rejected target",
+                            );
+                        }
+                        return result;
+                    },
+                    async sendText(ctx) {
+                        const account = resolveAccount(api.config, ctx.accountId);
+                        logger.info(
+                            {
+                                rawTarget: String(ctx.to ?? ""),
+                                accountId: ctx.accountId ?? "default",
+                                textPreview: String(ctx.text ?? "").slice(0, 240),
+                            },
+                            "Claw Team sendText received outbound request",
+                        );
+                        return await sendClawTeamText({
+                            ctx,
+                            account,
+                            logger,
+                        });
                     },
                 },
             },

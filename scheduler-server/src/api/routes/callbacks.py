@@ -32,7 +32,8 @@ from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.models.agent_dialogue import AgentDialogue
 from src.services.conversation_events import conversation_event_hub
-from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
+from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply, dispatch_agent_dialogue_turn
+from src.services.agent_ct_id import ensure_agent_ct_id
 
 router = APIRouter(prefix="/api/v1/claw-team", tags=["callbacks"])
 
@@ -57,6 +58,17 @@ class WebchatMirrorCreate(BaseModel):
     messageId: str = Field(min_length=1)
     senderType: str = Field(min_length=1)
     content: str = Field(min_length=1)
+
+
+class SendTextCreate(BaseModel):
+    kind: str = Field(min_length=1)
+    sourceCtId: str = Field(min_length=1)
+    targetCtId: str = Field(min_length=1)
+    topic: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+    windowSeconds: int = Field(default=300, ge=60, le=3600)
+    softMessageLimit: int = Field(default=12, ge=2, le=100)
+    hardMessageLimit: int = Field(default=20, ge=3, le=200)
 
 
 @router.post("/events")
@@ -298,6 +310,114 @@ async def mirror_webchat_message(
         "ok": True,
         "conversationId": conversation.id,
         "messageId": mirrored_message_id,
+    }
+
+
+@router.post("/send-text")
+async def receive_send_text(
+    payload: SendTextCreate,
+    request: Request,
+    db: Session = Depends(db_session),
+) -> dict[str, Any]:
+    """
+    这是给 claw-team channel outbound.sendText 用的最小业务入口。
+
+    第一阶段只支持一件事：
+    - 用结构化 JSON 发起一条 Agent 对话
+
+    设计约束：
+    1. sourceCtId 必须属于当前 token 对应的 OpenClaw 实例，避免伪造发送者。
+    2. targetCtId 可以指向任意实例下的 Agent，支持跨 OpenClaw。
+    3. 这里创建的 opening message 代表“source agent 已经说出的第一句话”，
+       所以第一轮会直接发给 target agent，而不是再回送给 source 自己。
+    """
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+
+    token = auth_header.removeprefix("Bearer ").strip()
+    instance = db.scalar(select(OpenClawInstance).where(OpenClawInstance.callback_token == token))
+    if not instance:
+        raise HTTPException(status_code=401, detail="unknown callback token")
+
+    if payload.kind.strip() != "agent_dialogue.start":
+        raise HTTPException(status_code=400, detail="unsupported send-text kind")
+    if payload.softMessageLimit >= payload.hardMessageLimit:
+        raise HTTPException(status_code=400, detail="softMessageLimit must be less than hardMessageLimit")
+
+    source_ct_id = payload.sourceCtId.strip().upper()
+    target_ct_id = payload.targetCtId.strip().upper()
+
+    source_agent = db.scalar(
+        select(AgentProfile).where(
+            AgentProfile.instance_id == instance.id,
+            AgentProfile.ct_id == source_ct_id,
+        )
+    )
+    if not source_agent:
+        raise HTTPException(status_code=404, detail="source agent not found for current instance")
+
+    target_agent = db.scalar(select(AgentProfile).where(AgentProfile.ct_id == target_ct_id))
+    if not target_agent:
+        raise HTTPException(status_code=404, detail="target agent not found")
+    if source_agent.id == target_agent.id:
+        raise HTTPException(status_code=400, detail="source and target agent must be different")
+
+    ensure_agent_ct_id(source_agent)
+    ensure_agent_ct_id(target_agent)
+
+    conversation = Conversation(
+        type="agent_dialogue",
+        title=f"{source_agent.display_name} ↔ {target_agent.display_name}",
+    )
+    db.add(conversation)
+    db.flush()
+
+    dialogue = AgentDialogue(
+        conversation_id=conversation.id,
+        source_agent_id=source_agent.id,
+        target_agent_id=target_agent.id,
+        topic=payload.topic.strip(),
+        status="active",
+        initiator_type="agent",
+        initiator_agent_id=source_agent.id,
+        window_seconds=payload.windowSeconds,
+        soft_message_limit=payload.softMessageLimit,
+        hard_message_limit=payload.hardMessageLimit,
+        soft_limit_warned_at=None,
+        last_speaker_agent_id=source_agent.id,
+    )
+    db.add(dialogue)
+    db.flush()
+
+    opening_message = Message(
+        id=f"msg_{hashlib.sha1(f'{instance.id}|{source_ct_id}|{target_ct_id}|{payload.topic}|{payload.message}'.encode('utf-8')).hexdigest()[:24]}",
+        conversation_id=conversation.id,
+        sender_type="agent",
+        sender_label=source_agent.display_name,
+        content=payload.message.strip(),
+        status="completed",
+    )
+    db.add(opening_message)
+    db.flush()
+
+    await dispatch_agent_dialogue_turn(
+        db=db,
+        dialogue=dialogue,
+        conversation=conversation,
+        message=opening_message,
+        recipient_agent=target_agent,
+        sender_label=source_agent.display_name,
+        sender_user_id=f"agent:{source_agent.agent_key}",
+        dispatch_mode="agent_dialogue_opening",
+    )
+
+    db.commit()
+    return {
+        "ok": True,
+        "dialogueId": dialogue.id,
+        "conversationId": conversation.id,
+        "openingMessageId": opening_message.id,
     }
 
 

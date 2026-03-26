@@ -1,3 +1,16 @@
+/**
+ * 这是 Web UI transcript 镜像 hook。
+ *
+ * 作用：
+ * 1. 监听 OpenClaw WebChat 的用户消息。
+ * 2. 立即把用户输入镜像到 Claw Team。
+ * 3. 再从 transcript 中跟踪这一轮后续产生的 assistant/tool 输出，并逐步镜像过去。
+ *
+ * 目录为什么在 hooks/ 下：
+ * - OpenClaw 的内部 hook 发现机制要求目录中存在 HOOK.md + handler.ts。
+ * - 这是给宿主直接加载的运行时入口，不是普通的插件源码模块。
+ * - src/ 下放的是插件本体构建产物；hooks/ 下放的是宿主按约定发现的 hook 目录。
+ */
 import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import os from "node:os";
@@ -10,6 +23,9 @@ const AGENT_SESSION_PREFIX = "agent:";
 const WEBCHAT_MIRROR_PATH = "/api/v1/claw-team/webchat-mirror";
 const ASSISTANT_SENDER_TYPE = "assistant";
 const USER_SENDER_TYPE = "user";
+const ASSISTANT_MIRROR_POLL_INTERVAL_MS = 1000;
+const ASSISTANT_MIRROR_MAX_WAIT_MS = 10 * 60 * 1000;
+const DEBUG_LOG_PATH = "/tmp/webchat-mirror.log";
 
 type HookEvent = {
   type?: string;
@@ -47,6 +63,14 @@ type TranscriptRecord = {
   };
 };
 
+type TranscriptContentPart = {
+  type?: string;
+  text?: string;
+  name?: string;
+  arguments?: unknown;
+  [key: string]: unknown;
+};
+
 type CompletedAssistantMessage = {
   messageId: string;
   content: string;
@@ -55,7 +79,25 @@ type CompletedAssistantMessage = {
 
 type CompletedUserMessage = {
   messageId: string;
+  content: string;
 };
+
+const INTERNAL_DIALOGUE_USER_PREFIX = "[Claw Team Agent Dialogue]";
+
+type MirrorableTranscriptMessage = {
+  messageId: string;
+  content: string;
+  isTerminalAssistant: boolean;
+};
+
+function debugLog(event: string, payload: Record<string, unknown> = {}): void {
+  try {
+    const line = `${new Date().toISOString()} ${event} ${JSON.stringify(payload)}\n`;
+    fs.appendFileSync(DEBUG_LOG_PATH, line, "utf8");
+  } catch {
+    // 调试日志失败不应影响主链路。
+  }
+}
 
 function getSkipReason(event: HookEvent): string | null {
   if (event.type !== "message") {
@@ -188,6 +230,114 @@ function extractAssistantText(record: TranscriptRecord | null): CompletedAssista
   };
 }
 
+function extractTextChunks(parts: TranscriptContentPart[] | undefined): string[] {
+  if (!Array.isArray(parts)) {
+    return [];
+  }
+  return parts
+    .filter((part) => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text!.trim())
+    .filter(Boolean);
+}
+
+function summarizeToolArguments(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  try {
+    return JSON.stringify(value, null, 2).trim();
+  } catch {
+    return String(value ?? "").trim();
+  }
+}
+
+function summarizeUnknownPart(type: string, payload: unknown): string {
+  const body = summarizeToolArguments(payload) || "{}";
+  return `Transcript part (${type}):\n\`\`\`json\n${body}\n\`\`\``;
+}
+
+function buildToolCardMarker(title: string, status: string, summary: string): string {
+  const safeTitle = title.replace(/[|\]]/g, " ").trim();
+  const safeSummary = summary.replace(/[|\]]/g, " ").trim();
+  return `[[tool:${safeTitle}|${status}|${safeSummary}]]`;
+}
+
+function buildMirrorableTranscriptMessage(record: TranscriptRecord | null): MirrorableTranscriptMessage | null {
+  if (!record?.id || !record.message) {
+    return null;
+  }
+
+  const role = record.message.role;
+  const contentParts = record.message.content;
+  const chunks: string[] = [];
+
+  if (role === "assistant") {
+    if (Array.isArray(contentParts)) {
+      for (const part of contentParts as TranscriptContentPart[]) {
+        if (!part || typeof part !== "object") {
+          continue;
+        }
+        const type = part.type;
+        if (!type || type === "thinking") {
+          continue;
+        }
+        if (type === "text") {
+          const text = typeof part.text === "string" ? part.text.trim() : "";
+          if (text) {
+            chunks.push(text);
+          }
+          continue;
+        }
+        if (type !== "toolCall") {
+          chunks.push(summarizeUnknownPart(type, part));
+          continue;
+        }
+        const toolName = String(part.name ?? "tool").trim();
+        const argumentsSummary = summarizeToolArguments(part.arguments);
+        chunks.push(buildToolCardMarker(toolName || "tool", "running", argumentsSummary || "tool call"));
+      }
+    }
+
+    if (!chunks.length) {
+      return null;
+    }
+
+    return {
+      messageId: record.id.trim(),
+      content: chunks.join("\n\n"),
+      isTerminalAssistant: String(record.message.stopReason ?? "") === "stop",
+    };
+  }
+
+  if (role === "toolResult") {
+    const toolName = String((record.message as Record<string, unknown>).toolName ?? "tool").trim();
+    const textChunks = extractTextChunks(contentParts);
+    const details = (record.message as Record<string, unknown>).details;
+    const detailsStatus =
+      details && typeof details === "object"
+        ? String((details as Record<string, unknown>).status ?? "").trim().toLowerCase()
+        : "";
+    const extraParts = Array.isArray(contentParts)
+      ? contentParts
+          .filter((part) => part?.type && part.type !== "text" && part.type !== "thinking")
+          .map((part) => summarizeUnknownPart(String(part?.type ?? "unknown"), part))
+      : [];
+    const summary =
+      [textChunks.join("\n\n"), extraParts.join("\n\n"), summarizeToolArguments(details)]
+        .filter(Boolean)
+        .join("\n\n") || "tool result";
+    const status = detailsStatus === "error" ? "failed" : "completed";
+
+    return {
+      messageId: record.id.trim(),
+      content: buildToolCardMarker(toolName || "tool", status, summary),
+      isTerminalAssistant: false,
+    };
+  }
+
+  return null;
+}
+
 async function readLatestCompletedAssistantMessage(sessionFile: string): Promise<CompletedAssistantMessage | null> {
   try {
     const raw = await fsPromises.readFile(sessionFile, "utf-8");
@@ -213,7 +363,16 @@ function extractUserMessageId(record: TranscriptRecord | null): CompletedUserMes
   if (!record?.id || record.message?.role !== "user") {
     return null;
   }
-  return { messageId: record.id.trim() };
+  const chunks = Array.isArray(record.message.content)
+    ? record.message.content
+        .filter((part) => part?.type === "text" && typeof part.text === "string")
+        .map((part) => part.text!.trim())
+        .filter(Boolean)
+    : [];
+  return {
+    messageId: record.id.trim(),
+    content: chunks.join("\n\n"),
+  };
 }
 
 async function readLatestUserMessageFromTranscript(sessionFile: string): Promise<CompletedUserMessage | null> {
@@ -237,28 +396,128 @@ async function readLatestUserMessageFromTranscript(sessionFile: string): Promise
   return null;
 }
 
+export function findAssistantReplyForTranscriptUser(
+  transcript: string,
+  transcriptUserMessageId: string,
+): CompletedAssistantMessage | null {
+  const lines = transcript.split(/\r?\n/).filter((line) => line.trim());
+  const parsedRecords: TranscriptRecord[] = [];
+  for (const line of lines) {
+    try {
+      parsedRecords.push(JSON.parse(line) as TranscriptRecord);
+    } catch {
+      continue;
+    }
+  }
+
+  const sourceIndex = parsedRecords.findIndex((record) => record.id?.trim() === transcriptUserMessageId);
+  if (sourceIndex < 0) {
+    return null;
+  }
+
+  let latestAssistant: CompletedAssistantMessage | null = null;
+  for (let i = sourceIndex + 1; i < parsedRecords.length; i += 1) {
+    const record = parsedRecords[i];
+    const userMessage = extractUserMessageId(record);
+    if (userMessage && !isInternalDialogueUserMessage(userMessage.content)) {
+      break;
+    }
+
+    const assistantMessage = extractAssistantText(record);
+    if (assistantMessage) {
+      latestAssistant = assistantMessage;
+    }
+  }
+
+  return latestAssistant;
+}
+
+export function findMirrorableMessagesForTranscriptUser(
+  transcript: string,
+  transcriptUserMessageId: string,
+): MirrorableTranscriptMessage[] {
+  const lines = transcript.split(/\r?\n/).filter((line) => line.trim());
+  const parsedRecords: TranscriptRecord[] = [];
+  for (const line of lines) {
+    try {
+      parsedRecords.push(JSON.parse(line) as TranscriptRecord);
+    } catch {
+      continue;
+    }
+  }
+
+  const sourceIndex = parsedRecords.findIndex((record) => record.id?.trim() === transcriptUserMessageId);
+  if (sourceIndex < 0) {
+    return [];
+  }
+
+  const messages: MirrorableTranscriptMessage[] = [];
+  for (let i = sourceIndex + 1; i < parsedRecords.length; i += 1) {
+    const record = parsedRecords[i];
+    const userMessage = extractUserMessageId(record);
+    if (userMessage && !isInternalDialogueUserMessage(userMessage.content)) {
+      break;
+    }
+
+    const mirrorable = buildMirrorableTranscriptMessage(record);
+    if (mirrorable) {
+      messages.push(mirrorable);
+    }
+  }
+
+  return messages;
+}
+
+function isInternalDialogueUserMessage(content: string): boolean {
+  return content.trim().startsWith(INTERNAL_DIALOGUE_USER_PREFIX);
+}
+
+function findTranscriptUserMessageIdByContent(
+  transcript: string,
+  expectedContent: string,
+): string | null {
+  const normalizedExpectedContent = expectedContent.trim();
+  if (!normalizedExpectedContent) {
+    return null;
+  }
+  const lines = transcript.split(/\r?\n/).filter((line) => line.trim());
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    try {
+      const parsed = JSON.parse(lines[i]) as TranscriptRecord;
+      const userMessage = extractUserMessageId(parsed);
+      if (userMessage && userMessage.content === normalizedExpectedContent) {
+        return userMessage.messageId;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 async function findAssistantReplyForUserMessage(
   sessionFile: string,
   userMessageId: string,
 ): Promise<CompletedAssistantMessage | null> {
   try {
     const raw = await fsPromises.readFile(sessionFile, "utf-8");
-    const lines = raw.split(/\r?\n/).filter((line) => line.trim());
-    for (let i = lines.length - 1; i >= 0; i -= 1) {
-      try {
-        const parsed = JSON.parse(lines[i]) as TranscriptRecord;
-        const message = extractAssistantText(parsed);
-        if (message && message.parentId === userMessageId) {
-          return message;
-        }
-      } catch {
-        continue;
-      }
-    }
+    return findAssistantReplyForTranscriptUser(raw, userMessageId);
   } catch {
     return null;
   }
   return null;
+}
+
+async function findMirrorableMessagesForUserMessage(
+  sessionFile: string,
+  userMessageId: string,
+): Promise<MirrorableTranscriptMessage[]> {
+  try {
+    const raw = await fsPromises.readFile(sessionFile, "utf-8");
+    return findMirrorableMessagesForTranscriptUser(raw, userMessageId);
+  } catch {
+    return [];
+  }
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -280,62 +539,134 @@ async function mirrorAssistantReplyFromTranscript(params: {
     params.mirroredUserMessageId;
   let transcriptUserMessageId = "";
   let transcriptPath = "";
+  const expectedUserContent =
+    typeof params.event.context?.content === "string" ? params.event.context.content.trim() : "";
+  const mirroredTranscriptMessageIds = new Set<string>();
 
-  // Web UI 回复经常要经过较长的思考/工具调用，这里给足等待时间，
-  // 避免用户消息已经镜像成功，但 assistant 回复因为超时而漏掉。
-  for (let i = 0; i < 45; i += 1) {
-    await sleep(1000);
+  // Web UI 里的一轮回复可能会走很长的工具链，尤其是代码搜索、外部调用或 Agent 对话场景。
+  // 这里不能只等几十秒，否则主会话最终已经有成文回复，镜像却提前超时放弃。
+  const maxAttempts = Math.ceil(ASSISTANT_MIRROR_MAX_WAIT_MS / ASSISTANT_MIRROR_POLL_INTERVAL_MS);
+  debugLog("assistant_poll_start", {
+    sessionKey,
+    userMessageId,
+    mirroredUserMessageId: params.mirroredUserMessageId,
+    expectedUserContent,
+    maxAttempts,
+  });
+  for (let i = 0; i < maxAttempts; i += 1) {
+    await sleep(ASSISTANT_MIRROR_POLL_INTERVAL_MS);
     if (!transcriptPath || !fs.existsSync(transcriptPath)) {
       transcriptPath = (await resolveTranscriptPath(sessionKey)) ?? "";
       if (!transcriptPath || !fs.existsSync(transcriptPath)) {
+        if (i === 0 || i % 30 === 0) {
+          debugLog("assistant_poll_waiting_transcript", {
+            sessionKey,
+            attempt: i + 1,
+            transcriptPath,
+          });
+        }
         continue;
       }
+      debugLog("assistant_poll_transcript_ready", {
+        sessionKey,
+        attempt: i + 1,
+        transcriptPath,
+      });
     }
     // hook 事件里的 messageId 和 transcript 里的真实 user message id 不一定相同。
-    // 这里先拿到 transcript 里的 user id，再按 parentId 去找对应 assistant 回复。
+    // 这里必须先把“当前这条用户消息”对应的 transcript user id 固定下来，
+    // 不能每轮都取最新 user，否则连续追问时，前一轮会被后一轮顶掉。
     if (!transcriptUserMessageId) {
-      const latestUser = await readLatestUserMessageFromTranscript(transcriptPath);
-      transcriptUserMessageId = latestUser?.messageId ?? "";
+      const transcript = await fsPromises.readFile(transcriptPath, "utf-8").catch(() => "");
+      transcriptUserMessageId =
+        findTranscriptUserMessageIdByContent(transcript, expectedUserContent) ||
+        (await readLatestUserMessageFromTranscript(transcriptPath))?.messageId ||
+        "";
+      if (transcriptUserMessageId) {
+        debugLog("assistant_poll_bound_user", {
+          sessionKey,
+          attempt: i + 1,
+          transcriptUserMessageId,
+          userMessageId,
+          expectedUserContent,
+        });
+      }
     }
-    const latest =
-      ((transcriptUserMessageId || userMessageId) &&
-        (await findAssistantReplyForUserMessage(transcriptPath, transcriptUserMessageId || userMessageId))) ||
-      (await readLatestCompletedAssistantMessage(transcriptPath));
+    const scopedMessages =
+      (transcriptUserMessageId || userMessageId) &&
+      (await findMirrorableMessagesForUserMessage(transcriptPath, transcriptUserMessageId || userMessageId));
+    const pendingMessages = (scopedMessages || []).filter(
+      (message) => !mirroredTranscriptMessageIds.has(message.messageId),
+    );
+    const latest = pendingMessages.at(-1) || null;
     if (!latest) {
-      continue;
-    }
-    if (
-      latest.parentId &&
-      transcriptUserMessageId &&
-      latest.parentId !== transcriptUserMessageId
-    ) {
+      if (i === 0 || i % 30 === 0) {
+        debugLog("assistant_poll_no_reply_yet", {
+          sessionKey,
+          attempt: i + 1,
+          transcriptUserMessageId,
+          userMessageId,
+        });
+      }
       continue;
     }
 
-    const response = await fetch(`${params.baseUrl}${WEBCHAT_MIRROR_PATH}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${params.outboundToken}`,
-      },
-      body: JSON.stringify({
-        channelId: WEBCHAT_CHANNEL_ID,
-        sessionKey,
-        messageId: latest.messageId,
-        senderType: ASSISTANT_SENDER_TYPE,
-        content: latest.content,
-      }),
+    debugLog("assistant_poll_reply_found", {
+      sessionKey,
+      attempt: i + 1,
+      transcriptUserMessageId,
+      latestMessageId: latest.messageId,
+      preview: latest.content.slice(0, 120),
+      batchSize: pendingMessages.length,
     });
 
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.warn("[webchat-mirror] assistant transcript mirror failed", response.status, detail);
-      return;
+    for (const message of pendingMessages) {
+      const response = await fetch(`${params.baseUrl}${WEBCHAT_MIRROR_PATH}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${params.outboundToken}`,
+        },
+        body: JSON.stringify({
+          channelId: WEBCHAT_CHANNEL_ID,
+          sessionKey,
+          messageId: message.messageId,
+          senderType: ASSISTANT_SENDER_TYPE,
+          content: message.content,
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text().catch(() => "");
+        debugLog("assistant_poll_post_failed", {
+          sessionKey,
+          latestMessageId: message.messageId,
+          status: response.status,
+          detail,
+        });
+        console.warn("[webchat-mirror] assistant transcript mirror failed", response.status, detail);
+        return;
+      }
+
+      mirroredTranscriptMessageIds.add(message.messageId);
+      debugLog("assistant_poll_post_succeeded", {
+        sessionKey,
+        latestMessageId: message.messageId,
+      });
     }
 
-    return;
+    if (pendingMessages.some((message) => message.isTerminalAssistant)) {
+      return;
+    }
   }
 
+  debugLog("assistant_poll_timed_out", {
+    sessionKey,
+    transcriptPath: transcriptPath || null,
+    transcriptUserMessageId,
+    userMessageId,
+    expectedUserContent,
+  });
   console.warn("[webchat-mirror] assistant transcript mirror timed out", {
     sessionKey,
     transcriptPath: transcriptPath || null,
@@ -380,9 +711,21 @@ const webchatMirrorHandler = async (event: HookEvent) => {
 
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
+    debugLog("user_mirror_post_failed", {
+      sessionKey: event.sessionKey,
+      messageId,
+      status: response.status,
+      detail,
+    });
     console.warn("[webchat-mirror] mirror request failed", response.status, detail);
     return;
   }
+
+  debugLog("user_mirror_post_succeeded", {
+    sessionKey: event.sessionKey,
+    messageId,
+    preview: event.context?.content?.trim()?.slice(0, 120) ?? "",
+  });
 
   void mirrorAssistantReplyFromTranscript({
     event,

@@ -1,6 +1,6 @@
 ---
 name: webchat-mirror
-description: "Mirror OpenClaw WebChat user messages and assistant replies into Claw Team."
+description: "Mirror OpenClaw WebChat transcript outputs into Claw Team."
 metadata:
   {
     "openclaw":
@@ -15,14 +15,21 @@ metadata:
 # WebChat Mirror
 
 This hook mirrors WebChat conversations into Claw Team.
-It handles the user message immediately, then polls the transcript file for the
-matching assistant reply and mirrors that reply as well.
+It handles the user message immediately, then follows the transcript and mirrors
+subsequent visible outputs into Claw Team as they appear.
 
 ## Scope
 
 - Only handles `message:received`
 - Only mirrors `webchat` sessions
 - Only appends mirrored messages into Claw Team
+- Skips `thinking`
+- Keeps other transcript outputs, including:
+  - user messages
+  - assistant text
+  - tool calls
+  - tool results
+  - unknown transcript parts as generic payload summaries
 
 ## Configuration
 

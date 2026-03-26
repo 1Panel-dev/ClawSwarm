@@ -1,6 +1,10 @@
 /**
  * 这是本地补充的 OpenClaw SDK 类型声明。
  * 作用是让当前仓库在没有真实官方类型包的情况下也能完成类型检查和构建。
+ *
+ * 约束：
+ * - 这里只补当前项目确实用到的最小接口。
+ * - 如果宿主新增能力，优先按实际用法补声明，不在这里“猜全量 SDK”。
  */
 declare module "openclaw/plugin-sdk/core" {
     export type OpenClawConfig = any;
@@ -30,8 +34,45 @@ declare module "openclaw/plugin-sdk/core" {
             resolveAccount: (cfg: OpenClawConfig, accountId?: string) => TResolvedAccount;
         };
 
+        messaging?: {
+            parseExplicitTarget?: (args: { raw: string }) => {
+                to: string;
+                threadId?: string | number;
+                chatType?: "direct" | "group";
+            } | null;
+            inferTargetChatType?: (args: { to: string }) => "direct" | "group" | undefined;
+            formatTargetDisplay?: (args: {
+                target: string;
+                display?: string;
+                kind?: "user" | "group" | "channel";
+            }) => string;
+            targetResolver?: {
+                looksLikeId?: (raw: string, normalized?: string) => boolean;
+                hint?: string;
+                resolveTarget?: (args: {
+                    cfg?: any;
+                    accountId?: string | null;
+                    input: string;
+                    normalized: string;
+                    preferredKind?: "user" | "group" | "channel";
+                }) => Promise<{
+                    to: string;
+                    kind: "user" | "group" | "channel";
+                    display?: string;
+                    source?: "normalized" | "directory";
+                } | null>;
+            };
+        };
+
         outbound: {
             deliveryMode: "direct" | "broadcast";
+            resolveTarget?: (args: {
+                cfg?: any;
+                to?: string;
+                allowFrom?: string[];
+                accountId?: string | null;
+                mode?: "explicit" | "implicit" | "heartbeat";
+            }) => { ok: true; to: string } | { ok: false; error: Error };
             sendText: (args: any) => Promise<any>;
         };
     };

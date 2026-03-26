@@ -12,15 +12,16 @@
       class="message-list__item"
       :class="{
         'message-list__item--user': message.senderType === 'user',
+        'message-list__item--process': isCompactProcessMessage(message),
         'message-list__item--speaker-accented': shouldAccentSpeakers && !!speakerColorMap[message.senderLabel],
       }"
       :style="speakerStyleFor(message)"
     >
-      <div class="message-list__meta">
+      <div class="message-list__meta" :class="{ 'message-list__meta--process': isCompactProcessMessage(message) }">
         <div class="message-list__meta-main">
-          <span class="message-list__sender">{{ message.senderLabel }}</span>
+          <span class="message-list__sender">{{ displaySenderLabel(message) }}</span>
           <span
-            v-if="resolvedSenderMetaMap[message.senderLabel]?.roleName"
+            v-if="!isCompactProcessMessage(message) && resolvedSenderMetaMap[message.senderLabel]?.roleName"
             class="message-list__sender-role"
           >
             / {{ resolvedSenderMetaMap[message.senderLabel]?.roleName }}
@@ -35,6 +36,7 @@
         <div class="message-list__meta-side">
           <span>{{ formatDateTime(message.updatedAt) }}</span>
           <ElButton
+            v-if="!isCompactProcessMessage(message)"
             class="message-list__copy-button"
             text
             @click="copyMessage(message)"
@@ -50,7 +52,7 @@
       <div class="message-list__parts">
         <template v-for="(part, index) in message.parts" :key="`${message.id}-${part.kind}-${index}`">
           <MessageMarkdown
-            v-if="part.kind === 'markdown'"
+            v-if="part.kind === 'markdown' && !shouldHideMarkdownPart(message, part)"
             class="message-list__content"
             :content="part.content"
           />
@@ -65,10 +67,12 @@
             :title="part.title"
             :status="part.status"
             :summary="part.summary"
+            :compact="isCompactProcessMessage(message)"
+            :compact-title="compactToolTitle(message, part)"
           />
         </template>
       </div>
-      <div class="message-list__actions">
+      <div v-if="!isCompactProcessMessage(message)" class="message-list__actions">
         <ElButton
           class="message-list__copy-button"
           text
@@ -220,6 +224,52 @@ function speakerStyleFor(message: MessageView) {
     } as Record<string, string>;
 }
 
+function isCompactProcessMessage(message: MessageView) {
+    if (message.senderType === "user") {
+        return false;
+    }
+    const toolParts = message.parts.filter((part) => part.kind === "tool_card");
+    if (toolParts.length !== 1) {
+        return false;
+    }
+    if (message.parts.some((part) => part.kind === "attachment")) {
+        return false;
+    }
+    const markdownParts = message.parts.filter((part) => part.kind === "markdown");
+    return markdownParts.every((part) => part.content.trim().length <= 220);
+}
+
+function isTranscriptSummaryMarkdown(part: MessagePartView) {
+    return part.kind === "markdown" && part.content.trim().startsWith("Transcript part (");
+}
+
+function shouldHideMarkdownPart(message: MessageView, part: MessagePartView) {
+    if (!isCompactProcessMessage(message) || part.kind !== "markdown") {
+        return false;
+    }
+    return !isTranscriptSummaryMarkdown(part) && part.content.trim().length > 0;
+}
+
+function displaySenderLabel(message: MessageView) {
+    if (!isCompactProcessMessage(message)) {
+        return message.senderLabel;
+    }
+    const toolPart = message.parts.find((part) => part.kind === "tool_card");
+    if (!toolPart || toolPart.kind !== "tool_card") {
+        return message.senderLabel;
+    }
+    return toolPart.status === "running" || toolPart.status === "pending" ? "Assistant" : "Tool";
+}
+
+function compactToolTitle(message: MessageView, part: Extract<MessagePartView, { kind: "tool_card" }>) {
+    if (!isCompactProcessMessage(message)) {
+        return part.title;
+    }
+    return part.status === "running" || part.status === "pending"
+        ? `1 tool ${part.title}`
+        : `Tool output ${part.title}`;
+}
+
 function formatMessagePart(part: MessagePartView): string {
     if (part.kind === "markdown") {
         return part.content.trim();
@@ -281,9 +331,20 @@ onBeforeUnmount(() => {
   background: #f7f7f8;
 }
 
+.message-list__item--process {
+  width: min(62%, 760px);
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: #fafafa;
+}
+
 .message-list__item--speaker-accented {
   border-left: 4px solid var(--message-speaker-color);
   padding-left: 13px;
+}
+
+.message-list__item--process.message-list__item--speaker-accented {
+  padding-left: 9px;
 }
 
 .message-list__item--user {
@@ -311,6 +372,11 @@ onBeforeUnmount(() => {
   font-size: 0.82rem;
 }
 
+.message-list__meta--process {
+  margin-bottom: 6px;
+  font-size: 0.78rem;
+}
+
 .message-list__meta-main {
   display: flex;
   align-items: center;
@@ -321,6 +387,12 @@ onBeforeUnmount(() => {
 .message-list__sender {
   font-size: 0.93rem;
   font-weight: 700;
+}
+
+.message-list__meta--process .message-list__sender {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #8b8f97;
 }
 
 .message-list__sender-role {
@@ -367,6 +439,13 @@ onBeforeUnmount(() => {
   box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
 }
 
+.message-list__item--process .message-list__copy-button {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  border-radius: 10px;
+}
+
 .message-list__copy-icon {
   font-size: 16px;
 }
@@ -384,6 +463,10 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: flex-end;
   margin-top: 10px;
+}
+
+.message-list__item--process .message-list__actions {
+  margin-top: 4px;
 }
 
 .message-list__bottom-anchor {

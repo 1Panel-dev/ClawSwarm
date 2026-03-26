@@ -2,7 +2,10 @@
   <div class="panel">
     <header class="panel__header">
       <div class="panel__header-main">
-        <h1 class="panel__title">{{ title }}</h1>
+        <div class="panel__title-row">
+          <h1 class="panel__title">{{ title }}</h1>
+          <span v-if="directConversationCtId" class="panel__ct-id">{{ directConversationCtId }}</span>
+        </div>
         <AgentDialogueToolbar
           v-if="currentAgentDialogue"
           :dialogue="currentAgentDialogue"
@@ -76,6 +79,15 @@ const title = computed(() => {
         }
     }
     return conversation.title ?? t("conversation.selectConversation");
+});
+const directConversationCtId = computed(() => {
+    const conversation = conversationStore.currentConversation;
+    if (!conversation || conversation.type !== "direct" || !conversation.direct_instance_id || !conversation.direct_agent_id) {
+        return "";
+    }
+    const instance = addressBookStore.instances.find((item) => item.id === conversation.direct_instance_id);
+    const agent = instance?.agents.find((item) => item.id === conversation.direct_agent_id);
+    return agent?.ct_id ?? "";
 });
 const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
 const isAgentDialogueConversation = computed(() => conversationStore.currentConversation?.type === "agent_dialogue");
@@ -171,11 +183,30 @@ async function stopDialogue() {
   gap: 0;
 }
 
+.panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
 .panel__title {
   margin: 0;
   font-size: 1.14rem;
   font-weight: 700;
   line-height: 1.3;
+}
+
+.panel__ct-id {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border: 1px solid #d9dde6;
+  border-radius: 999px;
+  background: #f7f8fb;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .panel__error {
