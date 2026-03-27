@@ -4,7 +4,7 @@
  * 目前先支持最小能力：
  * 1. 创建真实 Agent
  * 2. 设置展示名称
- * 3. 读写 SOUL.md / USER.md / MEMORY.md
+ * 3. 读写 IDENTITY.md / SOUL.md / USER.md / MEMORY.md
  *
  * 这样 claw-team 的“新增 Agent”就不再只是写调度中心数据库，
  * 而是能真正把 Agent 建到 OpenClaw 宿主里，再同步回来。
@@ -294,15 +294,27 @@ function withDefaultProfileFiles(partial?: Partial<AgentProfileFiles>): AgentPro
     };
 }
 
+function mergeProfileFiles(base: AgentProfileFiles, partial?: Partial<AgentProfileFiles>): AgentProfileFiles {
+    return {
+        identityMd: partial?.identityMd !== undefined ? partial.identityMd : base.identityMd,
+        soulMd: partial?.soulMd !== undefined ? partial.soulMd : base.soulMd,
+        userMd: partial?.userMd !== undefined ? partial.userMd : base.userMd,
+        memoryMd: partial?.memoryMd !== undefined ? partial.memoryMd : base.memoryMd,
+    };
+}
+
 function writeAgentProfileFiles(params: {
     agentId: string;
     profileFiles?: Partial<AgentProfileFiles>;
+    baseFiles?: AgentProfileFiles;
     cfg?: OpenClawAgentWorkspaceConfig;
 }): AgentProfileFiles {
     const workspaceDir = resolveAgentWorkspaceDir(params.agentId, params.cfg);
     ensureWorkspaceDir(workspaceDir);
     const filePaths = buildAgentProfileFilePaths(workspaceDir);
-    const nextFiles = withDefaultProfileFiles(params.profileFiles);
+    const nextFiles = params.baseFiles
+        ? mergeProfileFiles(params.baseFiles, params.profileFiles)
+        : withDefaultProfileFiles(params.profileFiles);
 
     // 这里始终写成完整文件，避免出现空文件或部分字段缺失导致的行为漂移。
     fs.writeFileSync(filePaths.identityMd, nextFiles.identityMd, "utf8");
@@ -416,8 +428,15 @@ export function updateRealOpenClawAgent(params: {
         ]);
     }
 
+    // 编辑链必须保持 patch 语义：未传的文件保持原样，不要回退成默认模板。
+    const currentFiles = readAgentProfileFiles({
+        agentId,
+        cfg: params.cfg,
+    });
+
     writeAgentProfileFiles({
         agentId,
+        baseFiles: currentFiles,
         profileFiles: params.profileFiles,
         cfg: params.cfg,
     });

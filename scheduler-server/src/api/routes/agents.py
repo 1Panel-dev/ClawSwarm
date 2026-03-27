@@ -6,6 +6,7 @@
 2. 单聊会话会直接绑定到某个 agent。
 3. 群组成员也引用这里的 agent 记录。
 """
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select

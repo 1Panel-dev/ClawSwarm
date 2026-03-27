@@ -17,32 +17,41 @@
     <section class="sidebar__panel">
       <header class="sidebar__panel-header">
         <div class="sidebar__search">
-          <input
+          <ElInput
             v-model="searchQuery"
             class="sidebar__search-input"
-            type="text"
             :placeholder="t('conversation.search')"
+            clearable
           />
         </div>
 
-        <button
+        <ElButton
           v-if="activePane === 'groups' || activePane === 'recent'"
           class="sidebar__plus"
-          type="button"
+          circle
           :title="activePane === 'groups' ? t('conversation.createGroup') : t('conversation.createAgentDialogue')"
           @click="activePane === 'groups' ? createDrawerVisible = true : agentDialogueDrawerVisible = true"
         >
-          +
-        </button>
-        <button
+          <ElIcon><Plus /></ElIcon>
+        </ElButton>
+        <ElButton
+          v-else-if="activePane === 'agents'"
+          class="sidebar__plus sidebar__plus--muted"
+          circle
+          :title="t('conversation.refreshContacts')"
+          @click="refreshAgentsPane"
+        >
+          <ElIcon><RefreshRight /></ElIcon>
+        </ElButton>
+        <ElButton
           v-else
           class="sidebar__plus sidebar__plus--muted"
-          type="button"
+          circle
           :title="t('conversation.switchView')"
           @click="cyclePane"
         >
-          +
-        </button>
+          <ElIcon><Plus /></ElIcon>
+        </ElButton>
       </header>
 
       <div v-if="activePane === 'agents'" class="sidebar__toolbar">
@@ -209,7 +218,7 @@
  * 后面如果要做更复杂的最近/所有切换、搜索、未读状态，
  * 可以在这个组件内部继续扩展，而不用替换整个左侧栏。
  */
-import { Collection, ChatRound, User } from "@element-plus/icons-vue";
+import { Collection, ChatRound, Plus, RefreshRight, User } from "@element-plus/icons-vue";
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import ElMessage from "element-plus/es/components/message/index";
 import { useRouter } from "vue-router";
@@ -510,6 +519,10 @@ function cyclePane() {
     activePane.value = keys[(index + 1) % keys.length];
 }
 
+async function refreshAgentsPane() {
+    await addressBookStore.loadAddressBook();
+}
+
 function handleAgentSectionsChange(value: string[] | string) {
     expandedAgentSections.value = Array.isArray(value) ? value : [value];
 }
@@ -615,33 +628,18 @@ watch(
 
 .sidebar__search-input {
   width: 100%;
-  height: 44px;
-  padding: 0 16px;
-  border: none;
-  border-radius: 14px;
-  background: #ffffff;
-  color: var(--color-text-primary);
-  outline: none;
-  font-size: 0.98rem;
 }
 
 .sidebar__plus {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid #d5d7db;
-  border-radius: 50%;
-  background: #ffffff;
-  color: var(--color-text-primary);
-  cursor: pointer;
-  font-size: 1.45rem;
-  line-height: 1;
+  flex-shrink: 0;
 }
 
 .sidebar__plus--muted {
-  color: #6d737c;
+  --el-button-bg-color: #ffffff;
+  --el-button-border-color: #d5d7db;
+  --el-button-hover-bg-color: #f3f4f6;
+  --el-button-hover-border-color: #cfd3d8;
+  --el-button-text-color: #6d737c;
 }
 
 .sidebar__toolbar {
