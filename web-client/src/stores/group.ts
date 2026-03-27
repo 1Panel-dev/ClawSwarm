@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 
-import { addGroupMembers, createGroup, deleteGroupMember, fetchGroupDetail } from "@/api/groups";
+import { addGroupMembers, createGroup, deleteGroup, deleteGroupMember, fetchGroupDetail } from "@/api/groups";
 import { useAddressBookStore } from "@/stores/addressBook";
 import type { GroupDetailApi, GroupReadApi } from "@/types/api/group";
 
@@ -41,6 +41,17 @@ export const useGroupStore = defineStore("group", {
             this.savingMembers = true;
             try {
                 this.currentGroupDetail = await deleteGroupMember(groupId, memberId);
+                await useAddressBookStore().loadAll();
+            } finally {
+                this.savingMembers = false;
+            }
+        },
+        async deleteCurrentGroup(groupId: number) {
+            this.savingMembers = true;
+            try {
+                await deleteGroup(groupId);
+                this.currentGroupDetail = null;
+                this.editingGroupId = null;
                 await useAddressBookStore().loadAll();
             } finally {
                 this.savingMembers = false;

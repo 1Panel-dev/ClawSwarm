@@ -205,6 +205,7 @@
       :instances="instances"
       :saving="groupStore.savingMembers"
       @add-members="handleAddMembers"
+      @delete-group="handleDeleteGroup"
       @remove-member="handleRemoveMember"
     />
   </div>
@@ -444,6 +445,33 @@ async function handleRemoveMember(memberId: number) {
     }
     await groupStore.removeMember(groupStore.currentGroupDetail.id, memberId);
     ElMessage.success(t("conversation.groupMemberRemoved"));
+}
+
+async function handleDeleteGroup() {
+    const currentGroup = groupStore.currentGroupDetail;
+    if (!currentGroup) {
+        return;
+    }
+    const confirmed = window.confirm(t("conversation.deleteGroupConfirm", { name: currentGroup.name }));
+    if (!confirmed) {
+        return;
+    }
+
+    const deletingOpenConversation =
+        currentConversation.value?.type === "group" && currentConversation.value.group_id === currentGroup.id;
+
+    await groupStore.deleteCurrentGroup(currentGroup.id);
+    memberDrawerVisible.value = false;
+    ElMessage.success(t("conversation.groupDeleted"));
+
+    if (deletingOpenConversation) {
+        conversationStore.currentConversationId = null;
+        conversationStore.currentConversation = null;
+        conversationStore.messages = [];
+        conversationStore.dispatches = [];
+        groupStore.currentGroupDetail = null;
+        await router.replace("/messages");
+    }
 }
 
 async function handleCreateAgentDialogue(payload: {

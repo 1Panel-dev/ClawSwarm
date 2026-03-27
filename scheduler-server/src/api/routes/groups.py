@@ -9,13 +9,17 @@
 from datetime import timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
 from src.models.agent_profile import AgentProfile
 from src.models.chat_group import ChatGroup
 from src.models.chat_group_member import ChatGroupMember
+from src.models.conversation import Conversation
+from src.models.message import Message
+from src.models.message_callback_event import MessageCallbackEvent
+from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
 from src.schemas.group import GroupCreate, GroupDetail, GroupMemberAddRequest, GroupMemberRead, GroupRead
@@ -36,6 +40,42 @@ def create_group(payload: GroupCreate, db: Session = Depends(db_session)) -> Cha
     db.commit()
     db.refresh(item)
     return item
+
+
+def _delete_group_and_related_records(group_id: int, db: Session) -> None:
+    group = db.get(ChatGroup, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="group not found")
+
+    conversation_ids = list(db.scalars(select(Conversation.id).where(Conversation.group_id == group_id)))
+    if conversation_ids:
+        dispatch_ids = list(
+            db.scalars(
+                select(MessageDispatch.id).where(MessageDispatch.conversation_id.in_(conversation_ids))
+            )
+        )
+        if dispatch_ids:
+            db.execute(delete(MessageCallbackEvent).where(MessageCallbackEvent.dispatch_id.in_(dispatch_ids)))
+
+        db.execute(delete(MessageDispatch).where(MessageDispatch.conversation_id.in_(conversation_ids)))
+        db.execute(delete(Message).where(Message.conversation_id.in_(conversation_ids)))
+        db.execute(delete(Conversation).where(Conversation.id.in_(conversation_ids)))
+
+    db.execute(delete(ChatGroupMember).where(ChatGroupMember.group_id == group_id))
+    db.execute(delete(ChatGroup).where(ChatGroup.id == group_id))
+    db.commit()
+
+
+@router.delete("/{group_id}", status_code=204)
+def delete_group(group_id: int, db: Session = Depends(db_session)) -> None:
+    _delete_group_and_related_records(group_id, db)
+
+
+@router.post("/{group_id}/delete", status_code=204)
+def delete_group_via_post(group_id: int, db: Session = Depends(db_session)) -> None:
+    # 某些部署环境里对 DELETE 动词处理不稳定，这里补一个显式动作路由，
+    # 前端统一走 POST，避免浏览器/代理差异导致 405。
+    _delete_group_and_related_records(group_id, db)
 
 
 @router.get("/{group_id}", response_model=GroupDetail)

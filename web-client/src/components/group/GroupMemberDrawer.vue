@@ -6,12 +6,15 @@
     destroy-on-close
     @close="emit('update:visible', false)"
   >
-    <div v-if="group" class="member-drawer">
+      <div v-if="group" class="member-drawer">
       <div class="member-dialog__intro">
           <div>
             <div class="member-dialog__group-name">{{ group.name }}</div>
             <div class="member-dialog__group-desc">{{ group.description || t("conversation.groupDescriptionEmpty") }}</div>
           </div>
+          <el-button text type="danger" :disabled="saving" @click="emit('delete-group')">
+            {{ t("conversation.deleteGroup") }}
+          </el-button>
         </div>
 
       <div class="member-dialog__grid">
@@ -99,6 +102,7 @@ const emit = defineEmits<{
     "update:visible": [value: boolean];
     "add-members": [payload: Array<{ instance_id: number; agent_id: number }>];
     "remove-member": [memberId: number];
+    "delete-group": [];
 }>();
 
 const selectedValues = ref<string[]>([]);

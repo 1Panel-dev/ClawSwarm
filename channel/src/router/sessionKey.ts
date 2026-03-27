@@ -41,7 +41,10 @@ export function buildSessionKey(params: {
         return `agent:${agentId}:${agentId}`;
     }
 
-    // 群聊在 broadcast 和 mention 之间必须生成不同的 key，否则会串上下文。
+    // 群聊需要遵循 OpenClaw 官方的 agent-scoped group session 规则：
+    // agent:<agentId>:<channel>:group:<id>
+    // 否则宿主侧很多逻辑会从 sessionKey 里解析不出 agentId，最后回退成 main。
+    // 我们仍然在后缀里保留 route/conversation 信息，避免 mention/broadcast 串上下文。
     const routeSegment = params.routeKind === "GROUP_MENTION" ? "mention" : "broadcast";
-    return `${CHANNEL_ID}:group:${chatId}:${routeSegment}:${agentId}:conv:${conversationId}`;
+    return `agent:${agentId}:${CHANNEL_ID}:group:${chatId}:route:${routeSegment}:conv:${conversationId}`;
 }

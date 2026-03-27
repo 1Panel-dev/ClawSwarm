@@ -30,3 +30,7 @@ export async function deleteGroupMember(groupId: number, memberId: number): Prom
     const response = await apiClient.delete<GroupDetailApi>(`/api/groups/${groupId}/members/${memberId}`);
     return response.data;
 }
+
+export async function deleteGroup(groupId: number): Promise<void> {
+    await apiClient.post(`/api/groups/${groupId}/delete`);
+}

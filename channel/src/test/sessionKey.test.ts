@@ -38,6 +38,18 @@ describe("buildSessionKey", () => {
                 threadId: "conv-1",
                 routeKind: "GROUP_MENTION",
             }),
-        ).toBe("claw-team:group:proj-alpha:mention:qa:conv:conv-1");
+        ).toBe("agent:qa:claw-team:group:proj-alpha:route:mention:conv:conv-1");
+    });
+
+    it("builds broadcast session keys in agent-scoped group form", () => {
+        expect(
+            buildSessionKey({
+                agentId: "pm",
+                chatType: "group",
+                chatId: "proj-alpha",
+                threadId: "conv-2",
+                routeKind: "GROUP_BROADCAST",
+            }),
+        ).toBe("agent:pm:claw-team:group:proj-alpha:route:broadcast:conv:conv-2");
     });
 });

@@ -25,6 +25,7 @@ from src.main import create_app
 from src.models.agent_profile import AgentProfile
 from src.models.agent_dialogue import AgentDialogue
 from src.models.chat_group import ChatGroup
+from src.models.chat_group_member import ChatGroupMember
 from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
@@ -1757,6 +1758,161 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertTrue(any(part["kind"] == "attachment" for part in agent_messages[0]["parts"]))
         finally:
             settings.local_agent_mock_enabled = original_flag
+
+    def test_group_dispatch_injects_group_context_per_target_agent(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Group",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            pm = AgentProfile(
+                instance_id=instance.id,
+                agent_key="pm",
+                display_name="项目经理",
+                role_name="项目经理",
+                enabled=True,
+                ct_id="CTA-0001",
+            )
+            engineer = AgentProfile(
+                instance_id=instance.id,
+                agent_key="execution-engineer",
+                display_name="执行工程师",
+                role_name="执行工程师",
+                enabled=True,
+                ct_id="CTA-0002",
+            )
+            db.add_all([pm, engineer])
+            db.flush()
+
+            group = ChatGroup(name="小项目群", description="测试群聊上下文")
+            db.add(group)
+            db.flush()
+
+            db.add_all(
+                [
+                    ChatGroupMember(group_id=group.id, instance_id=instance.id, agent_id=pm.id),
+                    ChatGroupMember(group_id=group.id, instance_id=instance.id, agent_id=engineer.id),
+                ]
+            )
+            db.flush()
+
+            conversation = Conversation(type="group", title="小项目群", group_id=group.id)
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+
+        mocked_send = AsyncMock(return_value={"traceId": "trace-group-context"})
+        with patch("src.api.routes.conversations.channel_client.send_inbound", new=mocked_send):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "请先分别介绍自己，再说明你负责什么。", "mentions": []},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mocked_send.await_count, 2)
+
+        first_payload = mocked_send.await_args_list[0].kwargs["payload"]
+        second_payload = mocked_send.await_args_list[1].kwargs["payload"]
+
+        self.assertEqual(first_payload["chat"]["type"], "group")
+        self.assertEqual(second_payload["chat"]["type"], "group")
+        self.assertEqual(first_payload["targetAgentIds"], ["pm"])
+        self.assertEqual(second_payload["targetAgentIds"], ["execution-engineer"])
+
+        self.assertIn("[Claw Team Group Context]", first_payload["text"])
+        self.assertIn("Group: 小项目群", first_payload["text"])
+        self.assertIn("Your identity: 项目经理 (项目经理, CTA-0001)", first_payload["text"])
+        self.assertIn("执行工程师 (执行工程师, CTA-0002)", first_payload["text"])
+        self.assertIn("Current speaker: User", first_payload["text"])
+
+        self.assertIn("Your identity: 执行工程师 (执行工程师, CTA-0002)", second_payload["text"])
+        self.assertIn("项目经理 (项目经理, CTA-0001)", second_payload["text"])
+        self.assertIn("Instruction:", second_payload["text"])
+
+    def test_delete_group_removes_group_conversation_history(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Group",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="pm",
+                display_name="项目经理",
+                role_name="项目经理",
+                enabled=True,
+                ct_id="CTA-0001",
+            )
+            db.add(agent)
+            db.flush()
+
+            group = ChatGroup(name="待删除群", description="删除群测试")
+            db.add(group)
+            db.flush()
+
+            member = ChatGroupMember(group_id=group.id, instance_id=instance.id, agent_id=agent.id)
+            conversation = Conversation(type="group", title="待删除群", group_id=group.id)
+            db.add_all([member, conversation])
+            db.flush()
+
+            message = Message(
+                id="msg_group_delete_1",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="请删除这个群",
+                status="completed",
+            )
+            db.add(message)
+            db.flush()
+
+            dispatch = MessageDispatch(
+                id="dsp_group_delete_1",
+                message_id=message.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=agent.id,
+                dispatch_mode="group_broadcast",
+                status="completed",
+            )
+            db.add(dispatch)
+            db.flush()
+
+            callback = MessageCallbackEvent(
+                dispatch_id=dispatch.id,
+                event_id="evt_group_delete_1",
+                event_type="reply.final",
+                payload_json={"text": "done"},
+            )
+            db.add(callback)
+            db.commit()
+            group_id = group.id
+            conversation_id = conversation.id
+
+        response = self.client.delete(f"/api/groups/{group_id}")
+        self.assertEqual(response.status_code, 204)
+
+        with self.SessionLocal() as db:
+            self.assertIsNone(db.get(ChatGroup, group_id))
+            self.assertIsNone(db.scalar(select(ChatGroupMember).where(ChatGroupMember.group_id == group_id)))
+            self.assertIsNone(db.get(Conversation, conversation_id))
+            self.assertIsNone(db.get(Message, "msg_group_delete_1"))
+            self.assertIsNone(db.get(MessageDispatch, "dsp_group_delete_1"))
+            self.assertIsNone(db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_group_delete_1")))
 
     def test_callback_reply_final_with_parts_is_exposed_as_rich_message(self) -> None:
         """

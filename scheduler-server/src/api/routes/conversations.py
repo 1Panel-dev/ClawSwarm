@@ -518,21 +518,46 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
                     dispatch.status = "accepted"
             continue
 
-        inbound_payload = {
-            "messageId": message.id,
-            "accountId": instance.channel_account_id,
-            "chat": {"type": "group", "chatId": f"group-conv-{conversation.id}", "groupId": str(group.id)},
-            "from": {"userId": "user", "displayName": "User"},
-            "text": message.content,
-        }
-        if mentions:
-            inbound_payload["mentions"] = agent_keys
-        else:
-            inbound_payload["targetAgentIds"] = agent_keys
+        group_member_lines = []
+        for member_agent in instance_agents:
+            role_label = member_agent.role_name or "未设置角色"
+            ct_label = member_agent.ct_id or "NO-CT-ID"
+            group_member_lines.append(f"- {member_agent.display_name} ({role_label}, {ct_label})")
+        group_members_text = "\n".join(group_member_lines)
 
-        # 一次 inbound 可能对应同一个 instance 下多个 agent。
-        response = await channel_client.send_inbound(instance=instance, payload=inbound_payload)
         for agent in instance_agents:
+            role_label = agent.role_name or "未设置角色"
+            ct_label = agent.ct_id or "NO-CT-ID"
+            mention_line = "Mentioned targets: you" if mentions else "Mentioned targets: none"
+            contextual_text = "\n".join(
+                [
+                    "[Claw Team Group Context]",
+                    f"Group: {group.name}",
+                    f"Your identity: {agent.display_name} ({role_label}, {ct_label})",
+                    "Group members:",
+                    group_members_text,
+                    "Current speaker: User",
+                    mention_line,
+                    "Instruction:",
+                    "- If the current discussion is not in your responsibility scope, stay silent.",
+                    "- If it is relevant to your role, reply briefly and stay on topic.",
+                    "",
+                    message.content,
+                ]
+            )
+
+            inbound_payload = {
+                "messageId": message.id,
+                "accountId": instance.channel_account_id,
+                "chat": {"type": "group", "chatId": f"group-conv-{conversation.id}", "groupId": str(group.id)},
+                "from": {"userId": "user", "displayName": "User"},
+                "text": contextual_text,
+                "targetAgentIds": [agent.agent_key],
+            }
+            if mentions:
+                inbound_payload["mentions"] = [agent.agent_key]
+
+            response = await channel_client.send_inbound(instance=instance, payload=inbound_payload)
             dispatch = db.scalar(
                 select(MessageDispatch).where(
                     MessageDispatch.message_id == message.id,

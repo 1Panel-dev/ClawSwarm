@@ -331,7 +331,6 @@ async function runViaManualPluginRuntime(params: {
     });
 
     let collected = "";
-
     await params.runtime.recordInboundSession({
         storePath,
         sessionKey: params.turn.sessionKey,

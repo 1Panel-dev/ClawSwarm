@@ -62,7 +62,6 @@ export async function dispatchDirect(params: {
         threadId: inbound.chat.threadId,
         useDedicatedDirectSession: inbound.useDedicatedDirectSession,
     });
-
     const first = await idempotency.setIfNotExists(
         dedupeKeyForMessageAgent({ accountId, messageId: inbound.messageId, agentId }),
         accountConfig.idempotency.ttlSeconds,

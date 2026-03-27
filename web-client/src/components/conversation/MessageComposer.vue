@@ -165,7 +165,6 @@ function submit() {
         useDedicatedDirectSession: useDedicatedDirectSession.value,
     });
     content.value = "";
-    mentions.value = [];
 }
 
 function handleKeydown(event: KeyboardEvent) {

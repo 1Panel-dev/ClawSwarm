@@ -26,6 +26,7 @@ import {
     getRealOpenClawAgentProfile,
     updateRealOpenClawAgent,
 } from "../openclaw/manageAgents.js";
+import { buildSessionKey } from "../router/sessionKey.js";
 import type { GroupDescriptor } from "../types.js";
 import { z } from "zod";
 
@@ -334,7 +335,6 @@ export function createClawTeamRoutes(params: {
                 sendJson(res, 400, { error: "route_error", detail: String(err) });
                 return true;
             }
-
             // 在真正异步执行前，先把消息状态记录好，后面排障就有抓手。
             const now = new Date().toISOString();
             messageState.create({
@@ -356,11 +356,14 @@ export function createClawTeamRoutes(params: {
                 targetAgentIds: decision.targetAgentIds,
                 // 这里同步写入预期 sessionKey，方便尚未执行时就能从状态里看出路由结果。
                 sessionKeys: decision.targetAgentIds.map((agentId) =>
-                    inbound.chat.type === "direct"
-                        ? inbound.useDedicatedDirectSession
-                            ? `${channelId}:direct:${decision.conversationId}:agent:${agentId}`
-                            : `agent:${agentId}:${agentId}`
-                        : `${channelId}:group:${decision.groupId ?? inbound.chat.chatId}:${decision.kind === "GROUP_MENTION" ? "mention" : "broadcast"}:${agentId}:conv:${decision.conversationId}`,
+                    buildSessionKey({
+                        agentId,
+                        chatType: inbound.chat.type,
+                        chatId: inbound.chat.chatId,
+                        routeKind: decision.kind,
+                        threadId: inbound.chat.threadId,
+                        useDedicatedDirectSession: inbound.useDedicatedDirectSession,
+                    }),
                 ),
             });
 
