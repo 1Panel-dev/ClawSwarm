@@ -33,6 +33,7 @@ from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.models.task import Task
 from src.core.config import settings
+from src.api.routes.agents import sync_instance_agents
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 
 
@@ -2120,6 +2121,164 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertIsNone(db.get(Message, "msg_group_delete_1"))
             self.assertIsNone(db.get(MessageDispatch, "dsp_group_delete_1"))
             self.assertIsNone(db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_group_delete_1")))
+
+    def test_sync_removed_agent_deletes_contact_conversation_history(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw A",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            removed_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="execution-engineer",
+                display_name="执行工程师",
+                role_name="执行工程师",
+                enabled=True,
+                ct_id="CTA-0009",
+            )
+            kept_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="project-manager",
+                display_name="项目经理",
+                role_name="项目经理",
+                enabled=True,
+                ct_id="CTA-0010",
+            )
+            db.add_all([removed_agent, kept_agent])
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title=f"{instance.name} / {removed_agent.display_name}",
+                direct_instance_id=instance.id,
+                direct_agent_id=removed_agent.id,
+            )
+            db.add(conversation)
+            db.flush()
+
+            message = Message(
+                id="msg_removed_agent_1",
+                conversation_id=conversation.id,
+                sender_type="user",
+                sender_label="User",
+                content="这条记录应该被清掉",
+                status="completed",
+            )
+            db.add(message)
+            db.flush()
+
+            dispatch = MessageDispatch(
+                id="dsp_removed_agent_1",
+                message_id=message.id,
+                conversation_id=conversation.id,
+                instance_id=instance.id,
+                agent_id=removed_agent.id,
+                dispatch_mode="direct",
+                status="completed",
+            )
+            db.add(dispatch)
+            db.flush()
+
+            callback = MessageCallbackEvent(
+                dispatch_id=dispatch.id,
+                event_id="evt_removed_agent_1",
+                event_type="reply.final",
+                payload_json={"text": "done"},
+            )
+            db.add(callback)
+            dialogue_conversation = Conversation(
+                type="agent_dialogue",
+                title="执行工程师 ↔ 项目经理",
+            )
+            db.add(dialogue_conversation)
+            db.flush()
+
+            dialogue = AgentDialogue(
+                conversation_id=dialogue_conversation.id,
+                source_agent_id=removed_agent.id,
+                target_agent_id=kept_agent.id,
+                topic="待清理的历史协作",
+                status="active",
+                initiator_type="agent",
+                window_seconds=300,
+                soft_message_limit=12,
+                hard_message_limit=20,
+                soft_limit_warned_at=None,
+            )
+            db.add(dialogue)
+            db.flush()
+
+            dialogue_message = Message(
+                id="msg_removed_dialogue_1",
+                conversation_id=dialogue_conversation.id,
+                sender_type="agent",
+                sender_label=removed_agent.display_name,
+                content="这条协作记录也应该被清掉",
+                status="completed",
+            )
+            db.add(dialogue_message)
+            db.flush()
+
+            dialogue_dispatch = MessageDispatch(
+                id="dsp_removed_dialogue_1",
+                message_id=dialogue_message.id,
+                conversation_id=dialogue_conversation.id,
+                instance_id=instance.id,
+                agent_id=removed_agent.id,
+                dispatch_mode="direct",
+                status="completed",
+            )
+            db.add(dialogue_dispatch)
+            db.flush()
+
+            dialogue_callback = MessageCallbackEvent(
+                dispatch_id=dialogue_dispatch.id,
+                event_id="evt_removed_dialogue_1",
+                event_type="reply.final",
+                payload_json={"text": "done"},
+            )
+            db.add(dialogue_callback)
+            db.commit()
+            removed_agent_id = removed_agent.id
+            conversation_id = conversation.id
+            dialogue_conversation_id = dialogue_conversation.id
+
+            sync_instance_agents(
+                db,
+                instance,
+                [
+                    {
+                        "id": kept_agent.agent_key,
+                        "name": kept_agent.display_name,
+                    }
+                ],
+            )
+            db.commit()
+
+        with self.SessionLocal() as db:
+            removed_agent = db.get(AgentProfile, removed_agent_id)
+            assert removed_agent is not None
+            self.assertTrue(removed_agent.removed_from_openclaw)
+            self.assertIsNone(db.get(Conversation, conversation_id))
+            self.assertIsNone(db.get(Conversation, dialogue_conversation_id))
+            self.assertIsNone(db.get(Message, "msg_removed_agent_1"))
+            self.assertIsNone(db.get(Message, "msg_removed_dialogue_1"))
+            self.assertIsNone(db.get(MessageDispatch, "dsp_removed_agent_1"))
+            self.assertIsNone(db.get(MessageDispatch, "dsp_removed_dialogue_1"))
+            self.assertIsNone(db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_removed_agent_1")))
+            self.assertIsNone(db.scalar(select(MessageCallbackEvent).where(MessageCallbackEvent.event_id == "evt_removed_dialogue_1")))
+            self.assertIsNone(db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == dialogue_conversation_id)))
+
+        response = self.client.get("/api/conversations")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), [])
 
     def test_create_group_can_include_initial_members(self) -> None:
         with self.SessionLocal() as db:

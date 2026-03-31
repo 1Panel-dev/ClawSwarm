@@ -9,12 +9,17 @@
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
 from src.integrations.channel_client import channel_client
+from src.models.agent_dialogue import AgentDialogue
 from src.models.agent_profile import AgentProfile
+from src.models.conversation import Conversation
+from src.models.message import Message
+from src.models.message_callback_event import MessageCallbackEvent
+from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
 from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate
@@ -22,6 +27,49 @@ from src.schemas.common import validate_orm
 from src.services.agent_ct_id import ensure_agent_ct_id
 
 router = APIRouter(prefix="/api", tags=["agents"])
+
+
+def delete_removed_agent_direct_conversations(db: Session, *, agent_id: int) -> None:
+    """
+    Agent 从 OpenClaw 消失后，清掉它相关的联系人会话及关联记录。
+
+    这里故意只清“联系人视角”的两类会话：
+    1. direct conversation
+    2. agent_dialogue conversation
+
+    群聊不在这里删除，因为群本身是独立业务对象，不属于某一个联系人的历史记录。
+    """
+    direct_conversation_ids = list(
+        db.scalars(
+            select(Conversation.id).where(
+                Conversation.type == "direct",
+                Conversation.direct_agent_id == agent_id,
+            )
+        )
+    )
+    dialogue_conversation_ids = list(
+        db.scalars(
+            select(AgentDialogue.conversation_id).where(
+                (AgentDialogue.source_agent_id == agent_id) | (AgentDialogue.target_agent_id == agent_id)
+            )
+        )
+    )
+    conversation_ids = sorted(set(direct_conversation_ids + dialogue_conversation_ids))
+    if not conversation_ids:
+        return
+
+    dispatch_ids = list(
+        db.scalars(
+            select(MessageDispatch.id).where(MessageDispatch.conversation_id.in_(conversation_ids))
+        )
+    )
+    if dispatch_ids:
+        db.execute(delete(MessageCallbackEvent).where(MessageCallbackEvent.dispatch_id.in_(dispatch_ids)))
+
+    db.execute(delete(AgentDialogue).where(AgentDialogue.conversation_id.in_(conversation_ids)))
+    db.execute(delete(MessageDispatch).where(MessageDispatch.conversation_id.in_(conversation_ids)))
+    db.execute(delete(Message).where(Message.conversation_id.in_(conversation_ids)))
+    db.execute(delete(Conversation).where(Conversation.id.in_(conversation_ids)))
 
 
 def can_edit_agent_profile(agent: AgentProfile) -> bool:
@@ -113,6 +161,7 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
         existing_agents = db.scalars(select(AgentProfile).where(AgentProfile.instance_id == instance.id)).all()
         for agent in existing_agents:
             if agent.agent_key not in imported_keys:
+                delete_removed_agent_direct_conversations(db, agent_id=agent.id)
                 agent.removed_from_openclaw = True
 
     db.flush()
