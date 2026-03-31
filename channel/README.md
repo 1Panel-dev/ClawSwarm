@@ -110,3 +110,8 @@ npm run build
 ## 说明
 
 更详细的实现设计、部署联调和 curl 示例保存在本地私有文档目录中，不作为公开仓库文档的一部分。
+
+公开安装文档：
+
+- [human-install](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/human-install.md)
+- [agent-install](/Users/mokun/fit2cloud2.0/1claw-q4speed/channel/docs/agent-install.md)
