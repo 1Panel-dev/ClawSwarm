@@ -30,6 +30,37 @@ type OpenClawAgentWorkspaceConfig = {
 };
 
 export type { AgentProfileFiles } from "./agentWorkspace.js";
+export type { OpenClawAgentWorkspaceConfig };
+
+function toAgentDescriptor(agentId: string, displayName?: string): AgentDescriptor {
+    const normalizedName = displayName?.trim();
+    return {
+        id: agentId,
+        name: normalizedName && normalizedName.length > 0 ? normalizedName : agentId,
+        openclawAgentRef: agentId,
+    };
+}
+
+function findListedAgent(agentId: string): AgentDescriptor | undefined {
+    return listRealOpenClawAgents().find((item) => item.id === agentId);
+}
+
+function setAgentDisplayName(agentId: string, displayName?: string): void {
+    const normalizedName = displayName?.trim();
+    if (!normalizedName || normalizedName === agentId) {
+        return;
+    }
+
+    runOpenClawCli([
+        "agents",
+        "set-identity",
+        "--agent",
+        agentId,
+        "--name",
+        normalizedName,
+        "--json",
+    ]);
+}
 
 export function listRealOpenClawAgents(): AgentDescriptor[] {
     const output = runOpenClawCli(["agents", "list", "--json"]);
@@ -39,11 +70,7 @@ export function listRealOpenClawAgents(): AgentDescriptor[] {
     return parsed
         .map((item) => item as OpenClawCliAgent)
         .filter((item): item is OpenClawCliAgent & { id: string } => typeof item?.id === "string" && item.id.trim().length > 0)
-        .map((item) => ({
-            id: item.id,
-            name: typeof item.name === "string" && item.name.trim().length > 0 ? item.name : item.id,
-            openclawAgentRef: item.id,
-        }));
+        .map((item) => toAgentDescriptor(item.id, item.name));
 }
 
 export function createRealOpenClawAgent(params: {
@@ -68,17 +95,7 @@ export function createRealOpenClawAgent(params: {
         throw new Error("openclaw_agent_create_failed");
     }
 
-    if (params.displayName.trim() && params.displayName.trim() !== agentId) {
-        runOpenClawCli([
-            "agents",
-            "set-identity",
-            "--agent",
-            agentId,
-            "--name",
-            params.displayName.trim(),
-            "--json",
-        ]);
-    }
+    setAgentDisplayName(agentId, params.displayName);
 
     // 真实 Agent 创建完成后，再把 workspace 里的 profile 文件补齐。
     writeAgentProfileFiles({
@@ -87,12 +104,7 @@ export function createRealOpenClawAgent(params: {
         cfg: params.cfg,
     });
 
-    const created = listRealOpenClawAgents().find((item) => item.id === agentId);
-    return created ?? {
-        id: agentId,
-        name: params.displayName.trim() || agentId,
-        openclawAgentRef: agentId,
-    };
+    return findListedAgent(agentId) ?? toAgentDescriptor(agentId, params.displayName);
 }
 
 export function getRealOpenClawAgentProfile(params: {
@@ -113,17 +125,7 @@ export function updateRealOpenClawAgent(params: {
         throw new Error("openclaw_agent_update_failed");
     }
 
-    if (params.displayName?.trim()) {
-        runOpenClawCli([
-            "agents",
-            "set-identity",
-            "--agent",
-            agentId,
-            "--name",
-            params.displayName.trim(),
-            "--json",
-        ]);
-    }
+    setAgentDisplayName(agentId, params.displayName);
 
     // 编辑链必须保持 patch 语义：未传的文件保持原样，不要回退成默认模板。
     const currentFiles = readAgentProfileFiles({
@@ -138,10 +140,5 @@ export function updateRealOpenClawAgent(params: {
         cfg: params.cfg,
     });
 
-    const updated = listRealOpenClawAgents().find((item) => item.id === agentId);
-    return updated ?? {
-        id: agentId,
-        name: params.displayName?.trim() || agentId,
-        openclawAgentRef: agentId,
-    };
+    return findListedAgent(agentId) ?? toAgentDescriptor(agentId, params.displayName);
 }

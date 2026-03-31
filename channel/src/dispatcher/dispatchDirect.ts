@@ -8,7 +8,6 @@
  * 3. 然后调用 openclaw adapter 获取文本流，并把 chunk/final/error 事件回推给 Claw Team。
  * 4. 同时更新 message state，方便后续排障和状态观察。
  */
-import crypto from "node:crypto";
 import type { Logger } from "../observability/logger.js";
 import { resolveGatewayRuntimeConfig, type AccountConfig } from "../config.js";
 import type { IdempotencyStore } from "../store/idempotency.js";
@@ -17,9 +16,9 @@ import { dedupeKeyForMessageAgent } from "../store/idempotency.js";
 import { buildSessionKey } from "../router/sessionKey.js";
 import type { InboundMessage } from "../router/resolveRoute.js";
 import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
-import type { ClawTeamCallbackClient, ClawTeamEvent } from "../callback/client.js";
-import { sendEventWithRetry } from "../callback/retry.js";
+import type { ClawTeamCallbackClient } from "../callback/client.js";
 import { buildCallbackMessageParts } from "../callback/parts.js";
+import { emitDirectEvent } from "./directEvent.js";
 
 // dispatchDirect 是最小执行单元：单个 Agent、单个 sessionKey、单条消息。
 export async function dispatchDirect(params: {
@@ -103,7 +102,7 @@ export async function dispatchDirect(params: {
     });
 
     // 先发 run.accepted 事件，让 Claw Team 知道这条消息已经进入执行阶段。
-    await emitEvent({
+    await emitDirectEvent({
         clawTeam,
         baseLog,
         accountConfig,
@@ -144,7 +143,7 @@ export async function dispatchDirect(params: {
             if (chunk.text && !isAggregatedFinalDuplicate) {
                 buf += chunk.text;
                 // 每个 chunk 都实时回调给 Claw Team，便于做流式展示。
-                await emitEvent({
+                await emitDirectEvent({
                     clawTeam,
                     baseLog,
                     accountConfig,
@@ -158,7 +157,7 @@ export async function dispatchDirect(params: {
             if (chunk.isFinal) break;
         }
 
-        await emitEvent({
+        await emitDirectEvent({
             clawTeam,
             baseLog,
             accountConfig,
@@ -185,7 +184,7 @@ export async function dispatchDirect(params: {
     } catch (err) {
         // Agent 执行或回调链路出错时，同时发错误事件并写消息状态。
         baseLog.error({ err: String(err) }, "agent run failed");
-        await emitEvent({
+        await emitDirectEvent({
             clawTeam,
             baseLog,
             accountConfig,
@@ -206,37 +205,4 @@ export async function dispatchDirect(params: {
             });
         }
     }
-}
-
-// emitEvent 统一负责构造事件对象并走带重试的回调发送。
-async function emitEvent(params: {
-    clawTeam: ClawTeamCallbackClient;
-    baseLog: Logger;
-    accountConfig: AccountConfig;
-    eventType: ClawTeamEvent["eventType"];
-    inbound: InboundMessage;
-    agentId: string;
-    sessionKey: string;
-    payload: Record<string, unknown>;
-}): Promise<void> {
-    const ev: ClawTeamEvent = {
-        // eventId 是回调事件自身的唯一标识，不等同于 messageId。
-        eventId: crypto.randomUUID(),
-        eventType: params.eventType,
-        correlation: {
-            messageId: params.inbound.messageId,
-            chatId: params.inbound.chat.chatId,
-            agentId: params.agentId,
-            sessionKey: params.sessionKey,
-        },
-        payload: params.payload,
-        timestamp: Date.now(),
-    };
-
-    await sendEventWithRetry({
-        client: params.clawTeam,
-        event: ev,
-        policy: params.accountConfig.retry,
-        logger: params.baseLog,
-    });
 }

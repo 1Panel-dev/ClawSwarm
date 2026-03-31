@@ -1,0 +1,68 @@
+import { listRealOpenClawAgents } from "../openclaw/manageAgents.js";
+import { AccountConfigSchema } from "./schema.js";
+import { normalizeAccountConfigInput } from "./legacy.js";
+import type { AccountConfig, AgentDirectoryEntry, GatewayRuntimeConfig, ResolvedAccount } from "./types.js";
+
+// 将配置中的 allowedAgentIds 去重，供广播默认路由使用。
+export function resolveAllowedAgents(acct: AccountConfig): string[] {
+    const ids = acct.agentDirectory?.allowedAgentIds ?? [];
+    return Array.from(new Set(ids));
+}
+
+// mention token 到真实 agent id 的别名映射。
+export function resolveAliasMap(acct: AccountConfig): Record<string, string> {
+    return acct.agentDirectory?.aliases ?? {};
+}
+
+// 生成一个适合对外返回的 Agent 描述结构。
+export function describeAgents(acct: AccountConfig): AgentDirectoryEntry[] {
+    return resolveAllowedAgents(acct).map((id) => ({
+        id,
+        name: id,
+        openclawAgentRef: id,
+    }));
+}
+
+// 优先尝试从 OpenClaw 宿主真实发现 Agent。
+// 如果 CLI 不存在、执行失败或输出无法解析，再回退到静态配置的 allowedAgentIds。
+export function discoverAgents(acct: AccountConfig): AgentDirectoryEntry[] {
+    try {
+        const agents = listRealOpenClawAgents();
+        if (agents.length > 0) {
+            const allowed = resolveAllowedAgents(acct);
+            if (allowed.length > 0) {
+                const allowedSet = new Set(allowed);
+                const filtered = agents.filter((agent) => allowedSet.has(agent.id));
+                if (filtered.length > 0) {
+                    return filtered;
+                }
+            }
+
+            return agents;
+        }
+    } catch {
+        // noop: fall back to static config
+    }
+
+    return describeAgents(acct);
+}
+
+// Gateway 连接参数采用“账号配置优先，环境变量兜底”的策略。
+export function resolveGatewayRuntimeConfig(acct: AccountConfig): GatewayRuntimeConfig {
+    return {
+        baseUrl: acct.gateway.baseUrl ?? process.env.OPENCLAW_GATEWAY_HTTP_URL ?? "http://127.0.0.1:18789",
+        token: acct.gateway.token ?? process.env.OPENCLAW_GATEWAY_TOKEN,
+        transport:
+            acct.gateway.transport ??
+            (process.env.OPENCLAW_GATEWAY_TRANSPORT === "auto"
+                ? "auto"
+                : process.env.OPENCLAW_GATEWAY_TRANSPORT === "plugin_runtime"
+                    ? "plugin_runtime"
+                    : "auto"),
+        model: acct.gateway.model ?? process.env.OPENCLAW_GATEWAY_MODEL ?? "openclaw",
+        stream: acct.gateway.stream ?? process.env.OPENCLAW_GATEWAY_STREAM !== "0",
+        allowInsecureTls:
+            acct.gateway.allowInsecureTls ?? process.env.OPENCLAW_GATEWAY_INSECURE_TLS === "1",
+    };
+}
+

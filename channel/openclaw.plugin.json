@@ -1,20 +1,73 @@
 {
   "id": "claw-team",
   "name": "Claw Team Channel",
-  "version": "0.1.0",
-  "description": "Channel plugin bridging OpenClaw agents with Claw Team platform (direct/group/@mention).",
+  "version": "0.1.1",
+  "description": "Claw Team 与 OpenClaw 的桥接通道，支持单聊、群聊、@mention",
   "kind": "channel",
   "channels": ["claw-team"],
   "skills": ["./skills"],
   "configSchema": {
     "type": "object",
+    "additionalProperties": false,
     "properties": {
-      "enabled": {
-        "type": "boolean"
-      },
       "accounts": {
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": { "type": "boolean", "default": true },
+              "baseUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Claw Team 后端地址（例如 http://127.0.0.1:8080）"
+              },
+              "outboundToken": {
+                "type": "string",
+                "description": "插件调用 Claw Team 时使用的 Token"
+              },
+              "inboundSigningSecret": {
+                "type": "string",
+                "description": "Claw Team 调用插件 webhook 时的签名密钥"
+              },
+              "gateway": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "baseUrl": { "type": "string", "format": "uri" },
+                  "token": { "type": "string" },
+                  "model": { "type": "string", "default": "openclaw" },
+                  "stream": { "type": "boolean", "default": true },
+                  "allowInsecureTls": { "type": "boolean", "default": true }
+                },
+                "required": ["baseUrl", "token"]
+              },
+              "agentDirectory": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "allowedAgentIds": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "aliases": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" }
+                  }
+                }
+              }
+            },
+            "required": ["baseUrl", "outboundToken", "inboundSigningSecret", "gateway"]
+          }
+        }
       }
     }
+  },
+  "uiHints": {
+    "accounts.default.outboundToken": { "sensitive": true, "label": "Outbound Token" },
+    "accounts.default.inboundSigningSecret": { "sensitive": true, "label": "Inbound Signing Secret" },
+    "accounts.default.gateway.token": { "sensitive": true, "label": "Gateway Token" }
   }
 }

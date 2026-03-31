@@ -7,47 +7,63 @@ import { createChatCompletionsRuntimeAdapter } from "./chatCompletionsAdapter.js
 import { createPluginRuntimeAdapter } from "./pluginRuntimeAdapter.js";
 import { shouldUseChatCompletions } from "./transportSelection.js";
 import type { OpenClawRunChunk, OpenClawRuntimeAdapter, RuntimeLike } from "./runtimeTypes.js";
+import type { AgentTurnParams } from "./runtimeTypes.js";
 export type { OpenClawRunChunk, OpenClawRuntimeAdapter } from "./runtimeTypes.js";
 
-export function createOpenClawRuntimeAdapter(api: RuntimeLike): OpenClawRuntimeAdapter {
-    const pluginRuntime = createPluginRuntimeAdapter(api);
-    const chatCompletions = createChatCompletionsRuntimeAdapter(api);
+function withTransport(params: AgentTurnParams, transport: AgentTurnParams["gateway"]["transport"]): AgentTurnParams {
+    return {
+        ...params,
+        gateway: {
+            ...params.gateway,
+            transport,
+        },
+    };
+}
 
-    // auto 只是一个“按宿主配置选 transport”的薄包装；
-    // 真正的执行逻辑都在各自 adapter 里，方便后续单独删除任意实现。
+function createTransportSwitch(params: {
+    api: RuntimeLike;
+    pluginRuntime: OpenClawRuntimeAdapter;
+    chatCompletions: OpenClawRuntimeAdapter;
+}): OpenClawRuntimeAdapter {
+    const { api, pluginRuntime, chatCompletions } = params;
+
     const auto: OpenClawRuntimeAdapter = {
-        async *runAgentTextTurn(params): AsyncIterable<OpenClawRunChunk> {
+        async *runAgentTextTurn(turn): AsyncIterable<OpenClawRunChunk> {
             if (shouldUseChatCompletions(api)) {
-                yield* chatCompletions.runAgentTextTurn({
-                    ...params,
-                    gateway: { ...params.gateway, transport: "chat_completions" },
-                });
+                yield* chatCompletions.runAgentTextTurn(withTransport(turn, "chat_completions"));
                 return;
             }
 
-            yield* pluginRuntime.runAgentTextTurn({
-                ...params,
-                gateway: { ...params.gateway, transport: "plugin_runtime" },
-            });
+            yield* pluginRuntime.runAgentTextTurn(withTransport(turn, "plugin_runtime"));
         },
     };
 
     return {
-        async *runAgentTextTurn(params): AsyncIterable<OpenClawRunChunk> {
+        async *runAgentTextTurn(turn): AsyncIterable<OpenClawRunChunk> {
             // 显式 transport 永远优先，只有 auto 才去读宿主开关。
-            if (params.gateway.transport === "auto") {
-                yield* auto.runAgentTextTurn(params);
+            if (turn.gateway.transport === "auto") {
+                yield* auto.runAgentTextTurn(turn);
                 return;
             }
 
-            if (params.gateway.transport === "plugin_runtime") {
-                yield* pluginRuntime.runAgentTextTurn(params);
+            if (turn.gateway.transport === "plugin_runtime") {
+                yield* pluginRuntime.runAgentTextTurn(turn);
                 return;
             }
 
-            yield* chatCompletions.runAgentTextTurn(params);
+            yield* chatCompletions.runAgentTextTurn(turn);
         },
     };
+}
+
+export function createOpenClawRuntimeAdapter(api: RuntimeLike): OpenClawRuntimeAdapter {
+    const pluginRuntime = createPluginRuntimeAdapter(api);
+    const chatCompletions = createChatCompletionsRuntimeAdapter(api);
+    return createTransportSwitch({
+        api,
+        pluginRuntime,
+        chatCompletions,
+    });
 }
 
 // 这个 mock adapter 主要供单元测试和本地无宿主环境时使用，
