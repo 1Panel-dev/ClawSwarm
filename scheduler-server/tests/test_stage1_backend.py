@@ -2481,6 +2481,55 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertEqual(db.get(OpenClawInstance, offline_id).status, "active")
             self.assertEqual(db.get(OpenClawInstance, disabled_id).status, "disabled")
 
+    def test_connect_instance_generates_separate_credentials_and_returns_them(self) -> None:
+        with patch("src.api.routes.instances.fetch_channel_agents", return_value=[{"id": "main", "name": "Main"}]):
+            response = self.client.post(
+                "/api/instances/connect",
+                json={
+                    "name": "OpenClaw Connect",
+                    "channel_base_url": "https://example.com",
+                    "channel_account_id": "default",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertIn("credentials", payload)
+        self.assertIn("outbound_token", payload["credentials"])
+        self.assertIn("inbound_signing_secret", payload["credentials"])
+        self.assertNotEqual(payload["credentials"]["outbound_token"], payload["credentials"]["inbound_signing_secret"])
+
+        with self.SessionLocal() as db:
+            instance = db.scalar(select(OpenClawInstance).where(OpenClawInstance.name == "OpenClaw Connect"))
+            assert instance is not None
+            self.assertEqual(instance.callback_token, payload["credentials"]["outbound_token"])
+            self.assertEqual(instance.channel_signing_secret, payload["credentials"]["inbound_signing_secret"])
+
+    def test_get_instance_credentials_returns_current_copy_values(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Credentials",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.commit()
+            instance_id = instance.id
+
+        response = self.client.get(f"/api/instances/{instance_id}/credentials")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json(),
+            {
+                "outbound_token": "callback-token-123",
+                "inbound_signing_secret": "signing-secret-123456",
+            },
+        )
+
     def test_create_group_can_include_initial_members(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(

@@ -8,6 +8,7 @@
 4. 保存 channel 回调调度中心时使用的 callback token。
 """
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import secrets
 
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
@@ -20,6 +21,7 @@ from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
 from src.schemas.instance import (
     InstanceCreate,
+    InstanceCredentialsRead,
     InstanceHealthRead,
     InstanceRead,
     InstanceUpdate,
@@ -123,6 +125,13 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
     return len(imported_agent_keys), imported_agent_keys
 
 
+def generate_instance_credentials() -> InstanceCredentialsRead:
+    return InstanceCredentialsRead(
+        outbound_token=secrets.token_urlsafe(24),
+        inbound_signing_secret=secrets.token_urlsafe(32),
+    )
+
+
 @router.get("", response_model=list[InstanceRead])
 def list_instances(db: Session = Depends(db_session)) -> list[dict]:
     items = list(db.scalars(select(OpenClawInstance).order_by(OpenClawInstance.id)))
@@ -159,8 +168,7 @@ def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_s
     base_url = payload.channel_base_url.rstrip("/")
     agents_payload = fetch_channel_agents(base_url)
 
-    # 傻瓜模式下，先把 shared_secret 同时作为入站签名密钥和 callback token。
-    # 这样用户只需要维护一个连接密钥。
+    credentials = generate_instance_credentials()
     item = db.scalar(
         select(OpenClawInstance).where(
             (OpenClawInstance.name == payload.name) | (OpenClawInstance.channel_base_url == base_url)
@@ -171,8 +179,8 @@ def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_s
             name=payload.name,
             channel_base_url=base_url,
             channel_account_id=payload.channel_account_id,
-            channel_signing_secret=payload.shared_secret,
-            callback_token=payload.shared_secret,
+            channel_signing_secret=credentials.inbound_signing_secret,
+            callback_token=credentials.outbound_token,
             status="active",
         )
         db.add(item)
@@ -181,8 +189,8 @@ def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_s
         item.name = payload.name
         item.channel_base_url = base_url
         item.channel_account_id = payload.channel_account_id
-        item.channel_signing_secret = payload.shared_secret
-        item.callback_token = payload.shared_secret
+        item.channel_signing_secret = credentials.inbound_signing_secret
+        item.callback_token = credentials.outbound_token
         db.flush()
 
     imported_agent_count, imported_agent_keys = sync_instance_agents(db, item, agents_payload)
@@ -193,6 +201,18 @@ def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_s
         instance=item,
         imported_agent_count=imported_agent_count,
         agent_keys=imported_agent_keys,
+        credentials=credentials,
+    )
+
+
+@router.get("/{instance_id}/credentials", response_model=InstanceCredentialsRead)
+def get_instance_credentials(instance_id: int, db: Session = Depends(db_session)) -> InstanceCredentialsRead:
+    item = db.get(OpenClawInstance, instance_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="instance not found")
+    return InstanceCredentialsRead(
+        outbound_token=item.callback_token,
+        inbound_signing_secret=item.channel_signing_secret,
     )
 
 

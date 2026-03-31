@@ -42,17 +42,22 @@ class InstanceHealthRead(BaseModel):
 
 
 class OpenClawConnectRequest(BaseModel):
-    # 傻瓜接入模式下，用户只需要填写这 3 个字段。
+    # 快速接入模式下，用户只需要填写实例名称和 OpenClaw 地址。
     name: str = Field(min_length=1, max_length=120)
     channel_base_url: str = Field(min_length=1, max_length=500)
-    shared_secret: str = Field(min_length=16, max_length=255)
     channel_account_id: str = Field(default="default", min_length=1, max_length=120)
+
+
+class InstanceCredentialsRead(BaseModel):
+    outbound_token: str = Field(min_length=8, max_length=255)
+    inbound_signing_secret: str = Field(min_length=16, max_length=255)
 
 
 class OpenClawConnectResponse(BaseModel):
     instance: InstanceRead
     imported_agent_count: int
     agent_keys: list[str]
+    credentials: InstanceCredentialsRead
 
 
 class OpenClawSyncAgentsResponse(BaseModel):
