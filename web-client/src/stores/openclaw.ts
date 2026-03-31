@@ -6,13 +6,14 @@ import {
     createInstance,
     disableInstance,
     enableInstance,
+    fetchInstanceCredentials,
     fetchInstanceHealth,
     fetchInstances,
     syncOpenClawAgents,
     updateOpenClawInstance,
 } from "@/api/instances";
 import type { AgentReadApi } from "@/types/api/agent";
-import type { InstanceReadApi } from "@/types/api/instance";
+import type { ConnectInstanceResponseApi, InstanceCredentialsReadApi, InstanceReadApi } from "@/types/api/instance";
 
 export interface OpenClawInstanceView extends InstanceReadApi {
     agents: AgentReadApi[];
@@ -74,9 +75,8 @@ export const useOpenClawStore = defineStore("openclaw", {
         async quickConnectInstance(payload: {
             name: string;
             channel_base_url: string;
-            shared_secret: string;
             channel_account_id?: string;
-        }) {
+        }): Promise<ConnectInstanceResponseApi> {
             this.creating = true;
             try {
                 const result = await connectOpenClaw(payload);
@@ -91,7 +91,6 @@ export const useOpenClawStore = defineStore("openclaw", {
             payload: {
                 name: string;
                 channel_base_url: string;
-                shared_secret?: string;
                 channel_account_id?: string;
             },
         ) {
@@ -101,18 +100,15 @@ export const useOpenClawStore = defineStore("openclaw", {
                     name: payload.name,
                     channel_base_url: payload.channel_base_url,
                     channel_account_id: payload.channel_account_id ?? "default",
-                    ...(payload.shared_secret
-                        ? {
-                            channel_signing_secret: payload.shared_secret,
-                            callback_token: payload.shared_secret,
-                        }
-                        : {}),
                 });
                 await this.loadInstances();
                 return instance;
             } finally {
                 this.creating = false;
             }
+        },
+        async loadInstanceCredentials(instanceId: number): Promise<InstanceCredentialsReadApi> {
+            return await fetchInstanceCredentials(instanceId);
         },
         async syncInstanceAgents(instanceId: number) {
             this.savingId = `instance:${instanceId}:sync`;

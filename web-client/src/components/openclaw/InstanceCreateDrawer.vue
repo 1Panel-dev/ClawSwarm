@@ -7,10 +7,6 @@
     @close="emit('update:visible', false)"
   >
     <div class="drawer-body">
-      <p class="drawer-body__hint">
-        {{ drawerHint }}
-      </p>
-
       <el-form label-position="top">
         <el-form-item :label="t('openclaw.instanceName')">
           <el-input v-model="form.name" maxlength="120" :placeholder="t('openclaw.instanceNamePlaceholder')" />
@@ -19,13 +15,27 @@
         <el-form-item :label="t('openclaw.openclawUrl')">
           <el-input v-model="form.channel_base_url" placeholder="例如：https://172.16.200.119:18789" />
         </el-form-item>
+      </el-form>
 
-        <el-form-item :label="t('openclaw.sharedSecret')">
-          <el-input
-            v-model="form.shared_secret"
-            show-password
-            :placeholder="secretPlaceholder"
-          />
+      <el-form v-if="credentials" label-position="top">
+        <el-form-item :label="t('openclaw.outboundToken')">
+          <el-input :model-value="maskedSecret(credentials.outbound_token)" readonly>
+            <template #append>
+              <el-button text @click="copyCredential('outbound_token')">
+                <el-icon><DocumentCopy /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
+        </el-form-item>
+
+        <el-form-item :label="t('openclaw.inboundSigningSecret')">
+          <el-input :model-value="maskedSecret(credentials.inbound_signing_secret)" readonly>
+            <template #append>
+              <el-button text @click="copyCredential('inbound_signing_secret')">
+                <el-icon><DocumentCopy /></el-icon>
+              </el-button>
+            </template>
+          </el-input>
         </el-form-item>
       </el-form>
     </div>
@@ -49,7 +59,10 @@
  * 这样能尽快把实例管理链路补齐，而不把高级配置过早塞进 UI。
  */
 import { computed, reactive, watch } from "vue";
+import { ElMessage } from "element-plus/es/components/message/index";
+import { DocumentCopy } from "@element-plus/icons-vue";
 import { useI18n } from "@/composables/useI18n";
+import type { InstanceCredentialsReadApi } from "@/types/api/instance";
 
 const props = defineProps<{
     visible: boolean;
@@ -61,6 +74,7 @@ const props = defineProps<{
         channel_base_url: string;
         channel_account_id: string;
     } | null;
+    credentials?: InstanceCredentialsReadApi | null;
 }>();
 
 const emit = defineEmits<{
@@ -70,7 +84,6 @@ const emit = defineEmits<{
             mode: "create";
             name: string;
             channel_base_url: string;
-            shared_secret: string;
             channel_account_id: string;
         }
         | {
@@ -78,7 +91,6 @@ const emit = defineEmits<{
             instance_id: number;
             name: string;
             channel_base_url: string;
-            shared_secret: string;
             channel_account_id: string;
         }
     ];
@@ -87,24 +99,13 @@ const emit = defineEmits<{
 const form = reactive({
     name: "",
     channel_base_url: "",
-    shared_secret: "",
     channel_account_id: "default",
 });
 const { t } = useI18n();
 
 const mode = computed(() => props.mode ?? "create");
 const drawerTitle = computed(() => (mode.value === "edit" ? t("openclaw.drawerEditTitle") : t("openclaw.drawerCreateTitle")));
-const drawerHint = computed(() =>
-    mode.value === "edit"
-        ? t("openclaw.drawerEditHint")
-        : t("openclaw.drawerCreateHint"),
-);
-const submitLabel = computed(() => (mode.value === "edit" ? t("openclaw.save") : t("openclaw.connect")));
-const secretPlaceholder = computed(() =>
-    mode.value === "edit"
-        ? t("openclaw.sharedSecretEditPlaceholder")
-        : t("openclaw.sharedSecretPlaceholder"),
-);
+const submitLabel = computed(() => t("common.save"));
 
 watch(
     () => props.visible,
@@ -116,12 +117,10 @@ watch(
             form.name = props.initialValue.name;
             form.channel_base_url = props.initialValue.channel_base_url;
             form.channel_account_id = props.initialValue.channel_account_id;
-            form.shared_secret = "";
             return;
         }
         form.name = "";
         form.channel_base_url = "";
-        form.shared_secret = "";
         form.channel_account_id = "default";
     },
 );
@@ -129,8 +128,7 @@ watch(
 const canSubmit = computed(
     () =>
         !!form.name.trim()
-        && !!form.channel_base_url.trim()
-        && (mode.value === "edit" || !!form.shared_secret.trim()),
+        && !!form.channel_base_url.trim(),
 );
 
 function submit() {
@@ -143,7 +141,6 @@ function submit() {
             instance_id: props.initialValue.id,
             name: form.name.trim(),
             channel_base_url: form.channel_base_url.trim(),
-            shared_secret: form.shared_secret.trim(),
             channel_account_id: form.channel_account_id.trim(),
         });
         return;
@@ -152,9 +149,24 @@ function submit() {
         mode: "create",
         name: form.name.trim(),
         channel_base_url: form.channel_base_url.trim(),
-        shared_secret: form.shared_secret.trim(),
         channel_account_id: form.channel_account_id.trim(),
     });
+}
+
+function maskedSecret(value: string) {
+    return value ? "••••••••••••••••••••••••" : "";
+}
+
+async function copyCredential(key: keyof InstanceCredentialsReadApi) {
+    if (!props.credentials) {
+        return;
+    }
+    try {
+        await navigator.clipboard.writeText(props.credentials[key]);
+        ElMessage.success(t("openclaw.copySuccess"));
+    } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : String(error));
+    }
 }
 </script>
 
@@ -165,15 +177,10 @@ function submit() {
   padding-right: 6px;
 }
 
-.drawer-body__hint {
-  margin: 0;
-  color: var(--color-text-secondary);
-  line-height: 1.7;
-}
-
 .drawer-actions {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
 </style>

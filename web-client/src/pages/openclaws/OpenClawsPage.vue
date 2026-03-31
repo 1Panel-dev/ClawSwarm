@@ -8,7 +8,7 @@
               <h2 class="page-section-title">{{ t("openclaw.instanceList") }}</h2>
               <el-tag type="info" effect="plain">{{ instances.length }}</el-tag>
             </el-space>
-            <el-button type="primary" :disabled="pageBusy" @click="createDrawerVisible = true">
+            <el-button type="primary" :disabled="pageBusy" @click="openCreateInstance">
               {{ t("openclaw.addInstance") }}
             </el-button>
           </div>
@@ -112,6 +112,7 @@
     <InstanceCreateDrawer
       v-model:visible="createDrawerVisible"
       :submitting="creating"
+      :credentials="createCredentials"
       mode="create"
       @submit="handleCreateInstanceSubmit"
     />
@@ -121,6 +122,7 @@
       :submitting="creating"
       mode="edit"
       :initial-value="editingInstance"
+      :credentials="editCredentials"
       @submit="handleEditInstanceSubmit"
     />
 
@@ -132,19 +134,20 @@
       :initial-value="editingAgentProfile"
       @submit="handleAgentSubmit"
     />
+
   </div>
 </template>
 
 <script setup lang="ts">
 import {computed, onBeforeUnmount, onMounted, ref} from "vue";
-import {ElMessage} from "element-plus";
+import { ElMessage } from "element-plus/es/components/message/index";
 
 import AgentCreateDrawer from "@/components/openclaw/AgentCreateDrawer.vue";
 import InstanceCreateDrawer from "@/components/openclaw/InstanceCreateDrawer.vue";
 import {useI18n} from "@/composables/useI18n";
 import {useOpenClawStore} from "@/stores/openclaw";
 import type {AgentReadApi} from "@/types/api/agent";
-import type {InstanceReadApi} from "@/types/api/instance";
+import type {InstanceCredentialsReadApi, InstanceReadApi} from "@/types/api/instance";
 
 const openClawStore = useOpenClawStore();
 const {t} = useI18n();
@@ -158,6 +161,8 @@ const refreshTimer = ref<number | null>(null);
 const activeInstanceId = ref<number | null>(null);
 const activeInstanceName = ref("");
 const editingInstance = ref<InstanceReadApi | null>(null);
+const createCredentials = ref<InstanceCredentialsReadApi | null>(null);
+const editCredentials = ref<InstanceCredentialsReadApi | null>(null);
 const editingAgentProfile = ref<{
   agent_id: number;
   agent_key: string;
@@ -261,9 +266,19 @@ async function toggleAgent(agentId: number, enable: boolean) {
   await openClawStore.setAgentEnabled(agentId, enable);
 }
 
-function openInstanceEdit(instance: InstanceReadApi) {
-  editingInstance.value = instance;
-  editDrawerVisible.value = true;
+function openCreateInstance() {
+  createCredentials.value = null;
+  createDrawerVisible.value = true;
+}
+
+async function openInstanceEdit(instance: InstanceReadApi) {
+  try {
+    editingInstance.value = instance;
+    editCredentials.value = await openClawStore.loadInstanceCredentials(instance.id);
+    editDrawerVisible.value = true;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function openAgentCreate(instanceId: number, instanceName: string) {
@@ -300,12 +315,15 @@ async function handleCreateInstance(payload: {
   mode: "create";
   name: string;
   channel_base_url: string;
-  shared_secret: string;
   channel_account_id: string;
 }) {
-  const result = await openClawStore.quickConnectInstance(payload);
-  createDrawerVisible.value = false;
-  ElMessage.success(t("openclaw.connectSuccess", {name: result.instance.name, count: result.imported_agent_count}));
+  try {
+    const result = await openClawStore.quickConnectInstance(payload);
+    createCredentials.value = result.credentials;
+    ElMessage.success(t("openclaw.connectSuccess", {name: result.instance.name, count: result.imported_agent_count}));
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function handleEditInstance(payload: {
@@ -313,18 +331,18 @@ async function handleEditInstance(payload: {
   instance_id: number;
   name: string;
   channel_base_url: string;
-  shared_secret: string;
   channel_account_id: string;
 }) {
-  const instance = await openClawStore.updateInstance(payload.instance_id, {
-    name: payload.name,
-    channel_base_url: payload.channel_base_url,
-    shared_secret: payload.shared_secret || undefined,
-    channel_account_id: payload.channel_account_id,
-  });
-  editDrawerVisible.value = false;
-  editingInstance.value = null;
-  ElMessage.success(t("openclaw.updateSuccess", {name: instance.name}));
+  try {
+    const instance = await openClawStore.updateInstance(payload.instance_id, {
+      name: payload.name,
+      channel_base_url: payload.channel_base_url,
+      channel_account_id: payload.channel_account_id,
+    });
+    ElMessage.success(t("openclaw.updateSuccess", {name: instance.name}));
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function handleCreateAgent(payload: {
@@ -340,9 +358,13 @@ async function handleCreateAgent(payload: {
   if (activeInstanceId.value === null) {
     return;
   }
-  const agent = await openClawStore.createNewAgent(activeInstanceId.value, payload);
-  agentDrawerVisible.value = false;
-  ElMessage.success(t("openclaw.agentCreateSuccess", {name: agent.display_name}));
+  try {
+    const agent = await openClawStore.createNewAgent(activeInstanceId.value, payload);
+    agentDrawerVisible.value = false;
+    ElMessage.success(t("openclaw.agentCreateSuccess", {name: agent.display_name}));
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function handleEditAgent(payload: {
@@ -356,17 +378,21 @@ async function handleEditAgent(payload: {
   user_md?: string;
   memory_md?: string;
 }) {
-  const agent = await openClawStore.updateExistingAgent(payload.agent_id, {
-    display_name: payload.display_name,
-    role_name: payload.role_name,
-    identity_md: payload.identity_md,
-    soul_md: payload.soul_md,
-    user_md: payload.user_md,
-    memory_md: payload.memory_md,
-  });
-  agentDrawerVisible.value = false;
-  editingAgentProfile.value = null;
-  ElMessage.success(t("openclaw.agentUpdateSuccess", {name: agent.display_name}));
+  try {
+    const agent = await openClawStore.updateExistingAgent(payload.agent_id, {
+      display_name: payload.display_name,
+      role_name: payload.role_name,
+      identity_md: payload.identity_md,
+      soul_md: payload.soul_md,
+      user_md: payload.user_md,
+      memory_md: payload.memory_md,
+    });
+    agentDrawerVisible.value = false;
+    editingAgentProfile.value = null;
+    ElMessage.success(t("openclaw.agentUpdateSuccess", {name: agent.display_name}));
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function handleCreateInstanceSubmit(
@@ -375,7 +401,6 @@ function handleCreateInstanceSubmit(
     mode: "create";
     name: string;
     channel_base_url: string;
-    shared_secret: string;
     channel_account_id: string;
   }
     | {
@@ -383,7 +408,6 @@ function handleCreateInstanceSubmit(
     instance_id: number;
     name: string;
     channel_base_url: string;
-    shared_secret: string;
     channel_account_id: string;
   },
 ) {
@@ -398,7 +422,6 @@ function handleEditInstanceSubmit(
     mode: "create";
     name: string;
     channel_base_url: string;
-    shared_secret: string;
     channel_account_id: string;
   }
     | {
@@ -406,7 +429,6 @@ function handleEditInstanceSubmit(
     instance_id: number;
     name: string;
     channel_base_url: string;
-    shared_secret: string;
     channel_account_id: string;
   },
 ) {
@@ -444,9 +466,16 @@ function handleAgentSubmit(
   }
   return handleCreateAgent(payload);
 }
+
 </script>
 
 <style scoped>
+.page-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+}
+
 .openclaws-page__panel-header {
   display: flex;
   align-items: center;
