@@ -10,12 +10,12 @@
         :key="item.to"
         :to="item.to"
         custom
-        v-slot="{ href, navigate, isActive }"
+        v-slot="{ href, navigate }"
       >
         <el-button
           :href="href"
           class="top-nav__link"
-          :type="isActive ? 'primary' : 'default'"
+          :type="isNavItemActive(item.to) ? 'primary' : 'default'"
           @click="navigate"
         >
           <span>{{ t(item.labelKey) }}</span>
@@ -48,8 +48,10 @@
  */
 import type { SupportedLocale } from "@/i18n";
 import { useI18n } from "@/composables/useI18n";
+import { useRoute } from "vue-router";
 
 const { locale, localeOptions, setLocale, t } = useI18n();
+const route = useRoute();
 
 const navItems = [
     { labelKey: "nav.messages", to: "/messages" },
@@ -62,6 +64,10 @@ function handleLocaleChange(value: string | number | boolean) {
     if (value === "en" || value === "zh-CN") {
         setLocale(value as SupportedLocale);
     }
+}
+
+function isNavItemActive(targetPath: string) {
+    return route.path === targetPath || route.path.startsWith(`${targetPath}/`);
 }
 </script>
 
@@ -102,13 +108,6 @@ function handleLocaleChange(value: string | number | boolean) {
   white-space: nowrap;
   font-weight: 600;
   font-size: 0.95rem;
-}
-
-.top-nav :deep(.el-button) {
-  --el-button-hover-bg-color: #ffffff;
-  --el-button-hover-border-color: #d0d0d6;
-  --el-button-active-bg-color: color-mix(in srgb, var(--color-accent) 85%, black);
-  box-shadow: none;
 }
 
 @media (max-width: 960px) {
