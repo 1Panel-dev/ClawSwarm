@@ -2425,6 +2425,62 @@ class Stage1BackendTests(unittest.TestCase):
         payload = conversations_response.json()
         self.assertFalse(any("TestBot2" in (item.get("display_title") or "") for item in payload))
 
+    def test_list_instances_returns_static_status_and_health_endpoint_returns_runtime_status(self) -> None:
+        with self.SessionLocal() as db:
+            active_instance = OpenClawInstance(
+                name="OpenClaw Active",
+                channel_base_url="https://active.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            offline_instance = OpenClawInstance(
+                name="OpenClaw Offline",
+                channel_base_url="https://offline.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            disabled_instance = OpenClawInstance(
+                name="OpenClaw Disabled",
+                channel_base_url="https://disabled.example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="disabled",
+            )
+            db.add_all([active_instance, offline_instance, disabled_instance])
+            db.commit()
+            active_id = active_instance.id
+            offline_id = offline_instance.id
+            disabled_id = disabled_instance.id
+
+        def fake_probe(base_url: str) -> bool:
+            return "active.example.com" in base_url
+
+        with patch("src.api.routes.instances.probe_channel_health", side_effect=fake_probe):
+            list_response = self.client.get("/api/instances")
+            health_response = self.client.get("/api/instances/health")
+
+        self.assertEqual(list_response.status_code, 200)
+        list_payload = {item["id"]: item for item in list_response.json()}
+        self.assertEqual(list_payload[active_id]["status"], "active")
+        self.assertEqual(list_payload[offline_id]["status"], "active")
+        self.assertEqual(list_payload[disabled_id]["status"], "disabled")
+
+        self.assertEqual(health_response.status_code, 200)
+        health_payload = {item["id"]: item for item in health_response.json()}
+        self.assertEqual(health_payload[active_id]["status"], "active")
+        self.assertEqual(health_payload[offline_id]["status"], "offline")
+        self.assertEqual(health_payload[disabled_id]["status"], "disabled")
+
+        with self.SessionLocal() as db:
+            self.assertEqual(db.get(OpenClawInstance, active_id).status, "active")
+            self.assertEqual(db.get(OpenClawInstance, offline_id).status, "active")
+            self.assertEqual(db.get(OpenClawInstance, disabled_id).status, "disabled")
+
     def test_create_group_can_include_initial_members(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(

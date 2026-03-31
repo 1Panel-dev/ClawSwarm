@@ -7,6 +7,8 @@
 3. 保存调度中心到 channel 的签名密钥。
 4. 保存 channel 回调调度中心时使用的 callback token。
 """
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from fastapi import APIRouter, Depends, HTTPException
 import httpx
 from sqlalchemy import select
@@ -14,11 +16,11 @@ from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
 from src.api.routes.agents import sync_instance_agents as sync_instance_agent_profiles
-from src.models.agent_profile import AgentProfile
 from src.models.openclaw_instance import OpenClawInstance
 from src.schemas.common import dump_model
 from src.schemas.instance import (
     InstanceCreate,
+    InstanceHealthRead,
     InstanceRead,
     InstanceUpdate,
     OpenClawConnectRequest,
@@ -27,6 +29,10 @@ from src.schemas.instance import (
 )
 
 router = APIRouter(prefix="/api/instances", tags=["instances"])
+
+HEALTH_CHECK_TIMEOUT = httpx.Timeout(5.0, connect=2.0)
+HEALTH_CHECK_MAX_WORKERS = 8
+HEALTH_CHECK_BATCH_TIMEOUT_SECONDS = 10.0
 
 
 def fetch_channel_agents(base_url: str) -> list[dict]:
@@ -43,6 +49,62 @@ def fetch_channel_agents(base_url: str) -> list[dict]:
     if not isinstance(agents_payload, list):
         raise HTTPException(status_code=400, detail="invalid agents response")
     return [item for item in agents_payload if isinstance(item, dict)]
+
+
+def probe_channel_health(base_url: str) -> bool:
+    try:
+        with httpx.Client(timeout=HEALTH_CHECK_TIMEOUT, verify=False) as client:
+            response = client.get(f"{base_url.rstrip('/')}/claw-team/v1/health")
+            response.raise_for_status()
+            return True
+    except httpx.HTTPError:
+        return False
+
+
+def resolve_runtime_status(instance: OpenClawInstance) -> str:
+    if instance.status == "disabled":
+        return "disabled"
+    return "active" if probe_channel_health(instance.channel_base_url) else "offline"
+
+
+def serialize_instance(instance: OpenClawInstance) -> dict:
+    return {
+        "id": instance.id,
+        "name": instance.name,
+        "channel_base_url": instance.channel_base_url,
+        "channel_account_id": instance.channel_account_id,
+        "status": instance.status,
+        "created_at": instance.created_at,
+        "updated_at": instance.updated_at,
+    }
+
+
+def list_instances_with_runtime_status(items: list[OpenClawInstance]) -> list[InstanceHealthRead]:
+    disabled_instance_ids = {item.id for item in items if item.status == "disabled"}
+    runtime_status_by_id = {item_id: "disabled" for item_id in disabled_instance_ids}
+
+    active_candidates = [item for item in items if item.id not in disabled_instance_ids]
+    if active_candidates:
+        with ThreadPoolExecutor(max_workers=min(HEALTH_CHECK_MAX_WORKERS, len(active_candidates))) as executor:
+            future_map = {
+                executor.submit(resolve_runtime_status, item): item.id
+                for item in active_candidates
+            }
+            pending_futures = set(future_map)
+            try:
+                for future in as_completed(future_map, timeout=HEALTH_CHECK_BATCH_TIMEOUT_SECONDS):
+                    instance_id = future_map[future]
+                    runtime_status_by_id[instance_id] = future.result()
+                    pending_futures.discard(future)
+            except TimeoutError:
+                pass
+
+            for future in pending_futures:
+                instance_id = future_map[future]
+                runtime_status_by_id[instance_id] = "offline"
+                future.cancel()
+
+    return [InstanceHealthRead(id=item.id, status=runtime_status_by_id[item.id]) for item in items]
 
 def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload: list[dict]) -> tuple[int, list[str]]:
     """
@@ -62,8 +124,15 @@ def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload
 
 
 @router.get("", response_model=list[InstanceRead])
-def list_instances(db: Session = Depends(db_session)) -> list[OpenClawInstance]:
-    return list(db.scalars(select(OpenClawInstance).order_by(OpenClawInstance.id)))
+def list_instances(db: Session = Depends(db_session)) -> list[dict]:
+    items = list(db.scalars(select(OpenClawInstance).order_by(OpenClawInstance.id)))
+    return [serialize_instance(item) for item in items]
+
+
+@router.get("/health", response_model=list[InstanceHealthRead])
+def list_instance_health(db: Session = Depends(db_session)) -> list[InstanceHealthRead]:
+    items = list(db.scalars(select(OpenClawInstance).order_by(OpenClawInstance.id)))
+    return list_instances_with_runtime_status(items)
 
 
 @router.post("", response_model=InstanceRead)
@@ -114,7 +183,6 @@ def connect_instance(payload: OpenClawConnectRequest, db: Session = Depends(db_s
         item.channel_account_id = payload.channel_account_id
         item.channel_signing_secret = payload.shared_secret
         item.callback_token = payload.shared_secret
-        item.status = "active"
         db.flush()
 
     imported_agent_count, imported_agent_keys = sync_instance_agents(db, item, agents_payload)
@@ -136,7 +204,6 @@ def sync_agents(instance_id: int, db: Session = Depends(db_session)) -> OpenClaw
 
     agents_payload = fetch_channel_agents(item.channel_base_url.rstrip("/"))
     imported_agent_count, imported_agent_keys = sync_instance_agents(db, item, agents_payload)
-    item.status = "active"
     db.commit()
     db.refresh(item)
     return OpenClawSyncAgentsResponse(

@@ -36,6 +36,11 @@ class InstanceRead(TimestampedModel):
     status: str
 
 
+class InstanceHealthRead(BaseModel):
+    id: int
+    status: str = Field(pattern="^(active|disabled|offline)$")
+
+
 class OpenClawConnectRequest(BaseModel):
     # 傻瓜接入模式下，用户只需要填写这 3 个字段。
     name: str = Field(min_length=1, max_length=120)
