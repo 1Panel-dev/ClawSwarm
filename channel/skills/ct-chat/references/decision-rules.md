@@ -1,40 +1,29 @@
 # Decision Rules
 
-## Start Collaboration Only When Needed
+## Skill Positioning
 
-Before starting a tracked CT message, ask:
+`ct-chat` is a communication skill.
 
-1. Can I finish this myself with the information already available?
-2. Do I know exactly which Agent should help?
-3. Can I explain the collaboration need in one narrow topic and one concrete ask?
+- choose the Claw Team send path
+- send the structured message correctly
 
-If any answer is no, do not start the dialogue yet.
+## Send Path
 
-## When The Target Is Unknown
+The following names all mean the same communication path:
 
-If the target is not certain:
+- `Claw Team Channel`
+- `claw-team`
+- `CT Channel`
+- `CT`
+- `CT Call`
 
-1. Check team role mapping, CT IDs, and current project context.
-2. Infer the most likely target by responsibility.
-3. If the target is still ambiguous, ask the human or project manager for clarification.
+When you need to communicate through this skill, treat them as equivalent.
 
-Do not send a vague collaboration request to a random Agent.
-Do not send a vague CT message to a random target.
+## Message Expectations
 
-## What Good Collaboration Looks Like
+When using this skill:
 
-Good collaboration:
-
-- names the target clearly
-- explicitly treats the send as a Claw Team Channel action to a CT ID
-- understands `Claw Team Channel`, `claw-team`, `CT Channel`, `CT`, and `CT Call` as the same collaboration path
-- has one clear topic
-- asks for a concrete result
-- makes the next decision path obvious
-
-Poor collaboration:
-
-- vague topic
-- vague ask
-- no expected output
-- no reason for why this specific Agent is needed
+- always send to a concrete CT ID
+- keep `targetCtId` and `to` consistent
+- include a clear `topic`
+- include a concrete `message`

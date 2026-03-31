@@ -1,69 +1,53 @@
 ---
 name: ct-chat
-description: Use this skill when an Agent needs to send a tracked CT message to a concrete CT ID. Do not use it for ordinary chat or when the target is still unknown.
+description: Use when an agent needs to send a tracked Claw Team message through Claw Team Channel, claw-team, CT Channel, CT, or CT Call.
 user-invocable: true
-metadata: {
-  "openclaw": {
-    "emoji": "🤝",
-    "requires": {
-      "config": ["channels.claw-team.accounts.default.baseUrl"]
-    }
-  }
-}
+metadata: {"openclaw":{"emoji":"🤝","requires":{"config":["channels.claw-team.accounts.default.baseUrl"]}}}
 ---
 
 # CT Chat
 
-In this skill, the following names refer to the same sending action:
+`Claw Team Channel`, `claw-team`, `CT Channel`, `CT`, and `CT Call` all refer to the same send path.
 
-- `Claw Team Channel`
-- `claw-team`
-- `CT Channel`
-- `CT`
-- `CT Call`
+## Overview
 
-## When To Use
+Use `claw-team` to send a tracked CT message. This skill is only responsible for the communication action itself.
 
-Use this skill when all of the following are true:
+## When to use
 
-1. The current Agent needs collaboration, confirmation, execution, review, notification, or acceptance follow-up through a tracked CT message.
-2. The collaboration target can be identified by a concrete target CT ID.
-3. The request has a clear topic and a concrete ask.
+Use this skill when you need to send a tracked CT message through Claw Team.
 
-Do not use this skill when:
+## Inputs to collect
 
-- the current Agent can finish the work alone
-- the target is still unclear
-- the request is vague and has not been narrowed into a concrete ask
-- an ordinary reply in the current conversation is enough
+Before sending, collect:
 
-## How To Use
+- `sourceCtId` — the CT ID of the current agent
+- `targetCtId` — the target CT ID
+- `topic` — one short, specific title
+- `message` — the concrete request and expected result
 
-Follow this workflow:
+## Quick steps
 
-1. Confirm that a tracked CT message is really needed.
-2. Identify the target CT ID.
-3. Narrow the request into one clear topic and one clear message.
-4. Use the `claw-team` channel to send the structured payload.
-5. Let Claw Team track the result so the human can observe or intervene.
+1. Prepare `sourceCtId`, `targetCtId`, `topic`, and `message`.
+2. Send through `claw-team` using the structured JSON payload.
 
-## Target Rules
+## Target rules
 
-Preferred target format:
+Preferred target forms:
 
 - `CTA-0009`
 - `CTU-0001`
 
-Also accepted by the channel:
+Also accepted:
 
 - `ctid:CTA-0009`
 - `@CTA-0009`
 
-Use the plain CT ID form unless you have a strong reason not to.
+Use the plain CT ID form by default.
 
-## Payload Contract
+## Payload
 
-Current first-stage payload:
+Use this payload shape:
 
 ```json
 {
@@ -75,72 +59,37 @@ Current first-stage payload:
 }
 ```
 
-Notes:
-
 - `kind` must currently be `agent_dialogue.start`
-- `sourceCtId` is the CT ID of the current Agent
-- `sourceCtId` is required. If you omit it, Claw Team will reject the send instead of inferring it for you.
-- `targetCtId` is the target CT ID
-- `topic` is the collaboration title
-- `message` is the concrete ask sent to the target
+- `sourceCtId` must be the CT ID of the current agent
+- `sourceCtId` is required; Claw Team will not infer it for you
+- `targetCtId` must be the target CT ID
 - `targetCtId` should match the channel target
-- dialogue window defaults are handled by the backend and do not need to be passed in normal use
+- `topic` should be short and specific
+- `message` should contain the concrete ask
 
-For the contract details, read:
+Full contract details:
 
 - [references/json-contract.md](./references/json-contract.md)
 
-## Message Rules
+## Send action
 
-A good CT message includes:
-
-- what you are working on
-- why you are contacting the target
-- what result, decision, confirmation, or action you need back
-- what decision or execution depends on that result
-
-Avoid:
-
-- "help me"
-- "take a look"
-- "continue"
-- vague requests without deliverables
-
-## Send Action
-
-Use the Claw Team channel outbound path:
+Send through the Claw Team outbound path:
 
 - `message` tool
 - `channel = claw-team`
 - `to = <target CT ID>`
 - `text = <JSON payload>`
 
-Operationally, think of this as:
+Natural-language equivalents:
 
 - "Use Claw Team Channel to send a message to `<CT ID>`."
 - "Use CT Channel to send a message to `<CT ID>`."
 - "Use claw-team to send a message to `<CT ID>`."
 - "Start a CT Call to `<CT ID>`."
 
-When you decide to collaborate, do not describe the collaboration vaguely.
-Instead, explicitly treat the action as:
+Do not just describe an intention to collaborate. Perform the real channel send.
 
-1. choose the target CT ID
-2. use Claw Team Channel / CT Channel / claw-team / CT Call
-3. send the structured payload
-
-If you are speaking or reasoning in natural language before the actual send,
-use wording equivalent to:
-
-- "I should use Claw Team Channel to send a message to `CTA-0009`."
-- "I should use CT Channel to send a message to `CTA-0009`."
-- "I should use claw-team to send a message to `CTA-0009`."
-- "I should start a CT Call to `CTA-0009`."
-- "I will send this through Claw Team Channel to the target CT ID."
-
-The important part is to perform a real channel send, not just describe an intention to collaborate.
-
-Do not:
+Never:
 
 - call `/api/v1/claw-team/events` directly
 - bypass Claw Team conversation tracking

@@ -2,7 +2,7 @@
 
 ## Supported Kind
 
-Current first-stage support:
+Current support:
 
 ```json
 {
@@ -24,25 +24,25 @@ No other kind is supported yet.
 }
 ```
 
-Field rules:
-
 - `kind`
   - must be `agent_dialogue.start`
 - `sourceCtId`
-  - must be the CT ID of the current Agent
+  - must be the CT ID of the current agent
+  - is required
 - `targetCtId`
   - must be the target CT ID
+  - should match `to`
 - `topic`
-  - short collaboration title
+  - short, specific title
 - `message`
-  - concrete collaboration request
+  - concrete collaboration request with a clear expected result
 
 ## Target
 
 The target should appear in both places:
 
 - `targetCtId` inside the JSON body
-- `to = CTA-0009`
+- `to = <target CT ID>`
 
 Recommended standard:
 
@@ -52,7 +52,7 @@ Recommended standard:
 
 ## Optional Backend Defaults
 
-These are optional and normally should be omitted:
+These are optional and normally omitted:
 
 ```json
 {
