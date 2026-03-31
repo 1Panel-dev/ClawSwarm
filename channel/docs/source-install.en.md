@@ -34,6 +34,8 @@ npm run build
 openclaw plugins install -l .
 ```
 
+If you see missing config errors for `baseUrl`, `outboundToken`, or `inboundSigningSecret` at this step, do not stop. Continue to the config step.
+
 6. Enable the plugin.
 
 ```bash
@@ -102,6 +104,4 @@ openclaw gateway restart
 openclaw plugins list
 openclaw plugins inspect claw-team
 openclaw skills list
-curl -sk https://127.0.0.1:18789/claw-team/v1/health
-curl -sk https://127.0.0.1:18789/claw-team/v1/agents
 ```

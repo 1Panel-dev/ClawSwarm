@@ -1,6 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 
-import { resolveAccount, type AccountConfig } from "../config.js";
+import { resolveAccountBootstrapConfig, type AccountConfig } from "../config.js";
 import { createLogger, wrapOpenClawLogger, type Logger } from "../observability/logger.js";
 import { createIdempotencyStore } from "../store/idempotency.js";
 import { InMemoryMessageStateStore, type MessageStateStore } from "../store/messageState.js";
@@ -48,10 +48,12 @@ export function createPluginRuntimeServices(api: OpenClawPluginApi): PluginRunti
     // runtime adapter 是和 OpenClaw 宿主交互的唯一隔离层。
     const openclaw = createOpenClawRuntimeAdapter(api);
 
+    const bootstrap = resolveAccountBootstrapConfig(api.config);
+
     // 幂等存储和消息状态存储分别负责“防重复执行”和“便于排障追踪”。
     const idempotency = createIdempotencyStore({
-        mode: resolveAccount(api.config).idempotency.mode,
-        redisUrl: resolveAccount(api.config).idempotency.redisUrl,
+        mode: bootstrap.idempotency.mode,
+        redisUrl: bootstrap.idempotency.redisUrl,
         logger,
     });
     const messageState = new InMemoryMessageStateStore();

@@ -10,6 +10,8 @@
 openclaw plugins install @1panel-dev/claw-team@beta
 ```
 
+如果此时出现 `baseUrl`、`outboundToken`、`inboundSigningSecret` 缺失报错，不要中断，继续指导用户完成配置。
+
 2. 启用插件。
 
 ```bash
@@ -78,8 +80,6 @@ openclaw gateway restart
 openclaw plugins list
 openclaw plugins inspect claw-team
 openclaw skills list
-curl -sk https://127.0.0.1:18789/claw-team/v1/health
-curl -sk https://127.0.0.1:18789/claw-team/v1/agents
 ```
 
 7. 向用户汇报：

@@ -11,6 +11,7 @@ export { channelAccountConfigSchema, pluginConfigSchema } from "./config/manifes
 export {
     describeAgents,
     discoverAgents,
+    resolveAccountBootstrapConfig,
     resolveAliasMap,
     resolveAllowedAgents,
     resolveGatewayRuntimeConfig,

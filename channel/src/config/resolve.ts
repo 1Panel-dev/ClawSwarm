@@ -1,4 +1,5 @@
 import { listRealOpenClawAgents } from "../openclaw/manageAgents.js";
+import { z } from "zod";
 import { AccountConfigSchema } from "./schema.js";
 import { normalizeAccountConfigInput } from "./legacy.js";
 import type { AccountConfig, AgentDirectoryEntry, GatewayRuntimeConfig, ResolvedAccount } from "./types.js";
@@ -66,3 +67,15 @@ export function resolveGatewayRuntimeConfig(acct: AccountConfig): GatewayRuntime
     };
 }
 
+const AccountRuntimeBootstrapSchema = z.object({
+    idempotency: AccountConfigSchema.shape.idempotency.default({}),
+});
+
+// 注册阶段只允许解析真正需要的最小配置，避免插件安装时因为业务字段缺失而失败。
+export function resolveAccountBootstrapConfig(cfg: any, accountId?: string): {
+    idempotency: AccountConfig["idempotency"];
+} {
+    const sec = cfg?.channels?.["claw-team"] ?? {};
+    const raw = sec?.accounts?.[accountId ?? "default"] ?? {};
+    return AccountRuntimeBootstrapSchema.parse(normalizeAccountConfigInput(raw));
+}
