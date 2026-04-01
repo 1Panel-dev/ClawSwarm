@@ -7,7 +7,7 @@
 1. Install the plugin.
 
 ```bash
-openclaw plugins install @1panel-dev/claw-team@beta
+openclaw plugins install @1panel-dev/claw-team
 ```
 
 If you see missing config errors for `baseUrl`, `outboundToken`, or `inboundSigningSecret` at this step, do not stop. Continue to the config step.

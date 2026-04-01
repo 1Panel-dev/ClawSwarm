@@ -7,7 +7,7 @@
 1. 安装插件。
 
 ```bash
-openclaw plugins install @1panel-dev/claw-team@beta
+openclaw plugins install @1panel-dev/claw-team
 ```
 
 如果此时出现 `baseUrl`、`outboundToken`、`inboundSigningSecret` 缺失报错，不要中断，继续指导用户完成配置。
