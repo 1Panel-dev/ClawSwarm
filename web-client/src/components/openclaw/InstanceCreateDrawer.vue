@@ -62,7 +62,7 @@
             </span>
           </template>
           <el-input
-            :model-value="generatedOpenClawConfig"
+            :model-value="maskedOpenClawConfig"
             type="textarea"
             readonly
             :autosize="{ minRows: 12, maxRows: 18 }"
@@ -191,7 +191,7 @@ function maskedSecret(value: string) {
     return value ? "••••••••••••••••••••••••" : "";
 }
 
-const generatedOpenClawConfig = computed(() => {
+function buildOpenClawConfig(maskSecrets: boolean) {
     if (!props.credentials) {
         return "";
     }
@@ -230,11 +230,11 @@ const generatedOpenClawConfig = computed(() => {
                     default: {
                         enabled: true,
                         baseUrl: backendBaseUrl,
-                        outboundToken: props.credentials.outbound_token,
-                        inboundSigningSecret: props.credentials.inbound_signing_secret,
+                        outboundToken: maskSecrets ? maskedSecret(props.credentials.outbound_token) : props.credentials.outbound_token,
+                        inboundSigningSecret: maskSecrets ? maskedSecret(props.credentials.inbound_signing_secret) : props.credentials.inbound_signing_secret,
                         gateway: {
                             baseUrl: form.channel_base_url.trim(),
-                            token: form.gateway_token.trim(),
+                            token: maskSecrets ? maskedSecret(form.gateway_token.trim()) : form.gateway_token.trim(),
                             model: "openclaw",
                             stream: true,
                             allowInsecureTls: true,
@@ -248,7 +248,10 @@ const generatedOpenClawConfig = computed(() => {
             },
         },
     }, null, 2);
-});
+}
+
+const generatedOpenClawConfig = computed(() => buildOpenClawConfig(false));
+const maskedOpenClawConfig = computed(() => buildOpenClawConfig(true));
 
 function resolveBackendBaseUrl() {
     const explicit = import.meta.env.VITE_API_BASE_URL?.trim();
