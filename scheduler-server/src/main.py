@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import address_book, agent_dialogues, agents, callbacks, conversations, groups, health, instances, tasks, ws
+from src.api.routes import address_book, agent_dialogues, agents, callbacks, conversations, groups, health, instances, ws
 from src.core.config import settings
 from src.core.db import Base, engine, ensure_runtime_schema
 import src.models  # noqa: F401
@@ -72,7 +72,6 @@ def create_app() -> FastAPI:
     app.include_router(address_book.router)
     app.include_router(groups.router)
     app.include_router(conversations.router)
-    app.include_router(tasks.router)
     app.include_router(callbacks.router)
     app.include_router(ws.router)
     _configure_web_client_routes(app)
