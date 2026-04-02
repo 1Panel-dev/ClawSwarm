@@ -37,6 +37,7 @@ from src.models.openclaw_instance import OpenClawInstance
 from src.core.config import settings
 from src.api.routes.agents import sync_instance_agents
 from src.api.routes import instances as instances_route
+from src.services.auth import build_session_cookie_value, ensure_default_user
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 
 
@@ -59,6 +60,7 @@ class Stage1BackendTests(unittest.TestCase):
         Base.metadata.create_all(bind=self.engine)
 
         self.app = create_app()
+        self.app.state.session_local = self.SessionLocal
         self.original_web_dist_dir = getattr(settings, "web_dist_dir", None)
 
         def override_db():
@@ -70,6 +72,9 @@ class Stage1BackendTests(unittest.TestCase):
 
         self.app.dependency_overrides[db_session] = override_db
         self.client = TestClient(self.app)
+        with self.SessionLocal() as db:
+            user = ensure_default_user(db)
+            self.client.cookies.set("claw_team_session", build_session_cookie_value(user))
 
     def tearDown(self) -> None:
         self.app.dependency_overrides.clear()
@@ -155,6 +160,76 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(payload[1]["type"], "direct")
         self.assertEqual(payload[1]["instance_name"], "OpenClaw A")
         self.assertEqual(payload[1]["agent_display_name"], "Main Agent")
+
+    def test_auth_login_sets_session_and_allows_protected_api(self) -> None:
+        self.client.cookies.clear()
+        unauthenticated = self.client.get("/api/instances")
+        self.assertEqual(unauthenticated.status_code, 401)
+        self.assertEqual(unauthenticated.json()["detail"], "Authentication required")
+
+        login_response = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_response.status_code, 200)
+        login_payload = login_response.json()
+        self.assertEqual(login_payload["username"], "admin")
+        self.assertEqual(login_payload["display_name"], "admin")
+        self.assertTrue(login_payload["using_default_password"])
+        self.assertTrue(login_payload["id"])
+
+        me_response = self.client.get("/api/auth/me")
+        self.assertEqual(me_response.status_code, 200)
+        self.assertEqual(me_response.json()["username"], "admin")
+        self.assertEqual(me_response.json()["display_name"], "admin")
+
+        instances_response = self.client.get("/api/instances")
+        self.assertEqual(instances_response.status_code, 200)
+
+    def test_auth_profile_update_changes_display_name_and_password(self) -> None:
+        self.client.cookies.clear()
+        login_response = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_response.status_code, 200)
+
+        update_response = self.client.put(
+            "/api/auth/profile",
+            json={
+                "display_name": "Owner",
+                "current_password": "admin123456",
+                "new_password": "new-password-123",
+            },
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["username"], "admin")
+        self.assertEqual(update_response.json()["display_name"], "Owner")
+        self.assertFalse(update_response.json()["using_default_password"])
+
+        self.client.post("/api/auth/logout")
+
+        old_login = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(old_login.status_code, 401)
+        self.assertEqual(old_login.json()["detail"], "Invalid username or password")
+
+        new_login = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "new-password-123"},
+        )
+        self.assertEqual(new_login.status_code, 200)
+        self.assertEqual(new_login.json()["username"], "admin")
+        self.assertEqual(new_login.json()["display_name"], "Owner")
+        self.assertFalse(new_login.json()["using_default_password"])
+
+    def test_health_remains_public_without_login(self) -> None:
+        self.client.cookies.clear()
+        response = self.client.get("/api/health")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"ok": True})
 
     def test_list_conversations_hides_direct_conversations_for_disabled_instance(self) -> None:
         with self.SessionLocal() as db:

@@ -10,6 +10,7 @@ import { resolveApiBaseUrl } from "@/api/baseUrl";
 export const apiClient = axios.create({
     baseURL: resolveApiBaseUrl(),
     timeout: 10000,
+    withCredentials: true,
 });
 
 apiClient.interceptors.response.use(

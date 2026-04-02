@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AccountDialog: typeof import('./src/components/common/AccountDialog.vue')['default']
     AgentCreateDrawer: typeof import('./src/components/openclaw/AgentCreateDrawer.vue')['default']
     AgentDialogueCreateDrawer: typeof import('./src/components/conversation/AgentDialogueCreateDrawer.vue')['default']
     AgentDialogueToolbar: typeof import('./src/components/conversation/AgentDialogueToolbar.vue')['default']
@@ -23,7 +24,11 @@ declare module 'vue' {
     ElCollapse: typeof import('element-plus/es')['ElCollapse']
     ElCollapseItem: typeof import('element-plus/es')['ElCollapseItem']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']
+    ElDialog: typeof import('element-plus/es')['ElDialog']
     ElDrawer: typeof import('element-plus/es')['ElDrawer']
+    ElDropdown: typeof import('element-plus/es')['ElDropdown']
+    ElDropdownItem: typeof import('element-plus/es')['ElDropdownItem']
+    ElDropdownMenu: typeof import('element-plus/es')['ElDropdownMenu']
     ElEmpty: typeof import('element-plus/es')['ElEmpty']
     ElForm: typeof import('element-plus/es')['ElForm']
     ElFormItem: typeof import('element-plus/es')['ElFormItem']

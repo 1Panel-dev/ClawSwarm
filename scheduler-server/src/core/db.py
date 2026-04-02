@@ -222,6 +222,12 @@ def ensure_runtime_schema() -> None:
                 )
                 connection.execute(text("PRAGMA foreign_keys=ON"))
 
+    if "app_users" in table_names:
+        user_columns = {column["name"] for column in inspector.get_columns("app_users")}
+        if "display_name" not in user_columns:
+            statements.append("ALTER TABLE app_users ADD COLUMN display_name VARCHAR(120)")
+            statements.append("UPDATE app_users SET display_name = username WHERE display_name IS NULL OR display_name = ''")
+
     if not statements:
         return
 
