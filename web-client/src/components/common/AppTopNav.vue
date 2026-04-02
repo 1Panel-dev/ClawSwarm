@@ -46,7 +46,7 @@
         </el-button>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item command="account">{{ t("auth.account") }}</el-dropdown-item>
+            <el-dropdown-item command="account">{{ t("auth.accountSettings") }}</el-dropdown-item>
             <el-dropdown-item divided command="logout">{{ t("auth.logout") }}</el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -57,6 +57,7 @@
   <AccountDialog
     :visible="accountDialogVisible"
     :submitting="accountSubmitting"
+    :username="authStore.user?.username ?? ''"
     :display-name="authStore.user?.display_name ?? ''"
     @update:visible="accountDialogVisible = $event"
     @submit="handleAccountSubmit"
@@ -104,7 +105,7 @@ async function handleCommand(command: string) {
 
 async function handleAccountSubmit(payload: {
   display_name: string;
-  current_password: string;
+  current_password?: string;
   new_password?: string;
 }) {
   accountSubmitting.value = true;

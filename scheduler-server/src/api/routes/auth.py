@@ -27,7 +27,7 @@ class AuthUserRead(BaseModel):
 
 class ProfileUpdateRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=120)
-    current_password: str = Field(min_length=1, max_length=255)
+    current_password: str | None = Field(default=None, min_length=1, max_length=255)
     new_password: str | None = Field(default=None, min_length=8, max_length=255)
 
 
@@ -81,10 +81,17 @@ def update_profile(
     user = get_current_user_from_request(request, db)
     if user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
-    if not verify_password(payload.current_password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+    display_name = payload.display_name.strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="Display name is required")
 
-    user.display_name = payload.display_name.strip()
+    if payload.new_password is not None:
+        if not payload.current_password or not verify_password(payload.current_password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid username or password")
+        if not payload.new_password.strip():
+            raise HTTPException(status_code=400, detail="New password cannot be empty")
+
+    user.display_name = display_name
     if payload.new_password:
         user.password_hash = hash_password(payload.new_password)
     db.commit()

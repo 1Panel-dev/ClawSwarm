@@ -1,11 +1,14 @@
 <template>
   <el-dialog
     :model-value="visible"
-    :title="t('auth.account')"
+    :title="t('auth.accountSettings')"
     width="460px"
     @close="emit('update:visible', false)"
   >
     <el-form label-position="top">
+      <el-form-item :label="t('auth.username')">
+        <div class="account-dialog__static-value">{{ username }}</div>
+      </el-form-item>
       <el-form-item :label="t('auth.displayName')">
         <el-input v-model="form.display_name" maxlength="120" />
       </el-form-item>
@@ -37,6 +40,7 @@ import { useI18n } from "@/composables/useI18n";
 const props = defineProps<{
     visible: boolean;
     submitting: boolean;
+    username: string;
     displayName: string;
 }>();
 
@@ -44,7 +48,7 @@ const emit = defineEmits<{
     "update:visible": [value: boolean];
     submit: [{
         display_name: string;
-        current_password: string;
+        current_password?: string;
         new_password?: string;
     }];
 }>();
@@ -76,11 +80,15 @@ function handleSave() {
     const newPassword = form.new_password.trim();
     const confirmPassword = form.confirm_password.trim();
 
-    if (!displayName || !currentPassword) {
+    if (!displayName) {
         ElMessage.error(t("auth.accountRequired"));
         return;
     }
     if (newPassword || confirmPassword) {
+        if (!currentPassword) {
+            ElMessage.error(t("auth.currentPasswordRequired"));
+            return;
+        }
         if (newPassword !== confirmPassword) {
             ElMessage.error(t("auth.passwordMismatch"));
             return;
@@ -93,7 +101,7 @@ function handleSave() {
 
     emit("submit", {
         display_name: displayName,
-        current_password: currentPassword,
+        current_password: currentPassword || undefined,
         new_password: newPassword || undefined,
     });
 }
@@ -104,5 +112,10 @@ function handleSave() {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.account-dialog__static-value {
+  color: #303133;
+  line-height: 32px;
 }
 </style>

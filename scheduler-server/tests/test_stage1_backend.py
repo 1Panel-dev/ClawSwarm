@@ -225,6 +225,29 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(new_login.json()["display_name"], "Owner")
         self.assertFalse(new_login.json()["using_default_password"])
 
+    def test_auth_profile_update_allows_display_name_change_without_current_password(self) -> None:
+        self.client.cookies.clear()
+        login_response = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_response.status_code, 200)
+
+        update_response = self.client.put(
+            "/api/auth/profile",
+            json={"display_name": "Owner Only"},
+        )
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["display_name"], "Owner Only")
+        self.assertTrue(update_response.json()["using_default_password"])
+
+        login_again = self.client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "admin123456"},
+        )
+        self.assertEqual(login_again.status_code, 200)
+        self.assertEqual(login_again.json()["display_name"], "Owner Only")
+
     def test_health_remains_public_without_login(self) -> None:
         self.client.cookies.clear()
         response = self.client.get("/api/health")

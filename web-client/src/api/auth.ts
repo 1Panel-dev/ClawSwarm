@@ -14,7 +14,7 @@ export type LoginPayload = {
 
 export type UpdateProfilePayload = {
     display_name: string;
-    current_password: string;
+    current_password?: string;
     new_password?: string;
 };
 
