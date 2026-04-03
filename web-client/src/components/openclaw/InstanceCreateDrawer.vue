@@ -154,6 +154,11 @@ watch(
     () => props.visible,
     (visible) => {
         if (!visible) {
+            form.name = "";
+            form.channel_base_url = "";
+            form.channel_account_id = "default";
+            form.include_intermediate_messages = true;
+            form.gateway_token = "";
             return;
         }
         if (mode.value === "edit" && props.initialValue) {
