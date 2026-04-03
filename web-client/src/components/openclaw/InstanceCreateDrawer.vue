@@ -47,7 +47,10 @@
               </el-tooltip>
             </span>
           </template>
-          <el-input v-model="form.gateway_token" :placeholder="t('openclaw.gatewayTokenPlaceholder')" />
+          <el-input
+            v-model="form.gateway_token"
+            :placeholder="t('openclaw.gatewayTokenPlaceholder')"
+          />
         </el-form-item>
 
         <el-form-item>
@@ -158,14 +161,8 @@ watch(
             form.channel_base_url = props.initialValue.channel_base_url;
             form.channel_account_id = props.initialValue.channel_account_id;
             form.gateway_token = "";
-            form.include_intermediate_messages = true;
-            return;
         }
-        form.name = "";
-        form.channel_base_url = "";
-        form.channel_account_id = "default";
         form.gateway_token = "";
-        form.include_intermediate_messages = true;
     },
 );
 
@@ -329,8 +326,10 @@ async function copyOpenClawConfig() {
                 throw new Error(t("openclaw.copyFailed"));
             }
         }
-        form.gateway_token = "";
         ElMessage.success(t("openclaw.copySuccess"));
+        window.setTimeout(() => {
+            form.gateway_token = "";
+        }, 1000);
     } catch (error) {
         ElMessage.error(error instanceof Error ? error.message : String(error));
     }
