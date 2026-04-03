@@ -29,6 +29,17 @@
               "type": "string",
               "description": "Claw Team 调用插件 webhook 时的签名密钥"
             },
+            "webchatMirror": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "includeIntermediateMessages": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "是否同步工具调用和中间过程消息"
+                }
+              }
+            },
             "gateway": {
               "type": "object",
               "additionalProperties": false,
@@ -63,6 +74,7 @@
   "uiHints": {
     "accounts.*.outboundToken": { "sensitive": true, "label": "Outbound Token" },
     "accounts.*.inboundSigningSecret": { "sensitive": true, "label": "Inbound Signing Secret" },
+    "accounts.*.webchatMirror.includeIntermediateMessages": { "label": "同步中间过程消息" },
     "accounts.*.gateway.token": { "sensitive": true, "label": "Gateway Token" }
   }
 }
