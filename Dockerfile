@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/1panel-dev/clawswarm-base:python3.12-20260403
+ARG BASE_IMAGE=ghcr.io/1panel-dev/clawswarm-base:python3.12-20260407
 
 FROM node:22-bookworm-slim AS web-build
 
