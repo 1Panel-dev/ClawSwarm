@@ -24,6 +24,12 @@
             </span>
             <span class="message-list__sender">{{ displaySenderLabel(message) }}</span>
             <span
+              v-if="!isCompactProcessMessage(message) && senderMetaFor(message)?.csId"
+              class="message-list__sender-id"
+            >
+              / {{ senderMetaFor(message)?.csId }}
+            </span>
+            <span
               v-if="!isCompactProcessMessage(message) && senderMetaFor(message)?.roleName"
               class="message-list__sender-role"
             >
@@ -495,6 +501,13 @@ onBeforeUnmount(() => {
 .message-list__sender {
   font-size: 0.93rem;
   font-weight: 700;
+}
+
+.message-list__sender-id {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #7b8190;
+  font-variant-numeric: tabular-nums;
 }
 
 .message-list__meta--process .message-list__sender {
