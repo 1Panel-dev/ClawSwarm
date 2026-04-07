@@ -32,9 +32,6 @@ on:
           - testing
           - production
 
-env:
-  CLAWSWARM_BASE_IMAGE: ghcr.io/1panel-dev/clawswarm-base:python3.12-20260401
-
 jobs:
   build-and-push-to-dockerhub:
     runs-on: ubuntu-latest
@@ -52,6 +49,8 @@ jobs:
       - name: Prepare
         id: prepare
         run: |
+          BASE_IMAGE_TAG=$(tr -d '\n' < .base-image-version)
+          CLAWSWARM_BASE_IMAGE=ghcr.io/1panel-dev/clawswarm-base:${BASE_IMAGE_TAG}
           if [[ "${{ github.event.inputs.dockerhubAccount }}" == "testing" ]]; then
             DOCKER_NAMESPACE="${{ secrets.DOCKERHUB_USERNAME_PERSONAL }}"
           else
