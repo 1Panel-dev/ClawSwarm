@@ -116,4 +116,4 @@ openclaw skills list
 正常情况下，应该能看到：
 
 - `clawswarm` 状态为 `loaded`
-- `ct-chat` 技能状态为 `ready`
+- `CS Chat` 技能（`cs-chat`）状态为 `ready`

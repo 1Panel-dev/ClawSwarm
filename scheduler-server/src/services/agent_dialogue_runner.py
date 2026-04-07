@@ -22,7 +22,7 @@ from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
-from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.default_user import get_default_user_identity
 
 IN_FLIGHT_DISPATCH_STATUSES = ("pending", "accepted", "streaming")
@@ -49,7 +49,7 @@ async def dispatch_agent_dialogue_opening_turn(*, db: Session, dialogue: AgentDi
         conversation=conversation,
         message=opening_message,
         recipient_agent=source_agent,
-        sender_label=DEFAULT_USER.label_with_ct_id,
+        sender_label=DEFAULT_USER.label_with_cs_id,
         sender_user_id=DEFAULT_USER.internal_id,
         dispatch_mode="agent_dialogue_opening",
     )
@@ -94,7 +94,7 @@ async def continue_agent_dialogue_after_reply(
                 conversation=conversation,
                 message=pending_user_message,
                 recipient_agent=next_agent,
-                sender_label=DEFAULT_USER.label_with_ct_id,
+                sender_label=DEFAULT_USER.label_with_cs_id,
                 sender_user_id=DEFAULT_USER.internal_id,
                 dispatch_mode="agent_dialogue_intervention",
             )
@@ -234,14 +234,14 @@ def _build_agent_dialogue_context_text(
     if not source_agent or not target_agent:
         return message.content
 
-    ensure_agent_ct_id(source_agent)
-    ensure_agent_ct_id(target_agent)
-    ensure_agent_ct_id(recipient_agent)
+    ensure_agent_cs_id(source_agent)
+    ensure_agent_cs_id(target_agent)
+    ensure_agent_cs_id(recipient_agent)
 
     partner_agent = target_agent if recipient_agent.id == source_agent.id else source_agent
     recent_message_count = _count_recent_dialogue_messages(db=db, dialogue=dialogue)
     if message.sender_type == "user":
-        message_intro = f"Human guidance from {DEFAULT_USER.label_with_ct_id}:"
+        message_intro = f"Human guidance from {DEFAULT_USER.label_with_cs_id}:"
     else:
         message_intro = f"Partner message from {sender_label}:"
 
@@ -251,8 +251,8 @@ def _build_agent_dialogue_context_text(
             "",
             f"Dialogue ID: AD-{dialogue.id:04d}",
             f"Topic: {dialogue.topic}",
-            f"Your identity: {recipient_agent.display_name} ({recipient_agent.ct_id})",
-            f"Current partner: {partner_agent.display_name} ({partner_agent.ct_id})",
+            f"Your identity: {recipient_agent.display_name} ({recipient_agent.cs_id})",
+            f"Current partner: {partner_agent.display_name} ({partner_agent.cs_id})",
             f"Window guard: {dialogue.window_seconds}s, soft {dialogue.soft_message_limit}, hard {dialogue.hard_message_limit}",
             f"Recent message count in window: {recent_message_count}",
             (
@@ -294,7 +294,7 @@ def _maybe_add_soft_limit_warning(*, db: Session, dialogue: AgentDialogue, conve
         conversation_id=conversation.id,
         sender_type="system",
         sender_label="System",
-        sender_ct_id=None,
+        sender_cs_id=None,
         content=AGENT_DIALOGUE_WARNING_TEXT,
         status="completed",
     )
@@ -394,7 +394,7 @@ async def dispatch_agent_dialogue_intervention(
         conversation=conversation,
         message=message,
         recipient_agent=recipient_agent,
-        sender_label=DEFAULT_USER.label_with_ct_id,
+        sender_label=DEFAULT_USER.label_with_cs_id,
         sender_user_id=DEFAULT_USER.internal_id,
         dispatch_mode="agent_dialogue_intervention",
     )

@@ -301,8 +301,8 @@ describe("createOpenClawRuntimeAdapter", () => {
             logger,
             idempotency,
             messageState,
-            clawTeam: {
-                async sendEvent(event) {
+            clawSwarm: {
+                async sendEvent(event: ClawSwarmEvent) {
                     events.push(event);
                 },
             },
@@ -370,8 +370,8 @@ describe("createOpenClawRuntimeAdapter", () => {
             logger,
             idempotency,
             messageState,
-            clawTeam: {
-                async sendEvent(event) {
+            clawSwarm: {
+                async sendEvent(event: ClawSwarmEvent) {
                     events.push(event);
                 },
             },

@@ -11,8 +11,8 @@ import {
 import { createClawSwarmRoutes } from "../http/routes.js";
 import { registerWebchatTranscriptMirror } from "../openclaw/webchatMirror.js";
 import {
-    looksLikeClawSwarmCtId,
-    normalizeTargetCtId,
+    looksLikeClawSwarmCsId,
+    normalizeTargetCsId,
     resolveClawSwarmMessagingTarget,
     resolveClawSwarmTarget,
     sendClawSwarmText,
@@ -26,10 +26,10 @@ function createMessagingConfig(params: {
 
     return {
         // message 工具会先走 messaging.targetResolver，再进入 outbound.sendText。
-        // 这里把合法 CT ID 识别成 direct target，才能让宿主认可这是合法目标。
+        // 这里把合法 CS ID 识别成 direct target，才能让宿主认可这是合法目标。
         targetResolver: {
-            looksLikeId: (raw: string, normalized?: string) => looksLikeClawSwarmCtId(raw, normalized),
-            hint: "Use a CT ID like CTA-0009 or CTU-0001",
+            looksLikeId: (raw: string, normalized?: string) => looksLikeClawSwarmCsId(raw, normalized),
+            hint: "Use a CS ID like CSA-0009 or CSU-0001",
             resolveTarget: async ({ input, normalized }: { input: string; normalized: string }) => {
                 const resolved = await resolveClawSwarmMessagingTarget({ input });
                 if (!resolved) {
@@ -44,11 +44,11 @@ function createMessagingConfig(params: {
                 return resolved;
             },
         },
-        inferTargetChatType: ({ to }: { to: string }) => (looksLikeClawSwarmCtId(to) ? "direct" : undefined),
+        inferTargetChatType: ({ to }: { to: string }) => (looksLikeClawSwarmCsId(to) ? "direct" : undefined),
         parseExplicitTarget: ({ raw }: { raw: string }) => {
             try {
                 return {
-                    to: normalizeTargetCtId(raw),
+                    to: normalizeTargetCsId(raw),
                     chatType: "direct" as const,
                 };
             } catch {
@@ -73,7 +73,7 @@ function createOutboundConfig(params: {
 
     return {
         // 当前先支持最小的结构化 sendText。
-        // OpenClaw 侧把目标 CT ID 放在 to，正文放一个 JSON 模板；
+        // OpenClaw 侧把目标 CS ID 放在 to，正文放一个 JSON 模板；
         // 插件内部会把它转成正式的 ClawSwarm 业务请求，而不是直接调用 callback 入口。
         deliveryMode: "direct" as const,
         resolveTarget({ to }: { to?: string }) {

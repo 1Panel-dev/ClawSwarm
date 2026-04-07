@@ -4,7 +4,7 @@
       <div class="panel__header-main">
         <div class="panel__title-row">
           <h1 class="panel__title">{{ title }}</h1>
-          <span v-if="directConversationCtId" class="panel__ct-id">{{ directConversationCtId }}</span>
+          <span v-if="directConversationCsId" class="panel__cs-id">{{ directConversationCsId }}</span>
         </div>
         <AgentDialogueToolbar
           v-if="currentAgentDialogue"
@@ -92,14 +92,14 @@ const title = computed(() => {
     }
     return conversation.title ?? t("conversation.selectConversation");
 });
-const directConversationCtId = computed(() => {
+const directConversationCsId = computed(() => {
     const conversation = conversationStore.currentConversation;
     if (!conversation || conversation.type !== "direct" || !conversation.direct_instance_id || !conversation.direct_agent_id) {
         return "";
     }
     const instance = addressBookStore.instances.find((item) => item.id === conversation.direct_instance_id);
     const agent = instance?.agents.find((item) => item.id === conversation.direct_agent_id);
-    return agent?.ct_id ?? "";
+    return agent?.cs_id ?? "";
 });
 const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
 const isAgentDialogueConversation = computed(() => conversationStore.currentConversation?.type === "agent_dialogue");
@@ -114,7 +114,7 @@ const showTypingIndicator = computed(() =>
 );
 type SenderMeta = {
     roleName?: string | null;
-    ctId?: string | null;
+    csId?: string | null;
     instanceName?: string | null;
 };
 
@@ -123,14 +123,14 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
 
     const assignMeta = (label: string | null | undefined, meta: SenderMeta) => {
         const normalizedLabel = label?.trim();
-        const normalizedCtId = meta.ctId?.trim();
+        const normalizedCsId = meta.csId?.trim();
         const normalizedMeta: SenderMeta = {
             roleName: meta.roleName ?? null,
-            ctId: normalizedCtId ?? null,
+            csId: normalizedCsId ?? null,
             instanceName: meta.instanceName ?? null,
         };
-        if (normalizedCtId) {
-            map[normalizedCtId] = normalizedMeta;
+        if (normalizedCsId) {
+            map[normalizedCsId] = normalizedMeta;
         }
         if (normalizedLabel) {
             map[normalizedLabel] = normalizedMeta;
@@ -143,7 +143,7 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
         const agent = instance?.agents.find((item) => item.id === member.agent_id);
         assignMeta(member.display_name, {
             roleName: member.role_name,
-            ctId: agent?.ct_id ?? null,
+            csId: agent?.cs_id ?? null,
             instanceName: member.instance_name,
         });
     }
@@ -152,16 +152,16 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
         const sourceLabel = currentAgentDialogue.value.source_agent_display_name.trim();
         if (sourceLabel) {
             assignMeta(sourceLabel, {
-                roleName: map[currentAgentDialogue.value.source_agent_ct_id ?? ""]?.roleName ?? map[sourceLabel]?.roleName ?? null,
-                ctId: currentAgentDialogue.value.source_agent_ct_id,
+                roleName: map[currentAgentDialogue.value.source_agent_cs_id ?? ""]?.roleName ?? map[sourceLabel]?.roleName ?? null,
+                csId: currentAgentDialogue.value.source_agent_cs_id,
                 instanceName: currentAgentDialogue.value.source_agent_instance_name ?? null,
             });
         }
         const targetLabel = currentAgentDialogue.value.target_agent_display_name.trim();
         if (targetLabel) {
             assignMeta(targetLabel, {
-                roleName: map[currentAgentDialogue.value.target_agent_ct_id ?? ""]?.roleName ?? map[targetLabel]?.roleName ?? null,
-                ctId: currentAgentDialogue.value.target_agent_ct_id,
+                roleName: map[currentAgentDialogue.value.target_agent_cs_id ?? ""]?.roleName ?? map[targetLabel]?.roleName ?? null,
+                csId: currentAgentDialogue.value.target_agent_cs_id,
                 instanceName: currentAgentDialogue.value.target_agent_instance_name ?? null,
             });
         }
@@ -170,7 +170,7 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
     // 再补一层通讯录里的实例 Agent，覆盖单聊和普通对话展示。
     for (const instance of addressBookStore.instances) {
         for (const agent of instance.agents) {
-            assignMeta(agent.display_name, { roleName: agent.role_name, ctId: agent.ct_id, instanceName: instance.name });
+            assignMeta(agent.display_name, { roleName: agent.role_name, csId: agent.cs_id, instanceName: instance.name });
         }
     }
 
@@ -251,7 +251,7 @@ async function handleLoadOlderMessages() {
   line-height: 1.3;
 }
 
-.panel__ct-id {
+.panel__cs-id {
   flex: 0 0 auto;
   padding: 3px 10px;
   border: 1px solid #d9dde6;

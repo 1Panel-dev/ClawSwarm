@@ -20,7 +20,7 @@ from src.schemas.common import dump_model
 from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate
 from src.schemas.common import validate_orm
 from src.services.agent_cleanup import delete_agent_private_conversations
-from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.agent_cs_id import ensure_agent_cs_id
 
 router = APIRouter(prefix="/api", tags=["agents"])
 
@@ -101,7 +101,7 @@ def upsert_instance_agent(
             agent.created_via_clawswarm = created_via_clawswarm
 
     db.flush()
-    ensure_agent_ct_id(agent)
+    ensure_agent_cs_id(agent)
     db.flush()
     return agent
 
@@ -147,8 +147,8 @@ def list_agents(instance_id: int, db: Session = Depends(db_session)) -> list[Age
     )
     touched = False
     for agent in agents:
-        if not (agent.ct_id or "").strip():
-            ensure_agent_ct_id(agent)
+        if not (agent.cs_id or "").strip():
+            ensure_agent_cs_id(agent)
             touched = True
     if touched:
         db.commit()
@@ -239,8 +239,8 @@ async def get_agent_profile(agent_id: int, db: Session = Depends(db_session)) ->
         raise HTTPException(status_code=404, detail="agent not found")
     if not can_edit_agent_profile(agent):
         raise HTTPException(status_code=403, detail="agent profile is read-only")
-    if not (agent.ct_id or "").strip():
-        ensure_agent_ct_id(agent)
+    if not (agent.cs_id or "").strip():
+        ensure_agent_cs_id(agent)
         db.commit()
         db.refresh(agent)
 
@@ -331,8 +331,8 @@ async def update_agent(agent_id: int, payload: AgentUpdate, db: Session = Depend
         if key in {"identity_md", "soul_md", "user_md", "memory_md"}:
             continue
         setattr(agent, key, value)
-    if not (agent.ct_id or "").strip():
-        ensure_agent_ct_id(agent)
+    if not (agent.cs_id or "").strip():
+        ensure_agent_cs_id(agent)
     db.commit()
     db.refresh(agent)
     return agent

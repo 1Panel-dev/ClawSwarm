@@ -34,7 +34,7 @@ class AgentRead(TimestampedModel):
     id: int
     instance_id: int
     agent_key: str
-    ct_id: str
+    cs_id: str
     display_name: str
     role_name: str | None
     enabled: bool

@@ -92,7 +92,7 @@
             >
               <el-table-column prop="display_name" :label="t('openclaw.displayName')" min-width="300" show-overflow-tooltip/>
               <el-table-column prop="agent_key" :label="t('openclaw.agentKey')" min-width="300" show-overflow-tooltip/>
-              <el-table-column prop="ct_id" label="CT ID" min-width="200" show-overflow-tooltip/>
+              <el-table-column prop="cs_id" label="CS ID" min-width="200" show-overflow-tooltip/>
               <el-table-column :label="t('openclaw.roleName')" min-width="240" show-overflow-tooltip>
                 <template #default="{ row }">
                   {{ row.role_name || "—" }}

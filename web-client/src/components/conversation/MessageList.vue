@@ -116,7 +116,7 @@ import { formatServerDateTime } from "@/utils/datetime";
 
 type SenderMeta = {
     roleName?: string | null;
-    ctId?: string | null;
+    csId?: string | null;
     instanceName?: string | null;
 };
 
@@ -228,8 +228,8 @@ watch(
     },
 );
 
-function normalizedSenderCtId(message: MessageView) {
-    return message.senderCtId?.trim() || "";
+function normalizedSenderCsId(message: MessageView) {
+    return message.senderCsId?.trim() || "";
 }
 
 function normalizedSenderLabel(message: MessageView) {
@@ -237,13 +237,13 @@ function normalizedSenderLabel(message: MessageView) {
 }
 
 function speakerKeyFor(message: MessageView) {
-    return normalizedSenderCtId(message) || normalizedSenderLabel(message) || message.id;
+    return normalizedSenderCsId(message) || normalizedSenderLabel(message) || message.id;
 }
 
 function senderMetaFor(message: MessageView) {
-    const ctId = normalizedSenderCtId(message);
-    if (ctId && resolvedSenderMetaMap.value[ctId]) {
-        return resolvedSenderMetaMap.value[ctId];
+    const csId = normalizedSenderCsId(message);
+    if (csId && resolvedSenderMetaMap.value[csId]) {
+        return resolvedSenderMetaMap.value[csId];
     }
     const label = normalizedSenderLabel(message);
     if (label && resolvedSenderMetaMap.value[label]) {

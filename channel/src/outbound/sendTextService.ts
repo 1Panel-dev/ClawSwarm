@@ -2,7 +2,7 @@ import type { Logger } from "../observability/logger.js";
 import { CHANNEL_ID, type AccountConfig } from "../config.js";
 import { AGENT_DIALOGUE_START_KIND, parseAgentDialogueStartPayload } from "./sendTextContract.js";
 import { postClawSwarmSendText } from "./sendTextHttp.js";
-import { normalizeTargetCtId } from "./sendTextTarget.js";
+import { normalizeTargetCsId } from "./sendTextTarget.js";
 
 type SendTextContext = {
     cfg: unknown;
@@ -27,9 +27,9 @@ export async function sendClawSwarmText(params: {
     account: AccountConfig;
     logger: Logger;
 }): Promise<SendTextResult> {
-    let targetCtId = "";
+    let targetCsId = "";
     try {
-        targetCtId = normalizeTargetCtId(params.ctx.to);
+        targetCsId = normalizeTargetCsId(params.ctx.to);
     } catch {
         params.logger.warn(
             {
@@ -37,7 +37,7 @@ export async function sendClawSwarmText(params: {
             },
             "ClawSwarm sendText received an invalid CT target",
         );
-        throw new Error("clawswarm_invalid_target_ct_id");
+        throw new Error("clawswarm_invalid_target_cs_id");
     }
 
     const payload = parseAgentDialogueStartPayload(params.ctx.text);
@@ -47,8 +47,8 @@ export async function sendClawSwarmText(params: {
             account: params.account,
             payload: {
                 kind: payload.kind,
-                sourceCtId: payload.sourceCtId,
-                targetCtId,
+                sourceCsId: payload.sourceCsId,
+                targetCsId,
                 topic: payload.topic,
                 message: payload.message,
                 ...(payload.windowSeconds !== undefined ? { windowSeconds: payload.windowSeconds } : {}),
@@ -64,7 +64,7 @@ export async function sendClawSwarmText(params: {
                 kind: AGENT_DIALOGUE_START_KIND,
                 dialogueId: response.dialogueId,
                 conversationId: response.conversationId,
-                targetCtId,
+                targetCsId,
             },
         };
     } catch (error) {
@@ -74,8 +74,8 @@ export async function sendClawSwarmText(params: {
                 : undefined;
         params.logger.warn(
             {
-                targetCtId,
-                sourceCtId: payload.sourceCtId,
+                targetCsId,
+                sourceCsId: payload.sourceCsId,
                 body: detail,
                 error: error instanceof Error ? error.message : String(error),
             },

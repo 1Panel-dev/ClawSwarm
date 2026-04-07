@@ -6,7 +6,7 @@ export const AGENT_DIALOGUE_START_KIND = "agent_dialogue.start" as const;
 
 export type AgentDialogueStartPayload = {
     kind: typeof AGENT_DIALOGUE_START_KIND;
-    sourceCtId: string;
+    sourceCsId: string;
     topic: string;
     message: string;
     windowSeconds?: number;
@@ -35,15 +35,15 @@ export function parseAgentDialogueStartPayload(text: string): AgentDialogueStart
         throw new Error("clawswarm_send_text_unsupported_kind");
     }
 
-    const sourceCtId = String(record.sourceCtId ?? "").trim().toUpperCase();
+    const sourceCsId = String(record.sourceCsId ?? "").trim().toUpperCase();
     const topic = String(record.topic ?? "").trim();
     const message = String(record.message ?? "").trim();
     const windowSeconds = typeof record.windowSeconds === "number" ? record.windowSeconds : undefined;
     const softMessageLimit = typeof record.softMessageLimit === "number" ? record.softMessageLimit : undefined;
     const hardMessageLimit = typeof record.hardMessageLimit === "number" ? record.hardMessageLimit : undefined;
 
-    if (!/^CTA-\d{4,}$/.test(sourceCtId)) {
-        throw new Error("clawswarm_send_text_invalid_source_ct_id");
+    if (!/^CSA-\d{4,}$/.test(sourceCsId)) {
+        throw new Error("clawswarm_send_text_invalid_source_cs_id");
     }
     if (!topic) {
         throw new Error("clawswarm_send_text_missing_topic");
@@ -54,7 +54,7 @@ export function parseAgentDialogueStartPayload(text: string): AgentDialogueStart
 
     return {
         kind: AGENT_DIALOGUE_START_KIND,
-        sourceCtId,
+        sourceCsId,
         topic,
         message,
         ...(windowSeconds !== undefined ? { windowSeconds } : {}),

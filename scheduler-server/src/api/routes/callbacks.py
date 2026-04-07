@@ -36,7 +36,7 @@ from src.models.agent_dialogue import AgentDialogue
 from src.services.conversation_events import conversation_event_hub
 from src.services.agent_dialogue_lookup import find_reusable_agent_dialogue
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply, dispatch_agent_dialogue_turn
-from src.services.agent_ct_id import ensure_agent_ct_id
+from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.default_user import get_default_user_identity
 
 router = APIRouter(prefix="/api/v1/clawswarm", tags=["callbacks"])
@@ -68,8 +68,8 @@ class WebchatMirrorCreate(BaseModel):
 
 class SendTextCreate(BaseModel):
     kind: str = Field(min_length=1)
-    sourceCtId: str = Field(min_length=1)
-    targetCtId: str = Field(min_length=1)
+    sourceCsId: str = Field(min_length=1)
+    targetCsId: str = Field(min_length=1)
     topic: str = Field(min_length=1)
     message: str = Field(min_length=1)
     windowSeconds: int = Field(default=300, ge=60, le=3600)
@@ -162,7 +162,7 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
                             conversation_id=dispatch.conversation_id,
                             sender_type="agent",
                             sender_label=agent.display_name,
-                            sender_ct_id=agent.ct_id,
+                            sender_cs_id=agent.cs_id,
                             content=text,
                             status="completed",
                         )
@@ -184,7 +184,7 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
                             conversation_id=dispatch.conversation_id,
                             sender_type="agent",
                             sender_label=agent.display_name,
-                            sender_ct_id=agent.ct_id,
+                            sender_cs_id=agent.cs_id,
                             content=chunk_text,
                             status="streaming",
                         )
@@ -286,7 +286,7 @@ async def mirror_webchat_message(
 
     sender_type = _normalize_mirror_sender_type(payload.senderType)
     sender_label = agent.display_name if sender_type == "agent" else DEFAULT_USER.sender_label
-    sender_ct_id = agent.ct_id if sender_type == "agent" else DEFAULT_USER.ct_id
+    sender_cs_id = agent.cs_id if sender_type == "agent" else DEFAULT_USER.cs_id
 
     mirrored_message_id = _build_webchat_mirror_message_id(
         instance_id=instance.id,
@@ -303,7 +303,7 @@ async def mirror_webchat_message(
                 conversation_id=conversation.id,
                 sender_type=sender_type,
                 sender_label=sender_label,
-                sender_ct_id=sender_ct_id,
+                sender_cs_id=sender_cs_id,
                 content=payload.content.strip(),
                 status="completed",
                 created_at=_resolve_webchat_mirror_created_at(payload.timestamp),
@@ -340,8 +340,8 @@ async def receive_send_text(
     - 用结构化 JSON 发起一条 Agent 对话
 
     设计约束：
-    1. sourceCtId 必须属于当前 token 对应的 OpenClaw 实例，避免伪造发送者。
-    2. targetCtId 可以指向任意实例下的 Agent，支持跨 OpenClaw。
+    1. sourceCsId 必须属于当前 token 对应的 OpenClaw 实例，避免伪造发送者。
+    2. targetCsId 可以指向任意实例下的 Agent，支持跨 OpenClaw。
     3. 这里创建的 opening message 代表“source agent 已经说出的第一句话”，
        所以第一轮会直接发给 target agent，而不是再回送给 source 自己。
     """
@@ -359,18 +359,18 @@ async def receive_send_text(
     if payload.softMessageLimit >= payload.hardMessageLimit:
         raise HTTPException(status_code=400, detail="softMessageLimit must be less than hardMessageLimit")
 
-    source_ct_id = payload.sourceCtId.strip().upper()
-    target_ct_id = payload.targetCtId.strip().upper()
+    source_cs_id = payload.sourceCsId.strip().upper()
+    target_cs_id = payload.targetCsId.strip().upper()
 
     source_agent = db.scalar(
         select(AgentProfile).where(
             AgentProfile.instance_id == instance.id,
-            AgentProfile.ct_id == source_ct_id,
+            AgentProfile.cs_id == source_cs_id,
         )
     )
     if not source_agent:
         raise HTTPException(status_code=404, detail="source agent not found for current instance")
-    if target_ct_id == DEFAULT_USER.ct_id:
+    if target_cs_id == DEFAULT_USER.cs_id:
         conversation = db.scalar(
             select(Conversation).where(
                 Conversation.type == "direct",
@@ -395,7 +395,7 @@ async def receive_send_text(
             conversation_id=conversation.id,
             sender_type="agent",
             sender_label=source_agent.display_name,
-            sender_ct_id=source_agent.ct_id,
+            sender_cs_id=source_agent.cs_id,
             content=payload.message.strip(),
             status="completed",
         )
@@ -406,7 +406,7 @@ async def receive_send_text(
             {
                 "source": "send_text",
                 "messageId": opening_message.id,
-                "targetCtId": target_ct_id,
+                "targetCsId": target_cs_id,
             },
         )
         return {
@@ -415,14 +415,14 @@ async def receive_send_text(
             "openingMessageId": opening_message.id,
         }
 
-    target_agent = db.scalar(select(AgentProfile).where(AgentProfile.ct_id == target_ct_id))
+    target_agent = db.scalar(select(AgentProfile).where(AgentProfile.cs_id == target_cs_id))
     if not target_agent:
         raise HTTPException(status_code=404, detail="target agent not found")
     if source_agent.id == target_agent.id:
         raise HTTPException(status_code=400, detail="source and target agent must be different")
 
-    ensure_agent_ct_id(source_agent)
-    ensure_agent_ct_id(target_agent)
+    ensure_agent_cs_id(source_agent)
+    ensure_agent_cs_id(target_agent)
 
     dialogue = find_reusable_agent_dialogue(
         db=db,
@@ -477,7 +477,7 @@ async def receive_send_text(
         conversation_id=conversation.id,
         sender_type="agent",
         sender_label=source_agent.display_name,
-        sender_ct_id=source_agent.ct_id,
+        sender_cs_id=source_agent.cs_id,
         content=payload.message.strip(),
         status="completed",
     )

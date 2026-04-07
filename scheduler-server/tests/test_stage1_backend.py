@@ -699,7 +699,7 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(stop_response.status_code, 200)
         self.assertEqual(stop_response.json()["status"], "stopped")
 
-    def test_send_text_can_start_agent_dialogue_by_ct_ids(self) -> None:
+    def test_send_text_can_start_agent_dialogue_by_cs_ids(self) -> None:
         with self.SessionLocal() as db:
             instance_a = OpenClawInstance(
                 name="OpenClaw A",
@@ -723,7 +723,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance_a.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -731,7 +731,7 @@ class Stage1BackendTests(unittest.TestCase):
             target_agent = AgentProfile(
                 instance_id=instance_b.id,
                 agent_key="testbot2",
-                ct_id="CTA-0010",
+                cs_id="CSA-0010",
                 display_name="TestBot2",
                 role_name="执行工程师",
                 enabled=True,
@@ -745,8 +745,8 @@ class Stage1BackendTests(unittest.TestCase):
                 headers={"authorization": "Bearer callback-token-a"},
                 json={
                     "kind": "agent_dialogue.start",
-                    "sourceCtId": "CTA-0001",
-                    "targetCtId": "CTA-0010",
+                    "sourceCsId": "CSA-0001",
+                    "targetCsId": "CSA-0010",
                     "topic": "讨论登录接口",
                     "message": "我需要你确认登录接口字段和返回结构。",
                     "windowSeconds": 300,
@@ -797,7 +797,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance_a.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -805,7 +805,7 @@ class Stage1BackendTests(unittest.TestCase):
             target_agent = AgentProfile(
                 instance_id=instance_b.id,
                 agent_key="testbot2",
-                ct_id="CTA-0009",
+                cs_id="CSA-0009",
                 display_name="TestBot2",
                 role_name="执行工程师",
                 enabled=True,
@@ -815,8 +815,8 @@ class Stage1BackendTests(unittest.TestCase):
 
         request_payload = {
             "kind": "agent_dialogue.start",
-            "sourceCtId": "CTA-0001",
-            "targetCtId": "CTA-0009",
+            "sourceCsId": "CSA-0001",
+            "targetCsId": "CSA-0009",
             "topic": "重复发送测试",
             "message": "同样内容重复发送两次。",
             "windowSeconds": 300,
@@ -870,7 +870,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -885,8 +885,8 @@ class Stage1BackendTests(unittest.TestCase):
             headers={"authorization": "Bearer callback-token-a"},
             json={
                 "kind": "agent_dialogue.start",
-                "sourceCtId": "CTA-0001",
-                "targetCtId": "CTU-0001",
+                "sourceCsId": "CSA-0001",
+                "targetCsId": "CSU-0001",
                 "topic": "请求确认",
                 "message": "请查看当前交付物并确认。",
                 "windowSeconds": 300,
@@ -936,7 +936,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="main",
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
                 display_name="main",
                 role_name="项目经理",
                 enabled=True,
@@ -955,8 +955,8 @@ class Stage1BackendTests(unittest.TestCase):
 
         request_payload = {
             "kind": "agent_dialogue.start",
-            "sourceCtId": "CTA-0001",
-            "targetCtId": "CTU-0001",
+            "sourceCsId": "CSA-0001",
+            "targetCsId": "CSU-0001",
             "topic": "请求确认",
             "message": "请查看当前交付物并确认。",
             "windowSeconds": 300,
@@ -1399,7 +1399,7 @@ class Stage1BackendTests(unittest.TestCase):
             source_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="liaotian",
-                ct_id="CTA-0006",
+                cs_id="CSA-0006",
                 display_name="liaotian",
                 role_name="聊天专家",
                 enabled=True,
@@ -1407,7 +1407,7 @@ class Stage1BackendTests(unittest.TestCase):
             target_agent = AgentProfile(
                 instance_id=instance.id,
                 agent_key="testbot",
-                ct_id="CTA-0009",
+                cs_id="CSA-0009",
                 display_name="TestBot",
                 role_name="测试专家",
                 enabled=True,
@@ -1456,9 +1456,9 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertEqual(payload["directAgentId"], "testbot")
             self.assertIn("[ClawSwarm Agent Dialogue]", payload["text"])
             self.assertIn("Dialogue ID: AD-", payload["text"])
-            self.assertIn("Your identity: TestBot (CTA-0009)", payload["text"])
-            self.assertIn("Current partner: liaotian (CTA-0006)", payload["text"])
-            self.assertIn("Human guidance from User (CTU-0001):", payload["text"])
+            self.assertIn("Your identity: TestBot (CSA-0009)", payload["text"])
+            self.assertIn("Current partner: liaotian (CSA-0006)", payload["text"])
+            self.assertIn("Human guidance from User (CSU-0001):", payload["text"])
             self.assertIn("继续接龙", payload["text"])
 
     def test_resume_agent_dialogue_dispatches_latest_pending_agent_message(self) -> None:
@@ -2147,7 +2147,7 @@ class Stage1BackendTests(unittest.TestCase):
         messages_payload = messages_response.json()
         mirrored = messages_payload["messages"][0]
         self.assertEqual(mirrored["sender_type"], "user")
-        self.assertEqual(mirrored["sender_label"], "User (CTU-0001)")
+        self.assertEqual(mirrored["sender_label"], "User (CSU-0001)")
         self.assertEqual(mirrored["source"], "webchat")
         self.assertEqual(mirrored["content"], "大兴天气")
 
@@ -2387,7 +2387,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="项目经理",
                 role_name="项目经理",
                 enabled=True,
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
             )
             engineer = AgentProfile(
                 instance_id=instance.id,
@@ -2395,7 +2395,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="执行工程师",
                 role_name="执行工程师",
                 enabled=True,
-                ct_id="CTA-0002",
+                cs_id="CSA-0002",
             )
             db.add_all([pm, engineer])
             db.flush()
@@ -2437,12 +2437,12 @@ class Stage1BackendTests(unittest.TestCase):
 
         self.assertIn("[ClawSwarm Group Context]", first_payload["text"])
         self.assertIn("Group: 小项目群", first_payload["text"])
-        self.assertIn("Your identity: 项目经理 (项目经理, CTA-0001)", first_payload["text"])
-        self.assertIn("执行工程师 (执行工程师, CTA-0002)", first_payload["text"])
-        self.assertIn("Current speaker: User (CTU-0001)", first_payload["text"])
+        self.assertIn("Your identity: 项目经理 (项目经理, CSA-0001)", first_payload["text"])
+        self.assertIn("执行工程师 (执行工程师, CSA-0002)", first_payload["text"])
+        self.assertIn("Current speaker: User (CSU-0001)", first_payload["text"])
 
-        self.assertIn("Your identity: 执行工程师 (执行工程师, CTA-0002)", second_payload["text"])
-        self.assertIn("项目经理 (项目经理, CTA-0001)", second_payload["text"])
+        self.assertIn("Your identity: 执行工程师 (执行工程师, CSA-0002)", second_payload["text"])
+        self.assertIn("项目经理 (项目经理, CSA-0001)", second_payload["text"])
         self.assertIn("Instruction:", second_payload["text"])
 
     def test_delete_group_removes_group_conversation_history(self) -> None:
@@ -2464,7 +2464,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="项目经理",
                 role_name="项目经理",
                 enabled=True,
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
             )
             db.add(agent)
             db.flush()
@@ -2542,7 +2542,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="执行工程师",
                 role_name="执行工程师",
                 enabled=True,
-                ct_id="CTA-0009",
+                cs_id="CSA-0009",
             )
             kept_agent = AgentProfile(
                 instance_id=instance.id,
@@ -2550,7 +2550,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="项目经理",
                 role_name="项目经理",
                 enabled=True,
-                ct_id="CTA-0010",
+                cs_id="CSA-0010",
             )
             db.add_all([removed_agent, kept_agent])
             db.flush()
@@ -2700,7 +2700,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="TestBot2",
                 role_name="测试 Bot",
                 enabled=True,
-                ct_id="CTA-0010",
+                cs_id="CSA-0010",
             )
             kept_agent = AgentProfile(
                 instance_id=instance.id,
@@ -2708,7 +2708,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="main",
                 role_name="助手",
                 enabled=True,
-                ct_id="CTA-0001",
+                cs_id="CSA-0001",
             )
             db.add_all([removed_agent, kept_agent])
             db.flush()
@@ -2853,7 +2853,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="Delete Me",
                 role_name="assistant",
                 enabled=True,
-                ct_id="CTA-DEL-001",
+                cs_id="CSA-DEL-001",
             )
             peer_agent = AgentProfile(
                 instance_id=peer_instance.id,
@@ -2861,7 +2861,7 @@ class Stage1BackendTests(unittest.TestCase):
                 display_name="Peer Agent",
                 role_name="assistant",
                 enabled=True,
-                ct_id="CTA-PEER-001",
+                cs_id="CSA-PEER-001",
             )
             db.add_all([deleted_agent, peer_agent])
             db.flush()

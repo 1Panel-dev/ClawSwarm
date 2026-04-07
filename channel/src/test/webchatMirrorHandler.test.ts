@@ -85,7 +85,7 @@ describe("findAssistantReplyForTranscriptUser", () => {
                 id: "user-1",
                 message: {
                     role: "user",
-                    content: [{ type: "text", text: "请你和 CTA-0010 对话三轮" }],
+                    content: [{ type: "text", text: "请你和 CSA-0010 对话三轮" }],
                 },
             }),
             JSON.stringify({

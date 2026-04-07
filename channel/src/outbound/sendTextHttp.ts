@@ -4,8 +4,8 @@ import type { AccountConfig } from "../config.js";
 
 type SendTextHttpPayload = {
     kind: string;
-    sourceCtId: string;
-    targetCtId: string;
+    sourceCsId: string;
+    targetCsId: string;
     topic: string;
     message: string;
     windowSeconds?: number;

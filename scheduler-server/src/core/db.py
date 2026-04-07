@@ -91,17 +91,17 @@ def ensure_runtime_schema() -> None:
 
     if "messages" in table_names:
         message_columns = {column["name"] for column in inspector.get_columns("messages")}
-        if "sender_ct_id" not in message_columns:
-            statements.append("ALTER TABLE messages ADD COLUMN sender_ct_id VARCHAR(32)")
-            statements.append("CREATE INDEX IF NOT EXISTS ix_messages_sender_ct_id ON messages (sender_ct_id)")
+        if "sender_cs_id" not in message_columns:
+            statements.append("ALTER TABLE messages ADD COLUMN sender_cs_id VARCHAR(32)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_messages_sender_cs_id ON messages (sender_cs_id)")
 
     if "agent_profiles" in table_names:
         agent_columns = {column["name"] for column in inspector.get_columns("agent_profiles")}
         if "created_via_clawswarm" not in agent_columns:
             statements.append("ALTER TABLE agent_profiles ADD COLUMN created_via_clawswarm BOOLEAN DEFAULT 0")
-        if "ct_id" not in agent_columns:
-            statements.append("ALTER TABLE agent_profiles ADD COLUMN ct_id VARCHAR(32)")
-            statements.append("CREATE INDEX IF NOT EXISTS ix_agent_profiles_ct_id ON agent_profiles (ct_id)")
+        if "cs_id" not in agent_columns:
+            statements.append("ALTER TABLE agent_profiles ADD COLUMN cs_id VARCHAR(32)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_agent_profiles_cs_id ON agent_profiles (cs_id)")
         if "removed_from_openclaw" not in agent_columns:
             statements.append("ALTER TABLE agent_profiles ADD COLUMN removed_from_openclaw BOOLEAN DEFAULT 0")
 

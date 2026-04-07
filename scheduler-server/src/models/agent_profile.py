@@ -21,12 +21,12 @@ class AgentProfile(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     instance_id: Mapped[int] = mapped_column(ForeignKey("openclaw_instances.id"), index=True)
     agent_key: Mapped[str] = mapped_column(String(120))
-    # ct_id 是 ClawSwarm 内部给 Agent 的稳定寻址标识。
+    # cs_id 是 ClawSwarm 内部给 Agent 的稳定寻址标识。
     # 后续 Agent ↔ Agent 对话、跨实例引用都优先依赖它，而不是 display_name。
-    ct_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    cs_id: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     display_name: Mapped[str] = mapped_column(String(120))
     role_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    # 远端 OpenClaw 已不再返回这个 Agent 时，只做软移除，保留历史会话和 CT ID。
+    # 远端 OpenClaw 已不再返回这个 Agent 时，只做软移除，保留历史会话和 CS ID。
     removed_from_openclaw: Mapped[bool] = mapped_column(Boolean, default=False)
     created_via_clawswarm: Mapped[bool] = mapped_column(Boolean, default=False)

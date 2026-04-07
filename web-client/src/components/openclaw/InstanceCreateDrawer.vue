@@ -227,7 +227,7 @@ function buildOpenClawConfig(maskSecrets: boolean) {
                 ],
             },
             entries: {
-                "ct-chat": {
+                "cs-chat": {
                     enabled: true,
                 },
             },

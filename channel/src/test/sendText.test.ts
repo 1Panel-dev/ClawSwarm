@@ -2,7 +2,7 @@
  * 这是 clawswarm sendText 出站链路的最小行为测试。
  *
  * 重点验证：
- * 1. CT ID 归一化。
+ * 1. CS ID 归一化。
  * 2. messaging/outbound 目标解析需要的公共行为。
  * 3. sendText 是否会把 JSON 语义正确转成调度中心请求。
  */
@@ -16,8 +16,8 @@ import { request } from "undici";
 
 import {
     AGENT_DIALOGUE_START_KIND,
-    looksLikeClawSwarmCtId,
-    normalizeTargetCtId,
+    looksLikeClawSwarmCsId,
+    normalizeTargetCsId,
     parseAgentDialogueStartPayload,
     resolveClawSwarmMessagingTarget,
     resolveClawSwarmTarget,
@@ -27,25 +27,25 @@ import {
 const requestMock = vi.mocked(request);
 
 describe("clawswarm sendText", () => {
-    it("normalizes bare and prefixed CT IDs", () => {
-        expect(normalizeTargetCtId("CTA-0009")).toBe("CTA-0009");
-        expect(normalizeTargetCtId("CTU-0001")).toBe("CTU-0001");
-        expect(normalizeTargetCtId("ctid:cta-0009")).toBe("CTA-0009");
-        expect(normalizeTargetCtId("ctid:ctu-0001")).toBe("CTU-0001");
-        expect(normalizeTargetCtId("@CTA-0010")).toBe("CTA-0010");
-        expect(normalizeTargetCtId("@CTU-0001")).toBe("CTU-0001");
-        expect(normalizeTargetCtId("\"CTA-0010\"")).toBe("CTA-0010");
-        expect(normalizeTargetCtId("CTA－0010")).toBe("CTA-0010");
+    it("normalizes bare and prefixed CS IDs", () => {
+        expect(normalizeTargetCsId("CSA-0009")).toBe("CSA-0009");
+        expect(normalizeTargetCsId("CSU-0001")).toBe("CSU-0001");
+        expect(normalizeTargetCsId("csid:csa-0009")).toBe("CSA-0009");
+        expect(normalizeTargetCsId("csid:csu-0001")).toBe("CSU-0001");
+        expect(normalizeTargetCsId("@CSA-0010")).toBe("CSA-0010");
+        expect(normalizeTargetCsId("@CSU-0001")).toBe("CSU-0001");
+        expect(normalizeTargetCsId("\"CSA-0010\"")).toBe("CSA-0010");
+        expect(normalizeTargetCsId("CSA－0010")).toBe("CSA-0010");
     });
 
-    it("resolves CT IDs for outbound target validation", () => {
-        expect(resolveClawSwarmTarget("ctid:cta-0009")).toEqual({
+    it("resolves CS IDs for outbound target validation", () => {
+        expect(resolveClawSwarmTarget("csid:csa-0009")).toEqual({
             ok: true,
-            to: "CTA-0009",
+            to: "CSA-0009",
         });
-        expect(resolveClawSwarmTarget("ctid:ctu-0001")).toEqual({
+        expect(resolveClawSwarmTarget("csid:csu-0001")).toEqual({
             ok: true,
-            to: "CTU-0001",
+            to: "CSU-0001",
         });
         expect(resolveClawSwarmTarget("bad-target")).toMatchObject({
             ok: true,
@@ -53,22 +53,22 @@ describe("clawswarm sendText", () => {
         });
     });
 
-    it("resolves CT IDs for messaging target resolution", async () => {
-        expect(looksLikeClawSwarmCtId("CTA-0010")).toBe(true);
-        expect(looksLikeClawSwarmCtId("CTU-0001")).toBe(true);
-        expect(looksLikeClawSwarmCtId("@CTA-0010")).toBe(true);
-        expect(looksLikeClawSwarmCtId("bad-target")).toBe(false);
+    it("resolves CS IDs for messaging target resolution", async () => {
+        expect(looksLikeClawSwarmCsId("CSA-0010")).toBe(true);
+        expect(looksLikeClawSwarmCsId("CSU-0001")).toBe(true);
+        expect(looksLikeClawSwarmCsId("@CSA-0010")).toBe(true);
+        expect(looksLikeClawSwarmCsId("bad-target")).toBe(false);
 
-        await expect(resolveClawSwarmMessagingTarget({ input: "CTA-0010" })).resolves.toEqual({
-            to: "CTA-0010",
+        await expect(resolveClawSwarmMessagingTarget({ input: "CSA-0010" })).resolves.toEqual({
+            to: "CSA-0010",
             kind: "user",
-            display: "CTA-0010",
+            display: "CSA-0010",
             source: "normalized",
         });
-        await expect(resolveClawSwarmMessagingTarget({ input: "CTU-0001" })).resolves.toEqual({
-            to: "CTU-0001",
+        await expect(resolveClawSwarmMessagingTarget({ input: "CSU-0001" })).resolves.toEqual({
+            to: "CSU-0001",
             kind: "user",
-            display: "CTU-0001",
+            display: "CSU-0001",
             source: "normalized",
         });
         await expect(resolveClawSwarmMessagingTarget({ input: "bad-target" })).resolves.toBeNull();
@@ -78,7 +78,7 @@ describe("clawswarm sendText", () => {
         const payload = parseAgentDialogueStartPayload(
             JSON.stringify({
                 kind: AGENT_DIALOGUE_START_KIND,
-                sourceCtId: "cta-0001",
+                sourceCsId: "csa-0001",
                 topic: "讨论登录接口",
                 message: "请确认字段",
                 windowSeconds: 300,
@@ -88,7 +88,7 @@ describe("clawswarm sendText", () => {
         );
         expect(payload).toEqual({
             kind: AGENT_DIALOGUE_START_KIND,
-            sourceCtId: "CTA-0001",
+            sourceCsId: "CSA-0001",
             topic: "讨论登录接口",
             message: "请确认字段",
             windowSeconds: 300,
@@ -123,10 +123,10 @@ describe("clawswarm sendText", () => {
         const result = await sendClawSwarmText({
             ctx: {
                 cfg: {},
-                to: "CTA-0009",
+                to: "CSA-0009",
                 text: JSON.stringify({
                     kind: AGENT_DIALOGUE_START_KIND,
-                    sourceCtId: "CTA-0001",
+                    sourceCsId: "CSA-0001",
                     topic: "讨论登录接口",
                     message: "请确认字段",
                 }),
@@ -172,8 +172,8 @@ describe("clawswarm sendText", () => {
         });
         expect(JSON.parse(String(options?.body))).toEqual({
             kind: "agent_dialogue.start",
-            sourceCtId: "CTA-0001",
-            targetCtId: "CTA-0009",
+            sourceCsId: "CSA-0001",
+            targetCsId: "CSA-0009",
             topic: "讨论登录接口",
             message: "请确认字段",
         });

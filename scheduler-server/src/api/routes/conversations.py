@@ -256,7 +256,7 @@ def list_conversation_messages(
         if include_dispatches
         else []
     )
-    sender_ct_id_map = _build_sender_ct_id_map(db=db, conversation=conversation, dialogue=dialogue)
+    sender_cs_id_map = _build_sender_cs_id_map(db=db, conversation=conversation, dialogue=dialogue)
     return ConversationMessagesResponse(
         conversation=ConversationRead(
             id=conversation.id,
@@ -272,7 +272,7 @@ def list_conversation_messages(
         messages=[
             build_message_read(
                 item,
-                sender_ct_id=item.sender_ct_id or sender_ct_id_map.get((item.sender_label or "").strip()),
+                sender_cs_id=item.sender_cs_id or sender_cs_id_map.get((item.sender_label or "").strip()),
             )
             for item in messages
         ],
@@ -284,7 +284,7 @@ def list_conversation_messages(
     )
 
 
-def _build_sender_ct_id_map(
+def _build_sender_cs_id_map(
     *,
     db: Session,
     conversation: Conversation,
@@ -295,10 +295,10 @@ def _build_sender_ct_id_map(
     if conversation.type == "agent_dialogue" and dialogue:
         source_agent = db.get(AgentProfile, dialogue.source_agent_id)
         target_agent = db.get(AgentProfile, dialogue.target_agent_id)
-        if source_agent and source_agent.ct_id and source_agent.display_name.strip():
-            mapping[source_agent.display_name.strip()] = source_agent.ct_id
-        if target_agent and target_agent.ct_id and target_agent.display_name.strip():
-            mapping[target_agent.display_name.strip()] = target_agent.ct_id
+        if source_agent and source_agent.cs_id and source_agent.display_name.strip():
+            mapping[source_agent.display_name.strip()] = source_agent.cs_id
+        if target_agent and target_agent.cs_id and target_agent.display_name.strip():
+            mapping[target_agent.display_name.strip()] = target_agent.cs_id
         return mapping
 
     if conversation.type == "group" and conversation.group_id:
@@ -307,17 +307,17 @@ def _build_sender_ct_id_map(
         )
         for member in members:
             agent = db.get(AgentProfile, member.agent_id)
-            if not agent or not agent.ct_id:
+            if not agent or not agent.cs_id:
                 continue
             label = (agent.display_name or "").strip()
             if label and label not in mapping:
-                mapping[label] = agent.ct_id
+                mapping[label] = agent.cs_id
         return mapping
 
     if conversation.type == "direct" and conversation.direct_agent_id:
         agent = db.get(AgentProfile, conversation.direct_agent_id)
-        if agent and agent.ct_id and agent.display_name.strip():
-            mapping[agent.display_name.strip()] = agent.ct_id
+        if agent and agent.cs_id and agent.display_name.strip():
+            mapping[agent.display_name.strip()] = agent.cs_id
 
     return mapping
 
@@ -417,7 +417,7 @@ async def send_message(
         conversation_id=conversation_id,
         sender_type="user",
         sender_label=DEFAULT_USER.sender_label,
-        sender_ct_id=DEFAULT_USER.ct_id,
+        sender_cs_id=DEFAULT_USER.cs_id,
         content=payload.content,
         status="pending",
     )
@@ -598,13 +598,13 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
         group_member_lines = []
         for member_agent in instance_agents:
             role_label = member_agent.role_name or "未设置角色"
-            ct_label = member_agent.ct_id or "NO-CT-ID"
+            ct_label = member_agent.cs_id or "NO-CS-ID"
             group_member_lines.append(f"- {member_agent.display_name} ({role_label}, {ct_label})")
         group_members_text = "\n".join(group_member_lines)
 
         for agent in instance_agents:
             role_label = agent.role_name or "未设置角色"
-            ct_label = agent.ct_id or "NO-CT-ID"
+            ct_label = agent.cs_id or "NO-CS-ID"
             mention_line = "Mentioned targets: you" if mentions else "Mentioned targets: none"
             contextual_text = "\n".join(
                 [
@@ -613,7 +613,7 @@ async def _dispatch_group(*, db: Session, conversation: Conversation, message: M
                     f"Your identity: {agent.display_name} ({role_label}, {ct_label})",
                     "Group members:",
                     group_members_text,
-                    f"Current speaker: {DEFAULT_USER.label_with_ct_id}",
+                    f"Current speaker: {DEFAULT_USER.label_with_cs_id}",
                     mention_line,
                     "Instruction:",
                     "- If the current discussion is not in your responsibility scope, stay silent.",

@@ -119,4 +119,4 @@ openclaw skills list
 You should see:
 
 - `clawswarm` status is `loaded`
-- `ct-chat` skill status is `ready`
+- `CS Chat` skill (`cs-chat`) status is `ready`
