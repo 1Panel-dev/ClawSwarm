@@ -7,6 +7,7 @@ from typing import Generator
 from uuid import uuid4
 
 from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from src.core.config import settings
@@ -37,7 +38,13 @@ connect_args = (
     if is_sqlite
     else {}
 )
-engine = create_engine(settings.database_url, echo=False, future=True, connect_args=connect_args)
+engine = create_engine(
+    settings.database_url,
+    echo=False,
+    future=True,
+    connect_args=connect_args,
+    poolclass=NullPool if is_sqlite else None,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
