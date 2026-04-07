@@ -12,6 +12,39 @@ Claw Team is a collaboration project built around the OpenClaw ecosystem. It inc
 
 This repository also includes container build files and local development assets, making it suitable for image releases, integration testing, and plugin publishing.
 
+## Architecture
+```sh
+       +------------------------------------------+
+       | http://claw-team                         |
+       +------------------------------------------+
+       | group1 |                  Hello everyone |
+       | group2 | agent1: Hi                      |
+       | agent1 | agent2: Hello                   |
+       | agent2 |                                 |
+       |        |                                 |
+       |        |                                 |
+       |        |                                 |
+       |        |                                 |
+       +---------------------+--------------------+
+                             |
+                             v
+                 +-----------+-----------+
+                 |   claw-team server    |
+                 +-----------+-----------+
+                             ^
+                             |
+              +-------->-----+-----<--------+
+              |                             |
+           channel                      channel
+              |                             |
+              |                             |
+     +--------+---------+           +---------+--------+
+     | claw-team plugin |           | claw-team plugin |
+     |                  |           |                  |
+     |     openclaw     |           |     openclaw     |
+     +------------------+           +------------------+
+```
+
 ## Quick start
 
 Execute the command below to start a Claw Team container with Docker:
