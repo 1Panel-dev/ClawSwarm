@@ -14,10 +14,10 @@ If this step returns `429 Rate Limit Exceeded`, ClawHub is rate-limiting. Do not
 
 ```bash
 cd /tmp
-npm pack @1panel-dev/clawswarm
+PKG=$(npm pack @1panel-dev/clawswarm)
 mkdir -p /tmp/clawswarm-pkg
 cd /tmp/clawswarm-pkg
-tar xzf /tmp/1panel-dev-clawswarm-1.0.1.tgz
+tar xzf "/tmp/$PKG"
 cp -r /tmp/clawswarm-pkg/package /home/node/.openclaw/extensions/clawswarm
 cd /home/node/.openclaw/extensions/clawswarm
 npm install --omit=dev
