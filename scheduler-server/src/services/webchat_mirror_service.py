@@ -1,3 +1,5 @@
+"""把 OpenClaw Web UI 消息镜像进会话的 service。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -19,9 +21,6 @@ WEBCHAT_CHANNEL_ID = "webchat"
 AGENT_SESSION_PREFIX = "agent:"
 WEBCHAT_MIRROR_EVENT_SOURCE = "webchat_mirror"
 DEFAULT_USER = get_default_user_identity()
-
-"""把 OpenClaw Web UI 消息镜像进会话的 service。"""
-
 
 async def mirror_webchat_message(
     *,

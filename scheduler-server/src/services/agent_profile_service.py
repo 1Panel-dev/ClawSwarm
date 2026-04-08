@@ -1,3 +1,5 @@
+"""本地 agent 记录与远端 profile 同步相关的 service。"""
+
 from __future__ import annotations
 
 import httpx
@@ -14,11 +16,8 @@ from src.services.agent_cleanup import delete_agent_private_conversations
 from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.openclaw_probe_service import fetch_channel_agents as fetch_channel_agents_from_openclaw
 
-"""本地 agent 记录与远端 profile 同步相关的 service。"""
-
-
 def can_edit_agent_profile(agent: AgentProfile) -> bool:
-    """Treat imported `main` agents as read-only unless ClawSwarm created them."""
+    """默认把导入的 `main` agent 视为只读，除非它是 ClawSwarm 自己创建的。"""
     if agent.created_via_clawswarm:
         return True
     return agent.agent_key.strip().lower() != "main"
@@ -34,7 +33,7 @@ def upsert_instance_agent(
     enabled: bool = True,
     created_via_clawswarm: bool | None = None,
 ) -> AgentProfile:
-    """Create or refresh one local agent record for a given instance."""
+    """为指定实例创建或刷新一条本地 agent 记录。"""
     agent = db.scalar(
         select(AgentProfile).where(
             AgentProfile.instance_id == instance_id,
@@ -67,7 +66,7 @@ def upsert_instance_agent(
 
 
 def sync_instance_agents(db: Session, instance: OpenClawInstance, agents_payload: list[dict]) -> None:
-    """Mirror a remote agent list into local records and retire missing agents."""
+    """把远端 agent 列表镜像到本地，并标记远端已消失的 agent。"""
     imported_keys: set[str] = set()
     for agent_data in agents_payload:
         agent_key = str(agent_data.get("id") or agent_data.get("openclawAgentRef") or "").strip()

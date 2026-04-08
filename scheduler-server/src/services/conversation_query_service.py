@@ -1,3 +1,5 @@
+"""会话列表、消息和发送者元数据的读侧辅助函数。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -27,11 +29,8 @@ from src.services.default_user import display_sender_label
 
 STALE_DISPATCH_TIMEOUT = timedelta(seconds=90)
 
-"""会话列表、消息和发送者元数据的读侧辅助函数。"""
-
-
 def list_conversation_items(db: Session) -> list[ConversationListItem]:
-    """Build sidebar-friendly conversation summaries."""
+    """构建适合会话侧边栏展示的会话摘要列表。"""
     conversations = list(db.scalars(select(Conversation).order_by(Conversation.updated_at.desc(), Conversation.id.desc())))
 
     items: list[tuple[ConversationListItem, tuple[int, int] | None]] = []

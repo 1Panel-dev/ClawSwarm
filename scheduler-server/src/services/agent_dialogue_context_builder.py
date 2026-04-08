@@ -1,3 +1,5 @@
+"""构建发送给下一位 dialogue agent 的文本包裹内容。"""
+
 from __future__ import annotations
 
 from sqlalchemy.orm import Session
@@ -12,9 +14,6 @@ from src.services.default_user import get_default_user_identity
 AGENT_DIALOGUE_CONTEXT_HEADER = "[ClawSwarm Agent Dialogue]"
 DEFAULT_USER = get_default_user_identity()
 
-"""构建发送给下一位 dialogue agent 的文本包裹内容。"""
-
-
 def build_agent_dialogue_context_text(
     *,
     db: Session,
@@ -23,7 +22,7 @@ def build_agent_dialogue_context_text(
     message: Message,
     sender_label: str,
 ) -> str:
-    """Wrap one dialogue message with enough context for the recipient agent."""
+    """把单条 dialogue 消息包成接收方 agent 可直接理解的上下文文本。"""
     source_agent = db.get(AgentProfile, dialogue.source_agent_id)
     target_agent = db.get(AgentProfile, dialogue.target_agent_id)
     if not source_agent or not target_agent:

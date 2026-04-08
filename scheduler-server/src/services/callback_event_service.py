@@ -1,3 +1,5 @@
+"""处理 ClawSwarm 回调事件的 service。"""
+
 from __future__ import annotations
 
 from typing import Any
@@ -14,9 +16,6 @@ from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 from src.services.conversation_events import conversation_event_hub
-
-"""处理 ClawSwarm 回调事件的 service。"""
-
 
 async def handle_callback_event(
     *,

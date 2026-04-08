@@ -1,3 +1,5 @@
+"""Agent dialogue 工作流的状态与守卫辅助函数。"""
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -14,11 +16,8 @@ from src.models.message_dispatch import MessageDispatch
 IN_FLIGHT_DISPATCH_STATUSES = ("pending", "accepted", "streaming")
 AGENT_DIALOGUE_WARNING_TEXT = "短时间内对话次数较多，请聚焦当前目标，避免无效往返。"
 
-"""Agent dialogue 工作流的状态与守卫辅助函数。"""
-
-
 def pick_next_agent_id(dialogue: AgentDialogue, current_speaker_agent_id: int) -> int | None:
-    """Return the opposite participant for the current speaker."""
+    """根据当前发言者，返回对侧参与者的 agent id。"""
     if current_speaker_agent_id == dialogue.source_agent_id:
         return dialogue.target_agent_id
     if current_speaker_agent_id == dialogue.target_agent_id:
@@ -27,14 +26,14 @@ def pick_next_agent_id(dialogue: AgentDialogue, current_speaker_agent_id: int) -
 
 
 def next_agent_id_for_dialogue(dialogue: AgentDialogue) -> int | None:
-    """Pick the next speaker when only dialogue state is known."""
+    """在只知道 dialogue 状态时，推导下一位应该发言的 agent。"""
     if dialogue.last_speaker_agent_id is None:
         return dialogue.source_agent_id
     return pick_next_agent_id(dialogue, dialogue.last_speaker_agent_id)
 
 
 def count_recent_dialogue_messages(*, db: Session, dialogue: AgentDialogue) -> int:
-    """Count recent human and agent messages inside the dialogue window."""
+    """统计当前 dialogue 时间窗内的人类和 agent 消息数量。"""
     window_start = datetime.utcnow() - timedelta(seconds=dialogue.window_seconds)
     stmt = (
         select(Message.id)
@@ -46,7 +45,7 @@ def count_recent_dialogue_messages(*, db: Session, dialogue: AgentDialogue) -> i
 
 
 def maybe_add_soft_limit_warning(*, db: Session, dialogue: AgentDialogue, conversation: Conversation) -> None:
-    """Append one warning message per window once the soft limit is crossed."""
+    """软阈值触发后，在一个时间窗内只追加一次提醒消息。"""
     window_start = datetime.utcnow() - timedelta(seconds=dialogue.window_seconds)
     if dialogue.soft_limit_warned_at and dialogue.soft_limit_warned_at >= window_start:
         return
@@ -66,7 +65,7 @@ def maybe_add_soft_limit_warning(*, db: Session, dialogue: AgentDialogue, conver
 
 
 def apply_dialogue_window_guards(*, db: Session, dialogue: AgentDialogue, conversation: Conversation) -> str:
-    """Enforce the soft and hard message limits before dispatching another turn."""
+    """在继续下一轮分发前，执行 dialogue 的软硬阈值守卫。"""
     recent_message_count = count_recent_dialogue_messages(db=db, dialogue=dialogue)
     if recent_message_count >= dialogue.hard_message_limit:
         dialogue.status = "stopped"

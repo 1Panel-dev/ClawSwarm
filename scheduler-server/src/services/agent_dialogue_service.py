@@ -1,3 +1,5 @@
+"""创建、序列化和控制 agent dialogue 的 service 辅助函数。"""
+
 from __future__ import annotations
 
 import uuid
@@ -23,11 +25,8 @@ from src.services.default_user import get_default_user_identity
 
 DEFAULT_USER = get_default_user_identity()
 
-"""创建、序列化和控制 agent dialogue 的 service 辅助函数。"""
-
-
 def serialize_agent_dialogue(db: Session, dialogue: AgentDialogue) -> AgentDialogueRead:
-    """Load related agent metadata and shape one dialogue response object."""
+    """加载关联 agent 元数据，并整理成一条 dialogue 返回对象。"""
     source_agent = db.get(AgentProfile, dialogue.source_agent_id)
     target_agent = db.get(AgentProfile, dialogue.target_agent_id)
     if not source_agent or not target_agent:

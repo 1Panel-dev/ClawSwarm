@@ -1,3 +1,5 @@
+"""登录鉴权、密码处理与会话 cookie 辅助函数。"""
+
 from __future__ import annotations
 
 import base64

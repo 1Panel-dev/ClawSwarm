@@ -1,3 +1,5 @@
+"""针对 OpenClaw 实例的底层 HTTP 探测函数。"""
+
 from __future__ import annotations
 
 import httpx
@@ -5,9 +7,6 @@ from fastapi import HTTPException
 
 HEALTH_CHECK_TIMEOUT = httpx.Timeout(5.0, connect=2.0)
 CHANNEL_FETCH_TIMEOUT = 60.0
-
-"""针对 OpenClaw 实例的底层 HTTP 探测函数。"""
-
 
 def fetch_channel_agents(base_url: str) -> list[dict]:
     """确认插件健康后，再拉取远端 agent 列表。"""

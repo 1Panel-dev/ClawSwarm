@@ -1,3 +1,5 @@
+"""实例记录、健康视图、凭据和同步流程相关的 service。"""
+
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -20,9 +22,6 @@ from src.services.agent_profile_service import sync_instance_agents
 
 HEALTH_CHECK_MAX_WORKERS = 8
 HEALTH_CHECK_BATCH_TIMEOUT_SECONDS = 10.0
-
-"""实例记录、健康视图、凭据和同步流程相关的 service。"""
-
 
 def serialize_instance(instance: OpenClawInstance) -> dict:
     """把单条实例记录整理成 API 返回结构。"""

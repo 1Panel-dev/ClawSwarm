@@ -1,3 +1,5 @@
+"""`/api/v1/clawswarm/send-text` 端点背后的 service 实现。"""
+
 from __future__ import annotations
 
 import uuid
@@ -19,9 +21,6 @@ from src.services.conversation_events import conversation_event_hub
 from src.services.default_user import get_default_user_identity
 
 DEFAULT_USER = get_default_user_identity()
-
-"""`/api/v1/clawswarm/send-text` 端点背后的 service 实现。"""
-
 
 async def handle_send_text(
     *,

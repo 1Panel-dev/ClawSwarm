@@ -1,3 +1,5 @@
+"""API 依赖定义，集中提供路由层复用的依赖项。"""
+
 from sqlalchemy.orm import Session
 from fastapi import Depends
 

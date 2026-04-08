@@ -1,3 +1,5 @@
+"""direct 与 group 消息分发的写侧辅助函数。"""
+
 from __future__ import annotations
 
 import uuid
@@ -20,9 +22,6 @@ from src.schemas.conversation import MessageCreate
 from src.services.default_user import get_default_user_identity
 
 DEFAULT_USER = get_default_user_identity()
-
-"""direct 与 group 消息分发的写侧辅助函数。"""
-
 
 async def dispatch_direct_message(
     *,
