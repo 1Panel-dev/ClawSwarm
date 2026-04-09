@@ -18,6 +18,8 @@ import "@/styles/page-container.css";
 
 const app = createApp(App);
 
+console.log("version:", __APP_VERSION__);
+
 app.use(pinia);
 app.use(router);
 app.use(i18n);
