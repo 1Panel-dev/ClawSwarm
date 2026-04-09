@@ -400,6 +400,7 @@ async function openGroup(groupId: number) {
         return;
     }
     await conversationStore.openGroupConversation(groupId);
+    await groupStore.loadGroupDetail(groupId);
     if (conversationStore.currentConversationId) {
         await router.push(`/messages/conversation/${conversationStore.currentConversationId}`);
     }
@@ -411,6 +412,11 @@ async function openConversation(conversationId: number) {
         return;
     }
     await conversationStore.openConversation(conversationId);
+    if (conversationStore.currentConversation?.type === "group" && conversationStore.currentConversation.group_id) {
+        await groupStore.loadGroupDetail(conversationStore.currentConversation.group_id);
+    } else {
+        groupStore.currentGroupDetail = null;
+    }
     await router.push(`/messages/conversation/${conversationId}`);
 }
 

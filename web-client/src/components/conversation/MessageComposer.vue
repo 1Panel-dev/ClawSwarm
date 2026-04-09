@@ -1,6 +1,6 @@
 <template>
   <form class="composer" @submit.prevent="submit">
-    <div v-if="isGroup && mentionOptions.length" class="composer__mentions">
+    <div v-if="isGroup" class="composer__mentions">
       <div class="composer__mentions-label">{{ t("conversation.mentionsLabel") }}</div>
       <el-select
         v-model="mentions"
@@ -8,6 +8,7 @@
         collapse-tags
         collapse-tags-tooltip
         filterable
+        :disabled="!mentionOptions.length"
         :placeholder="t('conversation.mentionsPlaceholder')"
         style="width: 100%"
       >
@@ -96,7 +97,7 @@ const DEFAULT_SHORTCUT: SendShortcut = {
     shiftKey: false,
 };
 
-defineProps<{
+const props = defineProps<{
     sending: boolean;
     isGroup: boolean;
     isAgentDialogue?: boolean;
@@ -136,6 +137,21 @@ watch(sendShortcut, (value) => {
         window.localStorage.setItem(SEND_SHORTCUT_STORAGE_KEY, JSON.stringify(value));
     }
 }, { deep: true });
+
+watch(() => props.isGroup, (isGroup) => {
+    if (isGroup) {
+        useDedicatedDirectSession.value = false;
+        return;
+    }
+    mentions.value = [];
+});
+
+watch(() => props.isAgentDialogue, (isAgentDialogue) => {
+    if (isAgentDialogue) {
+        useDedicatedDirectSession.value = false;
+        mentions.value = [];
+    }
+});
 
 const shortcutLabel = computed(() => {
     const parts: string[] = [];
