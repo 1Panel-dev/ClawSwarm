@@ -57,7 +57,7 @@
                   </el-button>
                 </el-tooltip>
                 <el-tooltip
-                  :content="instance.status === 'active' ? t('openclaw.disable') : t('openclaw.enable')"
+                  :content="instance.status === 'active' ? t('common.disable') : t('common.enable')"
                   placement="top"
                 >
                   <el-button
@@ -71,7 +71,7 @@
                     </el-icon>
                   </el-button>
                 </el-tooltip>
-                <el-tooltip :content="t('openclaw.deleteInstance')" placement="top">
+                <el-tooltip :content="t('common.delete')" placement="top">
                   <el-button
                     type="danger"
                     circle
@@ -101,28 +101,37 @@
               <el-table-column :label="t('openclaw.agentStatus')" min-width="120">
                 <template #default="{ row }">
                   <el-tag :type="row.enabled ? 'success' : 'info'" effect="light">
-                    {{ row.enabled ? t("conversation.enabled") : t("conversation.disabled") }}
+                    {{ row.enabled ? t("common.enable") : t("common.disable") }}
                   </el-tag>
                 </template>
               </el-table-column>
               <el-table-column :label="t('openclaw.actions')" min-width="220" fixed="right">
                 <template #default="{ row }">
                   <el-space>
-                    <el-button
-                      v-if="canEditAgent(row)"
-                      link
-                      :disabled="pageBusy"
-                      @click="openAgentEdit(instance.id, instance.name, row)"
+                    <el-tooltip v-if="canEditAgent(row)" :content="t('common.edit')" placement="top">
+                      <el-button
+                        circle
+                        :disabled="pageBusy"
+                        @click="openAgentEdit(instance.id, instance.name, row)"
+                      >
+                        <el-icon><EditPen /></el-icon>
+                      </el-button>
+                    </el-tooltip>
+                    <el-tooltip
+                      :content="row.enabled ? t('common.disable') : t('common.enable')"
+                      placement="top"
                     >
-                      {{ t("openclaw.editAgent") }}
-                    </el-button>
-                    <el-button
-                      link
-                      :disabled="pageBusy"
-                      @click="toggleAgent(row.id, !row.enabled)"
-                    >
-                      {{ row.enabled ? t("openclaw.disable") : t("openclaw.enable") }}
-                    </el-button>
+                      <el-button
+                        :type="row.enabled ? 'warning' : 'success'"
+                        circle
+                        :disabled="pageBusy"
+                        @click="toggleAgent(row.id, !row.enabled)"
+                      >
+                        <el-icon>
+                          <component :is="row.enabled ? SwitchButton : VideoPlay" />
+                        </el-icon>
+                      </el-button>
+                    </el-tooltip>
                   </el-space>
                 </template>
               </el-table-column>
@@ -291,10 +300,10 @@ async function confirmDeleteInstance(instance: InstanceReadApi) {
   try {
     await ElMessageBox.confirm(
       t("openclaw.deleteInstanceConfirm", {name: instance.name}),
-      t("openclaw.deleteInstanceTitle"),
+      t("common.confirm"),
       {
         type: "warning",
-        confirmButtonText: t("openclaw.confirmDeleteInstance"),
+        confirmButtonText: t("common.confirm"),
         cancelButtonText: t("common.cancel"),
       },
     );

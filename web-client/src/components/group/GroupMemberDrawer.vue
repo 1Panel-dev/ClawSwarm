@@ -13,7 +13,7 @@
             <div class="member-dialog__group-desc">{{ group.description || t("conversation.groupDescriptionEmpty") }}</div>
           </div>
           <el-button text type="danger" :disabled="saving" @click="emit('delete-group')">
-            {{ t("conversation.deleteGroup") }}
+            {{ t("common.delete") }}
           </el-button>
         </div>
 
