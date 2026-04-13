@@ -75,7 +75,7 @@
       <div v-loading="addressBookStore.loading">
         <el-form label-position="top">
           <el-form-item :label="t('openclaw.instanceName')">
-            <el-select v-model="selectedAgents" value-key="cs_id" multiple style="width: 100%">
+            <el-select v-model="selectedAgents" value-key="csId" multiple style="width: 100%">
               <el-option-group
                 v-for="instance in availableInstances"
                 :key="instance.id"
@@ -85,8 +85,8 @@
                 <el-option
                   v-for="agent in instance.agents"
                   :key="agent.id"
-                  :label="`${agent.agent_key} / ${agent.cs_id}`"
-                  :value="{...agent, openclaw: instance.name}"
+                  :label="`${agent.agentKey} / ${agent.csId}`"
+                  :value="{ ...agent, openclaw: instance.name }"
                 />
               </el-option-group>
             </el-select>
@@ -111,17 +111,13 @@ import {computed, reactive, ref, watch} from "vue";
 import {Delete} from "@element-plus/icons-vue";
 import {useI18n} from "@/composables/useI18n";
 import {useAddressBookStore} from "@/stores/addressBook";
-import type {AddressBookAgentApi} from "@/types/api/addressBook";
+import { toSelectableProjectMember, type SelectableProjectMember } from "@/stores/projectManagementMappers";
 import type {
-  ProjectCreatePayload,
+  ProjectCreateInput,
   ProjectMemberView,
-  ProjectUpdatePayload,
+  ProjectUpdateInput,
   ProjectView
 } from "@/types/view/project-management";
-
-type SelectableProjectMember = AddressBookAgentApi & {
-  openclaw: string;
-};
 
 const props = defineProps<{
   visible: boolean;
@@ -131,7 +127,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "update:visible": [value: boolean];
-  submit: [payload: ProjectCreatePayload | ProjectUpdatePayload];
+  submit: [payload: ProjectCreateInput | ProjectUpdateInput];
 }>();
 
 const {t} = useI18n();
@@ -143,7 +139,13 @@ const form = reactive({
   members: [] as ProjectMemberView[],
 });
 const memberDialogVisible = ref(false);
-const availableInstances = computed(() => addressBookStore.instances);
+const availableInstances = computed(() =>
+  addressBookStore.instances.map((instance) => ({
+    id: instance.id,
+    name: instance.name,
+    agents: instance.agents.map((agent) => toSelectableProjectMember(agent, instance.name)),
+  })),
+);
 const selectedAgents = ref<SelectableProjectMember[]>([]);
 
 const canSubmit = computed(() => !!form.name.trim());
@@ -170,17 +172,7 @@ function openMemberDialog() {
 }
 
 function confirmAddMember() {
-  const members = selectedAgents.value.map((agent) => {
-    return {
-      agentKey: agent.agent_key,
-      name: agent.display_name,
-      csId: agent.cs_id,
-      openclaw: agent.openclaw,
-      role: agent.role_name,
-    };
-  });
-  // 合并并去重
-  const allMembers = [...form.members, ...members];
+  const allMembers = [...form.members, ...selectedAgents.value];
   form.members = Array.from(
     new Map(allMembers.map((item) => [item.csId, item])).values(),
   );

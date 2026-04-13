@@ -1,3 +1,12 @@
+import type {
+    DocumentTemplateResponse,
+    ProjectDetailResponse,
+    ProjectDocumentResponse,
+    ProjectMemberResponse,
+    ProjectResponse,
+} from "@/types/api/project-management";
+import type { Camelized } from "@/utils/case";
+
 export type ProjectDocumentCategory =
     | "需求"
     | "设计"
@@ -17,76 +26,43 @@ export const PROJECT_DOCUMENT_CATEGORIES: ProjectDocumentCategory[] = [
     "其他",
 ];
 
-export interface ProjectMemberView {
-    agentKey: string;
-    csId: string;
-    openclaw: string;
-}
+export type ProjectMemberView = Camelized<ProjectMemberResponse>;
 
-export interface ProjectDocumentView {
-    id: string;
-    projectId: string;
-    name: string;
-    category: string;
-    content: string;
-    isCore: boolean;
-    sortOrder: number;
-    createdAt: string;
-    updatedAt: string;
-}
+export type ProjectDocumentView = Camelized<ProjectDocumentResponse>;
 
-export interface ProjectView {
-    id: string;
-    name: string;
-    description: string;
-    currentProgress: string;
-    members: ProjectMemberView[];
-    createdAt: string;
-    updatedAt: string;
-}
+export type ProjectView = Camelized<ProjectResponse>;
 
-export interface ProjectDetailView extends ProjectView {
-    documents: ProjectDocumentView[];
-}
+export type ProjectDetailView = Camelized<ProjectDetailResponse>;
 
-export interface DocumentTemplateView {
-    id: string;
-    name: string;
-    description: string;
-    category: string;
-    content: string;
-    isBuiltin: boolean;
-    createdAt: string;
-    updatedAt: string;
-}
+export type DocumentTemplateView = Camelized<DocumentTemplateResponse>;
 
-export interface ProjectCreatePayload {
+export interface ProjectCreateInput {
     name: string;
     description: string;
     currentProgress: string;
     members: ProjectMemberView[];
 }
 
-export interface ProjectUpdatePayload extends ProjectCreatePayload {}
+export interface ProjectUpdateInput extends ProjectCreateInput {}
 
-export interface ProjectDocumentCreatePayload {
+export interface ProjectDocumentCreateInput {
     name?: string;
     category?: string;
     content?: string;
     templateId?: string;
 }
 
-export interface ProjectDocumentUpdatePayload {
+export interface ProjectDocumentUpdateInput {
     name: string;
     category: string;
     content: string;
 }
 
-export interface DocumentTemplateCreatePayload {
+export interface DocumentTemplateCreateInput {
     name: string;
     description: string;
     category: string;
     content: string;
 }
 
-export interface DocumentTemplateUpdatePayload extends DocumentTemplateCreatePayload {}
+export interface DocumentTemplateUpdateInput extends DocumentTemplateCreateInput {}

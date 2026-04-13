@@ -75,7 +75,7 @@ import { computed, reactive, ref, watch } from "vue";
 
 import ProjectMarkdownPreview from "@/pages/projects/components/ProjectMarkdownPreview.vue";
 import { useI18n } from "@/composables/useI18n";
-import { PROJECT_DOCUMENT_CATEGORIES, type ProjectDocumentUpdatePayload, type ProjectDocumentView } from "@/types/view/project-management";
+import { PROJECT_DOCUMENT_CATEGORIES, type ProjectDocumentUpdateInput, type ProjectDocumentView } from "@/types/view/project-management";
 import { formatServerDateTime } from "@/utils/datetime";
 
 const props = defineProps<{
@@ -85,7 +85,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    save: [payload: ProjectDocumentUpdatePayload];
+    save: [payload: ProjectDocumentUpdateInput];
     delete: [documentId: string];
     dirtyChange: [dirty: boolean];
 }>();

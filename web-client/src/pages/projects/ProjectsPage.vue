@@ -110,9 +110,9 @@ import TemplateEditorPane from "@/pages/projects/components/TemplateEditorPane.v
 import {useI18n} from "@/composables/useI18n";
 import {useProjectManagementStore} from "@/stores/projectManagement";
 import type {
-  DocumentTemplateCreatePayload,
-  DocumentTemplateUpdatePayload,
-  ProjectCreatePayload,
+  DocumentTemplateCreateInput,
+  DocumentTemplateUpdateInput,
+  ProjectCreateInput,
 } from "@/types/view/project-management";
 
 const {t} = useI18n();
@@ -165,7 +165,7 @@ function openProject(projectId: string) {
   router.push(`/projects/${projectId}`);
 }
 
-async function handleCreateProject(payload: ProjectCreatePayload) {
+async function handleCreateProject(payload: ProjectCreateInput) {
   try {
     const detail = await store.createProject(payload);
     createProjectDrawerVisible.value = false;
@@ -175,7 +175,7 @@ async function handleCreateProject(payload: ProjectCreatePayload) {
   }
 }
 
-async function handleCreateTemplate(payload: DocumentTemplateCreatePayload) {
+async function handleCreateTemplate(payload: DocumentTemplateCreateInput) {
   try {
     const item = await store.createTemplate(payload);
     selectedTemplateId.value = item.id;
@@ -187,7 +187,7 @@ async function handleCreateTemplate(payload: DocumentTemplateCreatePayload) {
   }
 }
 
-async function handleSaveTemplate(payload: DocumentTemplateUpdatePayload) {
+async function handleSaveTemplate(payload: DocumentTemplateUpdateInput) {
   if (!selectedTemplateId.value) {
     return;
   }

@@ -1,63 +1,69 @@
 import { apiClient } from "@/api/client";
 import type {
-    DocumentTemplateCreatePayloadApi,
-    DocumentTemplateReadApi,
-    DocumentTemplateUpdatePayloadApi,
-    ProjectCreatePayloadApi,
-    ProjectDetailReadApi,
-    ProjectDocumentCreatePayloadApi,
-    ProjectDocumentReadApi,
-    ProjectDocumentUpdatePayloadApi,
-    ProjectReadApi,
-    ProjectUpdatePayloadApi,
+    DocumentTemplateResponse,
+    ProjectDetailResponse,
+    ProjectDocumentResponse,
+    ProjectResponse,
 } from "@/types/api/project-management";
+import type {
+    DocumentTemplateCreateInput,
+    DocumentTemplateUpdateInput,
+    ProjectCreateInput,
+    ProjectDocumentCreateInput,
+    ProjectDocumentUpdateInput,
+    ProjectUpdateInput,
+} from "@/types/view/project-management";
+import { snakeizeKeys } from "@/utils/case";
 
-export async function fetchProjects(): Promise<ProjectReadApi[]> {
-    const response = await apiClient.get<ProjectReadApi[]>("/api/projects");
+export async function fetchProjects(): Promise<ProjectResponse[]> {
+    const response = await apiClient.get<ProjectResponse[]>("/api/projects");
     return response.data;
 }
 
-export async function createProject(payload: ProjectCreatePayloadApi): Promise<ProjectDetailReadApi> {
-    const response = await apiClient.post<ProjectDetailReadApi>("/api/projects", payload);
+export async function createProject(payload: ProjectCreateInput): Promise<ProjectDetailResponse> {
+    const response = await apiClient.post<ProjectDetailResponse>("/api/projects", snakeizeKeys(payload));
     return response.data;
 }
 
-export async function updateProject(projectId: string, payload: ProjectUpdatePayloadApi): Promise<ProjectReadApi> {
-    const response = await apiClient.put<ProjectReadApi>(`/api/projects/${projectId}`, payload);
+export async function updateProject(projectId: string, payload: ProjectUpdateInput): Promise<ProjectResponse> {
+    const response = await apiClient.put<ProjectResponse>(`/api/projects/${projectId}`, snakeizeKeys(payload));
     return response.data;
 }
 
-export async function fetchProjectDetail(projectId: string): Promise<ProjectDetailReadApi> {
-    const response = await apiClient.get<ProjectDetailReadApi>(`/api/projects/${projectId}`);
+export async function fetchProjectDetail(projectId: string): Promise<ProjectDetailResponse> {
+    const response = await apiClient.get<ProjectDetailResponse>(`/api/projects/${projectId}`);
     return response.data;
 }
 
-export async function fetchProjectDocuments(projectId: string): Promise<ProjectDocumentReadApi[]> {
-    const response = await apiClient.get<ProjectDocumentReadApi[]>(`/api/projects/${projectId}/documents`);
+export async function fetchProjectDocuments(projectId: string): Promise<ProjectDocumentResponse[]> {
+    const response = await apiClient.get<ProjectDocumentResponse[]>(`/api/projects/${projectId}/documents`);
     return response.data;
 }
 
-export async function fetchProjectDocument(projectId: string, documentId: string): Promise<ProjectDocumentReadApi> {
-    const response = await apiClient.get<ProjectDocumentReadApi>(`/api/projects/${projectId}/documents/${documentId}`);
+export async function fetchProjectDocument(projectId: string, documentId: string): Promise<ProjectDocumentResponse> {
+    const response = await apiClient.get<ProjectDocumentResponse>(`/api/projects/${projectId}/documents/${documentId}`);
     return response.data;
 }
 
 export async function createProjectDocument(
     projectId: string,
-    payload: ProjectDocumentCreatePayloadApi,
-): Promise<ProjectDocumentReadApi> {
-    const response = await apiClient.post<ProjectDocumentReadApi>(`/api/projects/${projectId}/documents`, payload);
+    payload: ProjectDocumentCreateInput,
+): Promise<ProjectDocumentResponse> {
+    const response = await apiClient.post<ProjectDocumentResponse>(
+        `/api/projects/${projectId}/documents`,
+        snakeizeKeys(payload),
+    );
     return response.data;
 }
 
 export async function updateProjectDocument(
     projectId: string,
     documentId: string,
-    payload: ProjectDocumentUpdatePayloadApi,
-): Promise<ProjectDocumentReadApi> {
-    const response = await apiClient.put<ProjectDocumentReadApi>(
+    payload: ProjectDocumentUpdateInput,
+): Promise<ProjectDocumentResponse> {
+    const response = await apiClient.put<ProjectDocumentResponse>(
         `/api/projects/${projectId}/documents/${documentId}`,
-        payload,
+        snakeizeKeys(payload),
     );
     return response.data;
 }
@@ -66,28 +72,31 @@ export async function deleteProjectDocument(projectId: string, documentId: strin
     await apiClient.delete(`/api/projects/${projectId}/documents/${documentId}`);
 }
 
-export async function fetchDocumentTemplates(): Promise<DocumentTemplateReadApi[]> {
-    const response = await apiClient.get<DocumentTemplateReadApi[]>("/api/document-templates");
+export async function fetchDocumentTemplates(): Promise<DocumentTemplateResponse[]> {
+    const response = await apiClient.get<DocumentTemplateResponse[]>("/api/document-templates");
     return response.data;
 }
 
 export async function createDocumentTemplate(
-    payload: DocumentTemplateCreatePayloadApi,
-): Promise<DocumentTemplateReadApi> {
-    const response = await apiClient.post<DocumentTemplateReadApi>("/api/document-templates", payload);
+    payload: DocumentTemplateCreateInput,
+): Promise<DocumentTemplateResponse> {
+    const response = await apiClient.post<DocumentTemplateResponse>("/api/document-templates", snakeizeKeys(payload));
     return response.data;
 }
 
-export async function fetchDocumentTemplate(templateId: string): Promise<DocumentTemplateReadApi> {
-    const response = await apiClient.get<DocumentTemplateReadApi>(`/api/document-templates/${templateId}`);
+export async function fetchDocumentTemplate(templateId: string): Promise<DocumentTemplateResponse> {
+    const response = await apiClient.get<DocumentTemplateResponse>(`/api/document-templates/${templateId}`);
     return response.data;
 }
 
 export async function updateDocumentTemplate(
     templateId: string,
-    payload: DocumentTemplateUpdatePayloadApi,
-): Promise<DocumentTemplateReadApi> {
-    const response = await apiClient.put<DocumentTemplateReadApi>(`/api/document-templates/${templateId}`, payload);
+    payload: DocumentTemplateUpdateInput,
+): Promise<DocumentTemplateResponse> {
+    const response = await apiClient.put<DocumentTemplateResponse>(
+        `/api/document-templates/${templateId}`,
+        snakeizeKeys(payload),
+    );
     return response.data;
 }
 

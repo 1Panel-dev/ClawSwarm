@@ -77,7 +77,7 @@ import ProjectMarkdownPreview from "@/pages/projects/components/ProjectMarkdownP
 import {useI18n} from "@/composables/useI18n";
 import {
   PROJECT_DOCUMENT_CATEGORIES,
-  type DocumentTemplateUpdatePayload,
+  type DocumentTemplateUpdateInput,
   type DocumentTemplateView
 } from "@/types/view/project-management";
 
@@ -87,7 +87,7 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  save: [payload: DocumentTemplateUpdatePayload];
+  save: [payload: DocumentTemplateUpdateInput];
   delete: [templateId: string];
 }>();
 

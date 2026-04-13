@@ -39,7 +39,6 @@ class ProjectRead(TimestampedModel):
     description: str
     current_progress: str
     members: list[ProjectMember] = Field(default_factory=list)
-    member_count: int
 
 
 class ProjectDocumentRead(TimestampedModel):

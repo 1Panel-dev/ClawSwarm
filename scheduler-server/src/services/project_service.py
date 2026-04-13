@@ -63,7 +63,6 @@ def build_project_read(item: Project) -> ProjectRead:
         description=item.description,
         current_progress=item.current_progress,
         members=members,
-        member_count=len(members),
         created_at=item.created_at,
         updated_at=item.updated_at,
     )

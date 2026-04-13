@@ -323,7 +323,7 @@ class Stage1BackendTests(unittest.TestCase):
                 {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
                 {"agent_key": "worker", "cs_id": "CSA-0002", "openclaw": "OC2"},
             ])
-            self.assertEqual(detail.member_count, 2)
+            self.assertEqual(len(detail.members), 2)
 
             self.assertEqual(len(detail.documents), 1)
             core_doc = detail.documents[0]
@@ -434,7 +434,7 @@ class Stage1BackendTests(unittest.TestCase):
         project_payload = create_response.json()
         project_id = project_payload["id"]
         core_document_id = project_payload["documents"][0]["id"]
-        self.assertEqual(project_payload["member_count"], 1)
+        self.assertEqual(len(project_payload["members"]), 1)
         self.assertEqual(project_payload["members"][0]["cs_id"], "CSA-0001")
 
         list_response = self.client.get("/api/projects")

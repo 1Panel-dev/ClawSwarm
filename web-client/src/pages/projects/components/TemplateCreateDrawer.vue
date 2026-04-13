@@ -56,7 +56,7 @@
 import { reactive, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import { PROJECT_DOCUMENT_CATEGORIES, type DocumentTemplateCreatePayload, type DocumentTemplateView } from "@/types/view/project-management";
+import { PROJECT_DOCUMENT_CATEGORIES, type DocumentTemplateCreateInput, type DocumentTemplateView } from "@/types/view/project-management";
 
 const props = defineProps<{
     visible: boolean;
@@ -66,7 +66,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     "update:visible": [value: boolean];
-    submit: [payload: DocumentTemplateCreatePayload];
+    submit: [payload: DocumentTemplateCreateInput];
 }>();
 
 const { t } = useI18n();

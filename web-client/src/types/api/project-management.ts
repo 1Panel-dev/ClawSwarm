@@ -1,10 +1,10 @@
-export interface ProjectMemberApi {
+export interface ProjectMemberResponse {
     agent_key: string;
     cs_id: string;
     openclaw: string;
 }
 
-export interface ProjectDocumentReadApi {
+export interface ProjectDocumentResponse {
     id: string;
     project_id: string;
     name: string;
@@ -16,22 +16,21 @@ export interface ProjectDocumentReadApi {
     updated_at: string;
 }
 
-export interface ProjectReadApi {
+export interface ProjectResponse {
     id: string;
     name: string;
     description: string;
     current_progress: string;
-    members: ProjectMemberApi[];
-    member_count: number;
+    members: ProjectMemberResponse[];
     created_at: string;
     updated_at: string;
 }
 
-export interface ProjectDetailReadApi extends ProjectReadApi {
-    documents: ProjectDocumentReadApi[];
+export interface ProjectDetailResponse extends ProjectResponse {
+    documents: ProjectDocumentResponse[];
 }
 
-export interface DocumentTemplateReadApi {
+export interface DocumentTemplateResponse {
     id: string;
     name: string;
     description: string;
@@ -42,7 +41,7 @@ export interface DocumentTemplateReadApi {
     updated_at: string;
 }
 
-export interface AgentReadableProjectDocumentReadApi {
+export interface AgentReadableProjectDocumentResponse {
     projectId: string;
     documentId: string;
     name: string;
@@ -50,34 +49,3 @@ export interface AgentReadableProjectDocumentReadApi {
     content: string;
     updatedAt: string;
 }
-
-export interface ProjectCreatePayloadApi {
-    name: string;
-    description: string;
-    current_progress: string;
-    members: ProjectMemberApi[];
-}
-
-export interface ProjectUpdatePayloadApi extends ProjectCreatePayloadApi {}
-
-export interface ProjectDocumentCreatePayloadApi {
-    name?: string | null;
-    category?: string | null;
-    content?: string | null;
-    template_id?: string | null;
-}
-
-export interface ProjectDocumentUpdatePayloadApi {
-    name: string;
-    category: string;
-    content: string;
-}
-
-export interface DocumentTemplateCreatePayloadApi {
-    name: string;
-    description: string;
-    category: string;
-    content: string;
-}
-
-export interface DocumentTemplateUpdatePayloadApi extends DocumentTemplateCreatePayloadApi {}

@@ -15,91 +15,35 @@ import {
     updateProject as updateProjectRequest,
     updateProjectDocument as updateProjectDocumentRequest,
 } from "@/api/projects";
+import {
+    toProjectDetailView,
+    toProjectDocumentView,
+    toProjectView,
+    toTemplateView,
+} from "@/stores/projectManagementMappers";
 import type {
-    DocumentTemplateReadApi,
-    ProjectDetailReadApi,
-    ProjectDocumentReadApi,
-    ProjectMemberApi,
-    ProjectReadApi,
-} from "@/types/api/project-management";
-import type {
-    DocumentTemplateCreatePayload,
-    DocumentTemplateUpdatePayload,
+    DocumentTemplateCreateInput,
+    DocumentTemplateUpdateInput,
     DocumentTemplateView,
-    ProjectCreatePayload,
+    ProjectCreateInput,
     ProjectDetailView,
-    ProjectDocumentCreatePayload,
-    ProjectDocumentUpdatePayload,
-    ProjectMemberView,
+    ProjectDocumentCreateInput,
+    ProjectDocumentUpdateInput,
     ProjectDocumentView,
-    ProjectUpdatePayload,
+    ProjectUpdateInput,
     ProjectView,
 } from "@/types/view/project-management";
 
-function toProjectMemberView(item: ProjectMemberApi): ProjectMemberView {
-    return {
-        agentKey: item.agent_key,
-        csId: item.cs_id,
-        openclaw: item.openclaw,
-    };
-}
-
-function toProjectView(item: ProjectReadApi): ProjectView {
-    return {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        currentProgress: item.current_progress,
-        members: item.members.map(toProjectMemberView),
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-    };
-}
-
-function toProjectDocumentView(item: ProjectDocumentReadApi): ProjectDocumentView {
-    return {
-        id: item.id,
-        projectId: item.project_id,
-        name: item.name,
-        category: item.category,
-        content: item.content,
-        isCore: item.is_core,
-        sortOrder: item.sort_order,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-    };
-}
-
-function toProjectDetailView(item: ProjectDetailReadApi): ProjectDetailView {
-    return {
-        ...toProjectView(item),
-        documents: item.documents.map(toProjectDocumentView),
-    };
-}
-
-function toTemplateView(item: DocumentTemplateReadApi): DocumentTemplateView {
-    return {
-        id: item.id,
-        name: item.name,
-        description: item.description,
-        category: item.category,
-        content: item.content,
-        isBuiltin: item.is_builtin,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at,
-    };
-}
-
 function toProjectSummaryFromDetail(item: ProjectDetailView): ProjectView {
-        return {
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            currentProgress: item.currentProgress,
-            members: item.members,
-            createdAt: item.createdAt,
-            updatedAt: item.updatedAt,
-        };
+    return {
+        id: item.id,
+        name: item.name,
+        description: item.description,
+        currentProgress: item.currentProgress,
+        members: item.members,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+    };
 }
 
 function replaceProject(items: ProjectView[], nextItem: ProjectView): ProjectView[] {
@@ -182,21 +126,10 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             const item = toProjectDocumentView(await fetchProjectDocument(this.activeProject.id, this.activeDocumentId));
             this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
         },
-        async createProject(payload: ProjectCreatePayload) {
+        async createProject(payload: ProjectCreateInput) {
             this.submittingProject = true;
             try {
-                const detail = toProjectDetailView(
-                    await createProjectRequest({
-                        name: payload.name,
-                        description: payload.description,
-                        current_progress: payload.currentProgress,
-                        members: payload.members.map((item) => ({
-                            agent_key: item.agentKey,
-                            cs_id: item.csId,
-                            openclaw: item.openclaw,
-                        })),
-                    }),
-                );
+                const detail = toProjectDetailView(await createProjectRequest(payload));
                 this.activeProject = detail;
                 this.activeDocumentId = detail.documents[0]?.id ?? null;
                 this.projects = replaceProject(this.projects, toProjectSummaryFromDetail(detail));
@@ -205,12 +138,10 @@ export const useProjectManagementStore = defineStore("projectManagement", {
                 this.submittingProject = false;
             }
         },
-        async updateProject(projectId: string, payload: ProjectUpdatePayload) {
+        async updateProject(projectId: string, payload: ProjectUpdateInput) {
             this.submittingProject = true;
             try {
-                const item = toProjectView(
-                    await updateProjectRequest(projectId, payload)
-                );
+                const item = toProjectView(await updateProjectRequest(projectId, payload));
                 this.projects = replaceProject(this.projects, item);
                 if (this.activeProject?.id === item.id) {
                     this.activeProject = {
@@ -223,17 +154,10 @@ export const useProjectManagementStore = defineStore("projectManagement", {
                 this.submittingProject = false;
             }
         },
-        async createDocument(projectId: string, payload: ProjectDocumentCreatePayload) {
+        async createDocument(projectId: string, payload: ProjectDocumentCreateInput) {
             this.submittingDocument = true;
             try {
-                const item = toProjectDocumentView(
-                    await createProjectDocumentRequest(projectId, {
-                        name: payload.name ?? null,
-                        category: payload.category ?? null,
-                        content: payload.content ?? null,
-                        template_id: payload.templateId ?? null,
-                    }),
-                );
+                const item = toProjectDocumentView(await createProjectDocumentRequest(projectId, payload));
                 if (this.activeProject?.id === projectId) {
                     this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
                 }
@@ -243,16 +167,10 @@ export const useProjectManagementStore = defineStore("projectManagement", {
                 this.submittingDocument = false;
             }
         },
-        async updateDocument(projectId: string, documentId: string, payload: ProjectDocumentUpdatePayload) {
+        async updateDocument(projectId: string, documentId: string, payload: ProjectDocumentUpdateInput) {
             this.submittingDocument = true;
             try {
-                const item = toProjectDocumentView(
-                    await updateProjectDocumentRequest(projectId, documentId, {
-                        name: payload.name,
-                        category: payload.category,
-                        content: payload.content,
-                    }),
-                );
+                const item = toProjectDocumentView(await updateProjectDocumentRequest(projectId, documentId, payload));
                 if (this.activeProject?.id === projectId) {
                     this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
                 }
@@ -289,34 +207,20 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async loadTemplate(templateId: string) {
             return toTemplateView(await fetchDocumentTemplate(templateId));
         },
-        async createTemplate(payload: DocumentTemplateCreatePayload) {
+        async createTemplate(payload: DocumentTemplateCreateInput) {
             this.submittingTemplate = true;
             try {
-                const item = toTemplateView(
-                    await createDocumentTemplateRequest({
-                        name: payload.name,
-                        description: payload.description,
-                        category: payload.category,
-                        content: payload.content,
-                    }),
-                );
+                const item = toTemplateView(await createDocumentTemplateRequest(payload));
                 this.templates = replaceTemplate(this.templates, item);
                 return item;
             } finally {
                 this.submittingTemplate = false;
             }
         },
-        async updateTemplate(templateId: string, payload: DocumentTemplateUpdatePayload) {
+        async updateTemplate(templateId: string, payload: DocumentTemplateUpdateInput) {
             this.submittingTemplate = true;
             try {
-                const item = toTemplateView(
-                    await updateDocumentTemplateRequest(templateId, {
-                        name: payload.name,
-                        description: payload.description,
-                        category: payload.category,
-                        content: payload.content,
-                    }),
-                );
+                const item = toTemplateView(await updateDocumentTemplateRequest(templateId, payload));
                 this.templates = replaceTemplate(this.templates, item);
                 return item;
             } finally {

@@ -55,7 +55,7 @@ import ProjectDocumentList from "@/pages/projects/components/ProjectDocumentList
 import ProjectDocumentViewer from "@/pages/projects/components/ProjectDocumentViewer.vue";
 import ProjectHeaderCard from "@/pages/projects/components/ProjectHeaderCard.vue";
 import { useProjectManagementStore } from "@/stores/projectManagement";
-import type { ProjectDocumentCreatePayload, ProjectDocumentUpdatePayload, ProjectUpdatePayload } from "@/types/view/project-management";
+import type { ProjectDocumentCreateInput, ProjectDocumentUpdateInput, ProjectUpdateInput } from "@/types/view/project-management";
 import { useI18n } from "@/composables/useI18n";
 
 const store = useProjectManagementStore();
@@ -111,7 +111,7 @@ function openDocumentDrawer() {
     documentDrawerVisible.value = true;
 }
 
-async function handleCreateDocument(payload: ProjectDocumentCreatePayload) {
+async function handleCreateDocument(payload: ProjectDocumentCreateInput) {
     if (!projectId.value) {
         return;
     }
@@ -123,7 +123,7 @@ async function handleCreateDocument(payload: ProjectDocumentCreatePayload) {
     }
 }
 
-async function handleSaveDocument(payload: ProjectDocumentUpdatePayload) {
+async function handleSaveDocument(payload: ProjectDocumentUpdateInput) {
     if (!projectId.value || !store.activeDocumentId) {
         return;
     }
@@ -148,7 +148,7 @@ async function handleDeleteDocument(documentId: string) {
     }
 }
 
-async function handleUpdateProject(payload: ProjectUpdatePayload) {
+async function handleUpdateProject(payload: ProjectUpdateInput) {
     if (!projectId.value) {
         return;
     }
