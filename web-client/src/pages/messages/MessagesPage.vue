@@ -151,7 +151,7 @@ function stopRecentConversationPolling() {
   width: 100%;
   min-width: 0;
   min-height: 0;
-  border: 1px solid #dddddf;
+  border: 1px solid var(--color-border);
   border-radius: var(--page-container-radius);
   background: #f5f5f7;
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.03);
@@ -162,7 +162,7 @@ function stopRecentConversationPolling() {
   min-width: 0;
   min-height: 0;
   background: #f3f3f5;
-  border-right: 1px solid #e9e9ec;
+  border-right: 1px solid var(--color-border);
 }
 
 .messages-shell__content {

@@ -11,6 +11,9 @@ const LoginPage = () => import("@/pages/login/LoginPage.vue");
 const MainLayout = () => import("@/pages/frame/MainLayout.vue");
 const MessagesPage = () => import("@/pages/messages/MessagesPage.vue");
 const OpenClawsPage = () => import("@/pages/openclaws/OpenClawsPage.vue");
+const ProjectsPage = () => import("@/pages/projects/ProjectsPage.vue");
+const ProjectDetailPage = () => import("@/pages/projects/ProjectDetailPage.vue");
+const ProjectDocumentReadPage = () => import("@/pages/projects/ProjectDocumentReadPage.vue");
 const TasksPage = () => import("@/pages/tasks/TasksPage.vue");
 const SettingsPage = () => import("@/pages/settings/SettingsPage.vue");
 
@@ -37,6 +40,20 @@ export const router = createRouter({
                 {
                     path: "messages/conversation/:conversationId",
                     component: MessagesPage,
+                    props: true,
+                },
+                {
+                    path: "projects",
+                    component: ProjectsPage,
+                },
+                {
+                    path: "projects/:projectId",
+                    component: ProjectDetailPage,
+                    props: true,
+                },
+                {
+                    path: "projects/:projectId/documents/:documentId/read",
+                    component: ProjectDocumentReadPage,
                     props: true,
                 },
                 {

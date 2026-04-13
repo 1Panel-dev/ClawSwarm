@@ -22,7 +22,6 @@
   width: 100%;
   min-width: 0;
   min-height: 100%;
-  align-content: start;
   justify-items: stretch;
   gap: var(--page-container-gap);
   padding:

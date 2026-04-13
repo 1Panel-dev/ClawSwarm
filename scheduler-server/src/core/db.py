@@ -241,6 +241,19 @@ def ensure_runtime_schema() -> None:
             statements.append("ALTER TABLE app_users ADD COLUMN display_name VARCHAR(120)")
             statements.append("UPDATE app_users SET display_name = username WHERE display_name IS NULL OR display_name = ''")
 
+    if "document_templates" in table_names:
+        template_columns = {column["name"] for column in inspector.get_columns("document_templates")}
+        if "scenario" in template_columns:
+            statements.append("ALTER TABLE document_templates DROP COLUMN scenario")
+
+    if "projects" in table_names:
+        project_columns = {column["name"] for column in inspector.get_columns("projects")}
+        if "members_json" not in project_columns:
+            statements.append("ALTER TABLE projects ADD COLUMN members_json TEXT DEFAULT '[]'")
+            statements.append("UPDATE projects SET members_json = '[]' WHERE members_json IS NULL OR members_json = ''")
+        if "member_count" in project_columns:
+            statements.append("ALTER TABLE projects DROP COLUMN member_count")
+
     if not statements:
         return
 

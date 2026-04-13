@@ -253,7 +253,7 @@ async function handleLoadOlderMessages() {
 .panel__cs-id {
   flex: 0 0 auto;
   padding: 3px 10px;
-  border: 1px solid #d9dde6;
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   background: #f7f8fb;
   color: #64748b;

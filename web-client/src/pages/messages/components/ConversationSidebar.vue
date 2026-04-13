@@ -648,7 +648,7 @@ watch(
   align-content: start;
   gap: 12px;
   padding: 14px 10px;
-  border-right: 1px solid #e5e5e8;
+  border-right: 1px solid var(--color-border);
   background: #ededf0;
 }
 
@@ -699,9 +699,9 @@ watch(
 
 .sidebar__plus--muted {
   --el-button-bg-color: #ffffff;
-  --el-button-border-color: #d5d7db;
+  --el-button-border-color: var(--color-border);
   --el-button-hover-bg-color: #f3f4f6;
-  --el-button-hover-border-color: #cfd3d8;
+  --el-button-hover-border-color: var(--color-border);
   --el-button-text-color: #6d737c;
 }
 
@@ -725,7 +725,7 @@ watch(
   z-index: 2000;
   min-width: 168px;
   padding: 6px;
-  border: 1px solid #dfdfe3;
+  border: 1px solid var(--color-border);
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
@@ -830,7 +830,7 @@ watch(
 }
 
 .sidebar__agent-children .sidebar__item--active {
-  border-color: #c8d4f6;
+  border-color: var(--color-border);
   background: #eef3ff;
   box-shadow: inset 0 0 0 1px rgba(108, 138, 214, 0.12);
 }
@@ -910,7 +910,7 @@ watch(
 }
 
 .sidebar__agent-group {
-  border: 1px solid #e5e5e8;
+  border: 1px solid var(--color-border);
   border-radius: 18px;
   overflow: hidden;
   background: #f3f4f7;

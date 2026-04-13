@@ -11,15 +11,17 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta
 import importlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+from uuid import UUID
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 import httpx
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.api.deps import db_session
@@ -30,15 +32,34 @@ from src.models.agent_dialogue import AgentDialogue
 from src.models.chat_group import ChatGroup
 from src.models.chat_group_member import ChatGroupMember
 from src.models.conversation import Conversation
+from src.models.document_template import DocumentTemplate
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.models.project import Project
+from src.models.project_document import ProjectDocument
 from src.core.config import settings
 from src.api.routes.agents import sync_instance_agents
 from src.api.routes import instances as instances_route
 from src.services.auth import build_session_cookie_value, ensure_default_user, get_auth_cookie_name
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
+from src.services.document_template_service import PROJECT_INTRO_TEMPLATE_NAME, ensure_builtin_document_templates
+from src.services.document_template_service import (
+    create_document_template,
+    delete_document_template as delete_document_template_service,
+    list_document_templates,
+    update_document_template,
+)
+from src.services.project_document_service import create_project_document, delete_project_document, update_project_document
+from src.services.project_service import create_project
+from src.schemas.project_management import (
+    DocumentTemplateCreate,
+    DocumentTemplateUpdate,
+    ProjectCreate,
+    ProjectDocumentCreate,
+    ProjectDocumentUpdate,
+)
 
 
 class Stage1BackendTests(unittest.TestCase):
@@ -274,6 +295,234 @@ class Stage1BackendTests(unittest.TestCase):
         instance_id_file = Path(settings.data_dir) / "instance-id"
         self.assertTrue(instance_id_file.is_file())
         self.assertTrue(instance_id_file.read_text(encoding="utf-8").strip())
+
+    def test_project_management_models_use_uuid_and_create_core_document(self) -> None:
+        inspector = inspect(self.engine)
+        self.assertEqual(inspector.get_foreign_keys("projects"), [])
+        self.assertEqual(inspector.get_foreign_keys("project_documents"), [])
+        self.assertEqual(inspector.get_foreign_keys("document_templates"), [])
+
+        with self.SessionLocal() as db:
+            detail = create_project(
+                db,
+                ProjectCreate(
+                    name="项目管理一期",
+                    description="独立的项目同步模块",
+                    current_progress="已完成设计讨论",
+                    members=[
+                        {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
+                        {"agent_key": "worker", "cs_id": "CSA-0002", "openclaw": "OC2"},
+                    ],
+                ),
+            )
+            project = db.get(Project, detail.id)
+            self.assertIsNotNone(project)
+            UUID(detail.id)
+            self.assertEqual(project.current_progress, "已完成设计讨论")
+            self.assertEqual(json.loads(project.members_json), [
+                {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
+                {"agent_key": "worker", "cs_id": "CSA-0002", "openclaw": "OC2"},
+            ])
+            self.assertEqual(detail.member_count, 2)
+
+            self.assertEqual(len(detail.documents), 1)
+            core_doc = detail.documents[0]
+            UUID(core_doc.id)
+            self.assertEqual(core_doc.name, PROJECT_INTRO_TEMPLATE_NAME)
+            self.assertTrue(core_doc.is_core)
+            self.assertIn("项目基本信息", core_doc.content)
+
+    def test_project_management_services_support_templates_and_document_crud(self) -> None:
+        with self.SessionLocal() as db:
+            ensure_builtin_document_templates(db)
+            detail = create_project(
+                db,
+                ProjectCreate(
+                    name="项目管理二期",
+                    description="测试模板创建文档",
+                    current_progress="开发中",
+                    members=[],
+                ),
+            )
+
+            template = create_document_template(
+                db,
+                DocumentTemplateCreate(
+                    name="接口约定模板.md",
+                    description="接口模板",
+                    category="接口",
+                    content="# 接口约定\n\n## 字段\n",
+                ),
+            )
+            templates = list_document_templates(db)
+            self.assertTrue(any(item.is_builtin for item in templates))
+            self.assertTrue(templates[0].is_builtin)
+            self.assertTrue(any(item.id == template.id for item in templates))
+
+            created_doc = create_project_document(
+                db,
+                detail.id,
+                ProjectDocumentCreate(
+                    template_id=template.id,
+                    name="支付接口.md",
+                ),
+            )
+            self.assertEqual(created_doc.category, "接口")
+            self.assertIn("接口约定", created_doc.content)
+
+            updated_doc = update_project_document(
+                db,
+                detail.id,
+                created_doc.id,
+                ProjectDocumentUpdate(
+                    name="支付接口 V2.md",
+                    category="后端",
+                    content="# 已更新",
+                ),
+            )
+            self.assertEqual(updated_doc.name, "支付接口 V2.md")
+            self.assertEqual(updated_doc.category, "后端")
+
+            updated_template = update_document_template(
+                db,
+                template.id,
+                DocumentTemplateUpdate(
+                    name="接口约定模板.md",
+                    description="接口模板已更新",
+                    category="接口",
+                    content="# 新版接口约定",
+                ),
+            )
+            self.assertIn("已更新", updated_template.description)
+
+            with self.assertRaises(HTTPException) as rename_core_error:
+                update_project_document(
+                    db,
+                    detail.id,
+                    detail.documents[0].id,
+                    ProjectDocumentUpdate(
+                        name="不允许改名.md",
+                        category="其他",
+                        content=detail.documents[0].content,
+                    ),
+                )
+            self.assertEqual(rename_core_error.exception.status_code, 400)
+
+            with self.assertRaises(HTTPException) as delete_core_error:
+                delete_project_document(db, detail.id, detail.documents[0].id)
+            self.assertEqual(delete_core_error.exception.status_code, 400)
+
+            delete_project_document(db, detail.id, created_doc.id)
+            self.assertIsNone(db.get(ProjectDocument, created_doc.id))
+
+            delete_document_template_service(db, template.id)
+            self.assertIsNone(db.get(DocumentTemplate, template.id))
+
+    def test_project_management_routes_cover_crud_and_agent_readonly(self) -> None:
+        create_response = self.client.post(
+            "/api/projects",
+            json={
+                "name": "项目管理三期",
+                "description": "接口路由测试",
+                "current_progress": "排期中",
+                "members": [
+                    {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
+                ],
+            },
+        )
+        self.assertEqual(create_response.status_code, 200)
+        project_payload = create_response.json()
+        project_id = project_payload["id"]
+        core_document_id = project_payload["documents"][0]["id"]
+        self.assertEqual(project_payload["member_count"], 1)
+        self.assertEqual(project_payload["members"][0]["cs_id"], "CSA-0001")
+
+        list_response = self.client.get("/api/projects")
+        self.assertEqual(list_response.status_code, 200)
+        self.assertTrue(any(item["id"] == project_id for item in list_response.json()))
+
+        template_create = self.client.post(
+            "/api/document-templates",
+            json={
+                "name": "前端页面模板.md",
+                "description": "页面模板",
+                "category": "前端",
+                "content": "# 页面方案",
+            },
+        )
+        self.assertEqual(template_create.status_code, 200)
+        template_id = template_create.json()["id"]
+
+        create_doc_response = self.client.post(
+            f"/api/projects/{project_id}/documents",
+            json={
+                "template_id": template_id,
+                "name": "登录页方案.md",
+            },
+        )
+        self.assertEqual(create_doc_response.status_code, 200)
+        document_payload = create_doc_response.json()
+        document_id = document_payload["id"]
+
+        get_doc_response = self.client.get(f"/api/projects/{project_id}/documents/{document_id}")
+        self.assertEqual(get_doc_response.status_code, 200)
+        self.assertEqual(get_doc_response.json()["name"], "登录页方案.md")
+
+        update_doc_response = self.client.put(
+            f"/api/projects/{project_id}/documents/{document_id}",
+            json={
+                "name": "登录页方案.md",
+                "category": "设计",
+                "content": "# 页面方案\n\n已更新",
+            },
+        )
+        self.assertEqual(update_doc_response.status_code, 200)
+        self.assertEqual(update_doc_response.json()["category"], "设计")
+
+        missing_token_response = self.client.get(
+            f"/api/v1/clawswarm/projects/{project_id}/documents/{document_id}",
+            headers={"Authorization": "Bearer callback-token-123"},
+        )
+        self.assertEqual(missing_token_response.status_code, 401)
+
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="Project Readonly Instance",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="project-read-signing-secret",
+                callback_token="project-readonly-token",
+                status="active",
+            )
+            db.add(instance)
+            db.commit()
+
+        agent_read_response = self.client.get(
+            f"/api/v1/clawswarm/projects/{project_id}/documents/{document_id}",
+            headers={"Authorization": "Bearer project-readonly-token"},
+        )
+        self.assertEqual(agent_read_response.status_code, 200)
+        self.assertEqual(agent_read_response.json()["projectId"], project_id)
+        self.assertEqual(agent_read_response.json()["documentId"], document_id)
+
+        delete_doc_response = self.client.delete(f"/api/projects/{project_id}/documents/{document_id}")
+        self.assertEqual(delete_doc_response.status_code, 200)
+
+        core_delete_response = self.client.delete(f"/api/projects/{project_id}/documents/{core_document_id}")
+        self.assertEqual(core_delete_response.status_code, 400)
+
+    def test_project_management_templates_seed_builtins_first(self) -> None:
+        with self.SessionLocal() as db:
+            ensure_builtin_document_templates(db)
+            names = [item.name for item in db.scalars(select(DocumentTemplate).order_by(DocumentTemplate.is_builtin.desc()))]
+            self.assertIn(PROJECT_INTRO_TEMPLATE_NAME, names)
+
+            templates = list_document_templates(db)
+            self.assertTrue(templates)
+            self.assertTrue(templates[0].is_builtin)
+            self.assertEqual(len([item for item in templates if item.is_builtin]), 1)
+            with self.assertRaises(HTTPException):
+                delete_document_template_service(db, templates[0].id)
 
     def test_list_conversations_hides_direct_conversations_for_disabled_instance(self) -> None:
         with self.SessionLocal() as db:
