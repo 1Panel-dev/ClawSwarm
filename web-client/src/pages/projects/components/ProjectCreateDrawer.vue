@@ -40,10 +40,9 @@
             </div>
 
             <div v-if="form.members.length" class="project-members__list">
-              <div v-for="member in form.members" :key="member.csId" class="project-members__item">
+                <div v-for="member in form.members" :key="member.csId" class="project-members__item">
                 <div class="project-members__item-main">
                   <el-text type="primary">{{ member.openclaw }}</el-text>
-                  <span>{{ member.role }}</span>
                   <strong>{{ member.agentKey }}</strong>
                   <span>{{ member.csId }}</span>
                 </div>

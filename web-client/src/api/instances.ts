@@ -1,9 +1,11 @@
 import { apiClient } from "@/api/client";
+import { snakeizeKeys } from "@/utils/case";
 import type {
-    ConnectInstanceResponseApi,
-    InstanceCredentialsReadApi,
-    InstanceHealthReadApi,
-    InstanceReadApi,
+    OpenClawConnectResponse,
+    OpenClawInstanceCredentialsResponse,
+    OpenClawInstanceHealthResponse,
+    OpenClawInstanceResponse,
+    OpenClawSyncAgentsResponse,
 } from "@/types/api/instance";
 import type {
     OpenClawInstanceCreateInput,
@@ -11,54 +13,35 @@ import type {
     OpenClawQuickConnectInput,
 } from "@/types/view/openclaw";
 
-export async function fetchInstances(): Promise<InstanceReadApi[]> {
-    const response = await apiClient.get<InstanceReadApi[]>("/api/instances");
+export async function fetchInstances(): Promise<OpenClawInstanceResponse[]> {
+    const response = await apiClient.get<OpenClawInstanceResponse[]>("/api/instances");
     return response.data;
 }
 
-export async function fetchInstanceHealth(): Promise<InstanceHealthReadApi[]> {
-    const response = await apiClient.get<InstanceHealthReadApi[]>("/api/instances/health");
+export async function fetchInstanceHealth(): Promise<OpenClawInstanceHealthResponse[]> {
+    const response = await apiClient.get<OpenClawInstanceHealthResponse[]>("/api/instances/health");
     return response.data;
 }
 
-export async function createInstance(payload: OpenClawInstanceCreateInput): Promise<InstanceReadApi> {
-    const response = await apiClient.post<InstanceReadApi>("/api/instances", {
-        name: payload.name,
-        channel_base_url: payload.channelBaseUrl,
-        channel_account_id: payload.channelAccountId,
-        channel_signing_secret: payload.channelSigningSecret,
-        callback_token: payload.callbackToken,
-        status: payload.status,
-    });
+export async function createInstance(payload: OpenClawInstanceCreateInput): Promise<OpenClawInstanceResponse> {
+    const response = await apiClient.post<OpenClawInstanceResponse>("/api/instances", snakeizeKeys(payload));
     return response.data;
 }
 
-export async function connectOpenClaw(payload: OpenClawQuickConnectInput): Promise<ConnectInstanceResponseApi> {
-    const response = await apiClient.post<ConnectInstanceResponseApi>("/api/instances/connect", {
-        name: payload.name,
-        channel_base_url: payload.channelBaseUrl,
-        channel_account_id: payload.channelAccountId,
-    }, {
+export async function connectOpenClaw(payload: OpenClawQuickConnectInput): Promise<OpenClawConnectResponse> {
+    const response = await apiClient.post<OpenClawConnectResponse>("/api/instances/connect", snakeizeKeys(payload), {
         timeout: 60000,
     });
     return response.data;
 }
 
-export async function fetchInstanceCredentials(instanceId: number): Promise<InstanceCredentialsReadApi> {
-    const response = await apiClient.get<InstanceCredentialsReadApi>(`/api/instances/${instanceId}/credentials`);
+export async function fetchInstanceCredentials(instanceId: number): Promise<OpenClawInstanceCredentialsResponse> {
+    const response = await apiClient.get<OpenClawInstanceCredentialsResponse>(`/api/instances/${instanceId}/credentials`);
     return response.data;
 }
 
-export async function syncOpenClawAgents(instanceId: number): Promise<{
-    instance: InstanceReadApi;
-    imported_agent_count: number;
-    agent_keys: string[];
-}> {
-    const response = await apiClient.post<{
-        instance: InstanceReadApi;
-        imported_agent_count: number;
-        agent_keys: string[];
-    }>(`/api/instances/${instanceId}/sync-agents`, undefined, {
+export async function syncOpenClawAgents(instanceId: number): Promise<OpenClawSyncAgentsResponse> {
+    const response = await apiClient.post<OpenClawSyncAgentsResponse>(`/api/instances/${instanceId}/sync-agents`, undefined, {
         timeout: 60000,
     });
     return response.data;
@@ -67,22 +50,18 @@ export async function syncOpenClawAgents(instanceId: number): Promise<{
 export async function updateOpenClawInstance(
     instanceId: number,
     payload: OpenClawInstanceUpdateInput,
-): Promise<InstanceReadApi> {
-    const response = await apiClient.put<InstanceReadApi>(`/api/instances/${instanceId}`, {
-        name: payload.name,
-        channel_base_url: payload.channelBaseUrl,
-        channel_account_id: payload.channelAccountId,
-    });
+): Promise<OpenClawInstanceResponse> {
+    const response = await apiClient.put<OpenClawInstanceResponse>(`/api/instances/${instanceId}`, snakeizeKeys(payload));
     return response.data;
 }
 
-export async function enableInstance(instanceId: number): Promise<InstanceReadApi> {
-    const response = await apiClient.post<InstanceReadApi>(`/api/instances/${instanceId}/enable`);
+export async function enableInstance(instanceId: number): Promise<OpenClawInstanceResponse> {
+    const response = await apiClient.post<OpenClawInstanceResponse>(`/api/instances/${instanceId}/enable`);
     return response.data;
 }
 
-export async function disableInstance(instanceId: number): Promise<InstanceReadApi> {
-    const response = await apiClient.post<InstanceReadApi>(`/api/instances/${instanceId}/disable`);
+export async function disableInstance(instanceId: number): Promise<OpenClawInstanceResponse> {
+    const response = await apiClient.post<OpenClawInstanceResponse>(`/api/instances/${instanceId}/disable`);
     return response.data;
 }
 

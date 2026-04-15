@@ -140,7 +140,7 @@ async function syncAgents(instanceId: number, instanceName: string) {
   syncingAgents.value = true;
   try {
     const result = await openClawStore.syncInstanceAgents(instanceId);
-    ElMessage.success(t("openclaw.syncSuccess", {name: instanceName, count: result.imported_agent_count}));
+    ElMessage.success(t("openclaw.syncSuccess", {name: instanceName, count: result.importedAgentCount}));
   } finally {
     syncingAgents.value = false;
   }

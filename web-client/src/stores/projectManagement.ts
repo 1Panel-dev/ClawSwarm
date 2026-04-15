@@ -15,12 +15,6 @@ import {
     updateProject as updateProjectRequest,
     updateProjectDocument as updateProjectDocumentRequest,
 } from "@/api/projects";
-import {
-    toProjectDetailView,
-    toProjectDocumentView,
-    toProjectView,
-    toTemplateView,
-} from "@/stores/projectManagementMappers";
 import type {
     DocumentTemplateCreateInput,
     DocumentTemplateUpdateInput,
@@ -33,6 +27,7 @@ import type {
     ProjectUpdateInput,
     ProjectView,
 } from "@/types/view/project-management";
+import { camelizeKeys } from "@/utils/case";
 
 function toProjectSummaryFromDetail(item: ProjectDetailView): ProjectView {
     return {
@@ -102,7 +97,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             this.loadingProjects = true;
             this.projectsError = "";
             try {
-                this.projects = (await fetchProjects()).map(toProjectView);
+                this.projects = (await fetchProjects()).map(camelizeKeys);
             } catch (error) {
                 this.projectsError = error instanceof Error ? error.message : String(error);
             } finally {
@@ -112,7 +107,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async loadProjectDetail(projectId: string) {
             this.loadingProjectDetail = true;
             try {
-                this.activeProject = toProjectDetailView(await fetchProjectDetail(projectId));
+                this.activeProject = camelizeKeys(await fetchProjectDetail(projectId));
                 this.activeDocumentId = this.activeProject.documents[0]?.id ?? null;
                 this.projects = replaceProject(this.projects, toProjectSummaryFromDetail(this.activeProject));
             } finally {
@@ -123,13 +118,13 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             if (!this.activeProject || !this.activeDocumentId) {
                 return;
             }
-            const item = toProjectDocumentView(await fetchProjectDocument(this.activeProject.id, this.activeDocumentId));
+            const item = camelizeKeys(await fetchProjectDocument(this.activeProject.id, this.activeDocumentId));
             this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
         },
         async createProject(payload: ProjectCreateInput) {
             this.submittingProject = true;
             try {
-                const detail = toProjectDetailView(await createProjectRequest(payload));
+                const detail = camelizeKeys(await createProjectRequest(payload));
                 this.activeProject = detail;
                 this.activeDocumentId = detail.documents[0]?.id ?? null;
                 this.projects = replaceProject(this.projects, toProjectSummaryFromDetail(detail));
@@ -141,7 +136,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async updateProject(projectId: string, payload: ProjectUpdateInput) {
             this.submittingProject = true;
             try {
-                const item = toProjectView(await updateProjectRequest(projectId, payload));
+                const item = camelizeKeys(await updateProjectRequest(projectId, payload));
                 this.projects = replaceProject(this.projects, item);
                 if (this.activeProject?.id === item.id) {
                     this.activeProject = {
@@ -157,7 +152,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async createDocument(projectId: string, payload: ProjectDocumentCreateInput) {
             this.submittingDocument = true;
             try {
-                const item = toProjectDocumentView(await createProjectDocumentRequest(projectId, payload));
+                const item = camelizeKeys(await createProjectDocumentRequest(projectId, payload));
                 if (this.activeProject?.id === projectId) {
                     this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
                 }
@@ -170,7 +165,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async updateDocument(projectId: string, documentId: string, payload: ProjectDocumentUpdateInput) {
             this.submittingDocument = true;
             try {
-                const item = toProjectDocumentView(await updateProjectDocumentRequest(projectId, documentId, payload));
+                const item = camelizeKeys(await updateProjectDocumentRequest(projectId, documentId, payload));
                 if (this.activeProject?.id === projectId) {
                     this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
                 }
@@ -197,7 +192,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             this.loadingTemplates = true;
             this.templatesError = "";
             try {
-                this.templates = (await fetchDocumentTemplates()).map(toTemplateView);
+                this.templates = (await fetchDocumentTemplates()).map(camelizeKeys);
             } catch (error) {
                 this.templatesError = error instanceof Error ? error.message : String(error);
             } finally {
@@ -205,12 +200,12 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             }
         },
         async loadTemplate(templateId: string) {
-            return toTemplateView(await fetchDocumentTemplate(templateId));
+            return camelizeKeys(await fetchDocumentTemplate(templateId));
         },
         async createTemplate(payload: DocumentTemplateCreateInput) {
             this.submittingTemplate = true;
             try {
-                const item = toTemplateView(await createDocumentTemplateRequest(payload));
+                const item = camelizeKeys(await createDocumentTemplateRequest(payload));
                 this.templates = replaceTemplate(this.templates, item);
                 return item;
             } finally {
@@ -220,7 +215,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async updateTemplate(templateId: string, payload: DocumentTemplateUpdateInput) {
             this.submittingTemplate = true;
             try {
-                const item = toTemplateView(await updateDocumentTemplateRequest(templateId, payload));
+                const item = camelizeKeys(await updateDocumentTemplateRequest(templateId, payload));
                 this.templates = replaceTemplate(this.templates, item);
                 return item;
             } finally {

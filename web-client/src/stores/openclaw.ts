@@ -14,10 +14,7 @@ import {
     updateOpenClawInstance,
 } from "@/api/instances";
 import {
-    toOpenClawAgentProfileView,
-    toOpenClawAgentView,
     toOpenClawConnectResultView,
-    toOpenClawInstanceCredentialsView,
     toOpenClawInstanceView,
 } from "@/stores/openclawMappers";
 import type {
@@ -31,7 +28,9 @@ import type {
     OpenClawInstanceUpdateInput,
     OpenClawInstanceView,
     OpenClawQuickConnectInput,
+    OpenClawSyncAgentsView,
 } from "@/types/view/openclaw";
+import { camelizeKeys } from "@/utils/case";
 
 export const useOpenClawStore = defineStore("openclaw", {
     state: () => ({
@@ -50,7 +49,7 @@ export const useOpenClawStore = defineStore("openclaw", {
                 const instances = await fetchInstances();
                 const items = await Promise.all(
                     instances.map(async (instance) => {
-                        const agents = (await fetchAgents(instance.id)).map(toOpenClawAgentView);
+                        const agents = (await fetchAgents(instance.id)).map(camelizeKeys);
                         return toOpenClawInstanceView(instance, agents);
                     }),
                 );
@@ -81,7 +80,7 @@ export const useOpenClawStore = defineStore("openclaw", {
             this.creating = true;
             try {
                 const result = await connectOpenClaw(payload);
-                const agents = (await fetchAgents(result.instance.id)).map(toOpenClawAgentView);
+                const agents = (await fetchAgents(result.instance.id)).map(camelizeKeys);
                 await this.loadInstances();
                 return toOpenClawConnectResultView(result, agents);
             } finally {
@@ -105,12 +104,12 @@ export const useOpenClawStore = defineStore("openclaw", {
             }
         },
         async loadInstanceCredentials(instanceId: number): Promise<OpenClawInstanceCredentialsView> {
-            return toOpenClawInstanceCredentialsView(await fetchInstanceCredentials(instanceId));
+            return camelizeKeys(await fetchInstanceCredentials(instanceId));
         },
-        async syncInstanceAgents(instanceId: number) {
+        async syncInstanceAgents(instanceId: number): Promise<OpenClawSyncAgentsView> {
             this.savingId = `instance:${instanceId}:sync`;
             try {
-                const result = await syncOpenClawAgents(instanceId);
+                const result = camelizeKeys(await syncOpenClawAgents(instanceId));
                 await this.loadInstances();
                 return result;
             } finally {
@@ -147,7 +146,7 @@ export const useOpenClawStore = defineStore("openclaw", {
         async createNewAgent(instanceId: number, payload: OpenClawAgentCreateInput) {
             this.creatingAgentForInstanceId = instanceId;
             try {
-                const agent = toOpenClawAgentView(
+                const agent = camelizeKeys(
                     await createAgent(instanceId, {
                         ...payload,
                         enabled: payload.enabled ?? true,
@@ -162,7 +161,7 @@ export const useOpenClawStore = defineStore("openclaw", {
         async loadAgentProfile(agentId: number): Promise<OpenClawAgentProfileView> {
             this.loadingAgentProfileId = agentId;
             try {
-                return toOpenClawAgentProfileView(await fetchAgentProfile(agentId));
+                return camelizeKeys(await fetchAgentProfile(agentId));
             } finally {
                 this.loadingAgentProfileId = null;
             }
@@ -170,7 +169,7 @@ export const useOpenClawStore = defineStore("openclaw", {
         async updateExistingAgent(agentId: number, payload: OpenClawAgentUpdateInput): Promise<OpenClawAgentView> {
             this.editingAgentId = agentId;
             try {
-                const agent = toOpenClawAgentView(await updateAgent(agentId, payload));
+                const agent = camelizeKeys(await updateAgent(agentId, payload));
                 await this.loadInstances();
                 return agent;
             } finally {

@@ -4,51 +4,32 @@
  * 这里统一使用 camelCase，供页面、组件和 store 消费；
  * 与后端接口原样字段的转换放在 API 或 mapper 层处理。
  */
+import type {
+    OpenClawAgentProfileResponse,
+    OpenClawAgentResponse,
+} from "@/types/api/agent";
+import type {
+    OpenClawConnectResponse,
+    OpenClawInstanceCredentialsResponse,
+    OpenClawInstanceResponse,
+    OpenClawSyncAgentsResponse,
+} from "@/types/api/instance";
+import type { Camelized } from "@/utils/case";
 
-export interface OpenClawAgentView {
-    id: number;
-    instanceId: number;
-    agentKey: string;
-    csId: string;
-    displayName: string;
-    roleName: string | null;
-    enabled: boolean;
-    createdViaClawswarm: boolean;
-    createdAt: string;
-    updatedAt: string;
-}
+export type OpenClawAgentView = Camelized<OpenClawAgentResponse>;
 
-export interface OpenClawAgentProfileView extends OpenClawAgentView {
-    agentsMd: string;
-    toolsMd: string;
-    identityMd: string;
-    soulMd: string;
-    userMd: string;
-    memoryMd: string;
-    heartbeatMd: string;
-}
+export type OpenClawAgentProfileView = Camelized<OpenClawAgentProfileResponse>;
 
-export interface OpenClawInstanceView {
-    id: number;
-    instanceKey: string;
-    name: string;
-    channelBaseUrl: string;
-    channelAccountId: string;
-    status: string;
-    createdAt: string;
-    updatedAt: string;
+export interface OpenClawInstanceView extends Camelized<OpenClawInstanceResponse> {
     agents: OpenClawAgentView[];
 }
 
-export interface OpenClawInstanceCredentialsView {
-    outboundToken: string;
-    inboundSigningSecret: string;
-}
+export type OpenClawInstanceCredentialsView = Camelized<OpenClawInstanceCredentialsResponse>;
 
-export interface OpenClawConnectResultView {
+export type OpenClawSyncAgentsView = Camelized<OpenClawSyncAgentsResponse>;
+
+export interface OpenClawConnectResultView extends Camelized<OpenClawConnectResponse> {
     instance: OpenClawInstanceView;
-    importedAgentCount: number;
-    agentKeys: string[];
     credentials: OpenClawInstanceCredentialsView;
 }
 
