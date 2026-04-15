@@ -10,59 +10,59 @@ import executionEngineerMemory from "@/agent-templates/execution-engineer/MEMORY
 export type AgentTemplateDefinition = {
     key: string;
     labelKey: string;
-    agent_key: string;
-    display_name: string;
-    role_name: string;
-    agents_md: string;
-    tools_md: string;
-    identity_md: string;
-    soul_md: string;
-    user_md: string;
-    memory_md: string;
-    heartbeat_md: string;
+    agentKey: string;
+    displayName: string;
+    roleName: string;
+    agentsMd: string;
+    toolsMd: string;
+    identityMd: string;
+    soulMd: string;
+    userMd: string;
+    memoryMd: string;
+    heartbeatMd: string;
 };
 
 export const AGENT_TEMPLATES: AgentTemplateDefinition[] = [
     {
         key: "blank",
         labelKey: "openclaw.agentTemplateBlank",
-        agent_key: "",
-        display_name: "",
-        role_name: "",
-        agents_md: "",
-        tools_md: "",
-        identity_md: "",
-        soul_md: "",
-        user_md: "",
-        memory_md: "",
-        heartbeat_md: "",
+        agentKey: "",
+        displayName: "",
+        roleName: "",
+        agentsMd: "",
+        toolsMd: "",
+        identityMd: "",
+        soulMd: "",
+        userMd: "",
+        memoryMd: "",
+        heartbeatMd: "",
     },
     {
         key: "project-manager",
         labelKey: "openclaw.agentTemplateProjectManager",
-        agent_key: "project-manager",
-        display_name: "项目经理",
-        role_name: "项目经理",
-        agents_md: "",
-        tools_md: "",
-        identity_md: projectManagerIdentity,
-        soul_md: projectManagerSoul,
-        user_md: projectManagerUser,
-        memory_md: projectManagerMemory,
-        heartbeat_md: "",
+        agentKey: "project-manager",
+        displayName: "项目经理",
+        roleName: "项目经理",
+        agentsMd: "",
+        toolsMd: "",
+        identityMd: projectManagerIdentity,
+        soulMd: projectManagerSoul,
+        userMd: projectManagerUser,
+        memoryMd: projectManagerMemory,
+        heartbeatMd: "",
     },
     {
         key: "execution-engineer",
         labelKey: "openclaw.agentTemplateExecutionEngineer",
-        agent_key: "execution-engineer",
-        display_name: "执行工程师",
-        role_name: "执行工程师",
-        agents_md: "",
-        tools_md: "",
-        identity_md: executionEngineerIdentity,
-        soul_md: executionEngineerSoul,
-        user_md: executionEngineerUser,
-        memory_md: executionEngineerMemory,
-        heartbeat_md: "",
+        agentKey: "execution-engineer",
+        displayName: "执行工程师",
+        roleName: "执行工程师",
+        agentsMd: "",
+        toolsMd: "",
+        identityMd: executionEngineerIdentity,
+        soulMd: executionEngineerSoul,
+        userMd: executionEngineerUser,
+        memoryMd: executionEngineerMemory,
+        heartbeatMd: "",
     },
 ];

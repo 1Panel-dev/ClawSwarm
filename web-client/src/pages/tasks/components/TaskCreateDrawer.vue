@@ -51,7 +51,7 @@
                 <el-option
                   v-for="agent in instance.agents"
                   :key="`${instance.id}:${agent.id}`"
-                  :label="`${agent.display_name}${agent.role_name ? ` / ${agent.role_name}` : ''}`"
+                  :label="`${agent.displayName}${agent.roleName ? ` / ${agent.roleName}` : ''}`"
                   :value="`${instance.id}:${agent.id}`"
                 />
               </el-option-group>
@@ -171,7 +171,7 @@
 import { computed, reactive, ref, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { OpenClawInstanceView } from "@/stores/openclaw";
+import type { OpenClawInstanceView } from "@/types/view/openclaw";
 import type { TaskCreatePayload, TaskPriority } from "@/types/view/task";
 
 const props = defineProps<{
@@ -226,8 +226,8 @@ const selectedAssignee = computed(() => {
         instanceId: instance.id,
         instanceName: instance.name,
         agentId: agent.id,
-        agentName: agent.display_name,
-        roleName: agent.role_name,
+        agentName: agent.displayName,
+        roleName: agent.roleName,
     };
 });
 
