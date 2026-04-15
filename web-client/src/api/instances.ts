@@ -5,6 +5,11 @@ import type {
     InstanceHealthReadApi,
     InstanceReadApi,
 } from "@/types/api/instance";
+import type {
+    OpenClawInstanceCreateInput,
+    OpenClawInstanceUpdateInput,
+    OpenClawQuickConnectInput,
+} from "@/types/view/openclaw";
 
 export async function fetchInstances(): Promise<InstanceReadApi[]> {
     const response = await apiClient.get<InstanceReadApi[]>("/api/instances");
@@ -16,24 +21,24 @@ export async function fetchInstanceHealth(): Promise<InstanceHealthReadApi[]> {
     return response.data;
 }
 
-export async function createInstance(payload: {
-    name: string;
-    channel_base_url: string;
-    channel_account_id: string;
-    channel_signing_secret: string;
-    callback_token: string;
-    status?: string;
-}): Promise<InstanceReadApi> {
-    const response = await apiClient.post<InstanceReadApi>("/api/instances", payload);
+export async function createInstance(payload: OpenClawInstanceCreateInput): Promise<InstanceReadApi> {
+    const response = await apiClient.post<InstanceReadApi>("/api/instances", {
+        name: payload.name,
+        channel_base_url: payload.channelBaseUrl,
+        channel_account_id: payload.channelAccountId,
+        channel_signing_secret: payload.channelSigningSecret,
+        callback_token: payload.callbackToken,
+        status: payload.status,
+    });
     return response.data;
 }
 
-export async function connectOpenClaw(payload: {
-    name: string;
-    channel_base_url: string;
-    channel_account_id?: string;
-}): Promise<ConnectInstanceResponseApi> {
-    const response = await apiClient.post<ConnectInstanceResponseApi>("/api/instances/connect", payload, {
+export async function connectOpenClaw(payload: OpenClawQuickConnectInput): Promise<ConnectInstanceResponseApi> {
+    const response = await apiClient.post<ConnectInstanceResponseApi>("/api/instances/connect", {
+        name: payload.name,
+        channel_base_url: payload.channelBaseUrl,
+        channel_account_id: payload.channelAccountId,
+    }, {
         timeout: 60000,
     });
     return response.data;
@@ -61,15 +66,13 @@ export async function syncOpenClawAgents(instanceId: number): Promise<{
 
 export async function updateOpenClawInstance(
     instanceId: number,
-    payload: {
-        name?: string;
-        channel_base_url?: string;
-        channel_account_id?: string;
-        channel_signing_secret?: string;
-        callback_token?: string;
-    },
+    payload: OpenClawInstanceUpdateInput,
 ): Promise<InstanceReadApi> {
-    const response = await apiClient.put<InstanceReadApi>(`/api/instances/${instanceId}`, payload);
+    const response = await apiClient.put<InstanceReadApi>(`/api/instances/${instanceId}`, {
+        name: payload.name,
+        channel_base_url: payload.channelBaseUrl,
+        channel_account_id: payload.channelAccountId,
+    });
     return response.data;
 }
 

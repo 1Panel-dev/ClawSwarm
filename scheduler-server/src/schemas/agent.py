@@ -13,20 +13,26 @@ class AgentCreate(BaseModel):
     agent_key: str = Field(min_length=1, max_length=120)
     display_name: str = Field(min_length=1, max_length=120)
     role_name: str | None = Field(default=None, max_length=120)
+    agents_md: str | None = None
+    tools_md: str | None = None
     identity_md: str | None = None
     soul_md: str | None = None
     user_md: str | None = None
     memory_md: str | None = None
+    heartbeat_md: str | None = None
     enabled: bool = True
 
 
 class AgentUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     role_name: str | None = Field(default=None, max_length=120)
+    agents_md: str | None = None
+    tools_md: str | None = None
     identity_md: str | None = None
     soul_md: str | None = None
     user_md: str | None = None
     memory_md: str | None = None
+    heartbeat_md: str | None = None
     enabled: bool | None = None
 
 
@@ -42,7 +48,10 @@ class AgentRead(TimestampedModel):
 
 
 class AgentProfileRead(AgentRead):
+    agents_md: str
+    tools_md: str
     identity_md: str
     soul_md: str
     user_md: str
     memory_md: str
+    heartbeat_md: str

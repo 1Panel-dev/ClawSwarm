@@ -13,15 +13,15 @@
         </el-form-item>
 
         <el-form-item :label="t('openclaw.openclawUrl')">
-          <el-input v-model="form.channel_base_url" placeholder="例如：https://172.16.200.119:18789" />
+          <el-input v-model="form.channelBaseUrl" placeholder="例如：https://172.16.200.119:18789" />
         </el-form-item>
       </el-form>
 
       <el-form v-if="credentials" label-position="top">
         <el-form-item :label="t('openclaw.outboundToken')">
-          <el-input :model-value="maskedSecret(credentials.outbound_token)" readonly>
+          <el-input :model-value="maskedSecret(credentials.outboundToken)" readonly>
             <template #append>
-              <el-button text @click="copyCredential('outbound_token')">
+              <el-button text @click="copyCredential('outboundToken')">
                 <el-icon><DocumentCopy /></el-icon>
               </el-button>
             </template>
@@ -29,9 +29,9 @@
         </el-form-item>
 
         <el-form-item :label="t('openclaw.inboundSigningSecret')">
-          <el-input :model-value="maskedSecret(credentials.inbound_signing_secret)" readonly>
+          <el-input :model-value="maskedSecret(credentials.inboundSigningSecret)" readonly>
             <template #append>
-              <el-button text @click="copyCredential('inbound_signing_secret')">
+              <el-button text @click="copyCredential('inboundSigningSecret')">
                 <el-icon><DocumentCopy /></el-icon>
               </el-button>
             </template>
@@ -48,13 +48,13 @@
             </span>
           </template>
           <el-input
-            v-model="form.gateway_token"
+            v-model="form.gatewayToken"
             :placeholder="t('openclaw.gatewayTokenPlaceholder')"
           />
         </el-form-item>
 
         <el-form-item>
-          <el-checkbox v-model="form.include_intermediate_messages">
+          <el-checkbox v-model="form.includeIntermediateMessages">
             {{ t("openclaw.includeIntermediateMessages") }}
           </el-checkbox>
           <div class="drawer-config-help">{{ t("openclaw.includeIntermediateMessagesHelp") }}</div>
@@ -103,7 +103,7 @@
 import { computed, reactive, watch } from "vue";
 import { DocumentCopy, InfoFilled } from "@element-plus/icons-vue";
 import { useI18n } from "@/composables/useI18n";
-import type { InstanceCredentialsReadApi } from "@/types/api/instance";
+import type { OpenClawInstanceCredentialsView } from "@/types/view/openclaw";
 
 const props = defineProps<{
     visible: boolean;
@@ -112,10 +112,10 @@ const props = defineProps<{
     initialValue?: {
         id: number;
         name: string;
-        channel_base_url: string;
-        channel_account_id: string;
+        channelBaseUrl: string;
+        channelAccountId: string;
     } | null;
-    credentials?: InstanceCredentialsReadApi | null;
+    credentials?: OpenClawInstanceCredentialsView | null;
 }>();
 
 const emit = defineEmits<{
@@ -124,25 +124,25 @@ const emit = defineEmits<{
         | {
             mode: "create";
             name: string;
-            channel_base_url: string;
-            channel_account_id: string;
+            channelBaseUrl: string;
+            channelAccountId: string;
         }
         | {
             mode: "edit";
-            instance_id: number;
+            instanceId: number;
             name: string;
-            channel_base_url: string;
-            channel_account_id: string;
+            channelBaseUrl: string;
+            channelAccountId: string;
         }
     ];
 }>();
 
 const form = reactive({
     name: "",
-    channel_base_url: "",
-    channel_account_id: "default",
-    gateway_token: "",
-    include_intermediate_messages: true,
+    channelBaseUrl: "",
+    channelAccountId: "default",
+    gatewayToken: "",
+    includeIntermediateMessages: true,
 });
 const { t } = useI18n();
 
@@ -155,26 +155,26 @@ watch(
     (visible) => {
         if (!visible) {
             form.name = "";
-            form.channel_base_url = "";
-            form.channel_account_id = "default";
-            form.include_intermediate_messages = true;
-            form.gateway_token = "";
+            form.channelBaseUrl = "";
+            form.channelAccountId = "default";
+            form.includeIntermediateMessages = true;
+            form.gatewayToken = "";
             return;
         }
         if (mode.value === "edit" && props.initialValue) {
             form.name = props.initialValue.name;
-            form.channel_base_url = props.initialValue.channel_base_url;
-            form.channel_account_id = props.initialValue.channel_account_id;
-            form.gateway_token = "";
+            form.channelBaseUrl = props.initialValue.channelBaseUrl;
+            form.channelAccountId = props.initialValue.channelAccountId;
+            form.gatewayToken = "";
         }
-        form.gateway_token = "";
+        form.gatewayToken = "";
     },
 );
 
 const canSubmit = computed(
     () =>
         !!form.name.trim()
-        && !!form.channel_base_url.trim(),
+        && !!form.channelBaseUrl.trim(),
 );
 
 function submit() {
@@ -184,18 +184,18 @@ function submit() {
     if (mode.value === "edit" && props.initialValue) {
         emit("submit", {
             mode: "edit",
-            instance_id: props.initialValue.id,
+            instanceId: props.initialValue.id,
             name: form.name.trim(),
-            channel_base_url: form.channel_base_url.trim(),
-            channel_account_id: form.channel_account_id.trim(),
+            channelBaseUrl: form.channelBaseUrl.trim(),
+            channelAccountId: form.channelAccountId.trim(),
         });
         return;
     }
     emit("submit", {
         mode: "create",
         name: form.name.trim(),
-        channel_base_url: form.channel_base_url.trim(),
-        channel_account_id: form.channel_account_id.trim(),
+        channelBaseUrl: form.channelBaseUrl.trim(),
+        channelAccountId: form.channelAccountId.trim(),
     });
 }
 
@@ -238,17 +238,17 @@ function buildOpenClawConfig(maskSecrets: boolean) {
                     default: {
                         enabled: true,
                         baseUrl: backendBaseUrl,
-                        outboundToken: maskSecrets ? maskedSecret(props.credentials.outbound_token) : props.credentials.outbound_token,
-                        inboundSigningSecret: maskSecrets ? maskedSecret(props.credentials.inbound_signing_secret) : props.credentials.inbound_signing_secret,
-                        webchatMirror: {
-                            includeIntermediateMessages: form.include_intermediate_messages,
-                        },
-                        gateway: {
-                            baseUrl: form.channel_base_url.trim(),
-                            token: maskSecrets ? maskedSecret(form.gateway_token.trim()) : form.gateway_token.trim(),
-                            model: "openclaw",
-                            stream: true,
-                            allowInsecureTls: true,
+                            outboundToken: maskSecrets ? maskedSecret(props.credentials.outboundToken) : props.credentials.outboundToken,
+                            inboundSigningSecret: maskSecrets ? maskedSecret(props.credentials.inboundSigningSecret) : props.credentials.inboundSigningSecret,
+                            webchatMirror: {
+                                includeIntermediateMessages: form.includeIntermediateMessages,
+                            },
+                            gateway: {
+                                baseUrl: form.channelBaseUrl.trim(),
+                                token: maskSecrets ? maskedSecret(form.gatewayToken.trim()) : form.gatewayToken.trim(),
+                                model: "openclaw",
+                                stream: true,
+                                allowInsecureTls: true,
                         },
                         agentDirectory: {
                             allowedAgentIds: ["main"],
@@ -281,7 +281,7 @@ function resolveBackendBaseUrl() {
     return "http://127.0.0.1:18080";
 }
 
-async function copyCredential(key: keyof InstanceCredentialsReadApi) {
+async function copyCredential(key: keyof OpenClawInstanceCredentialsView) {
     if (!props.credentials) {
         return;
     }
@@ -333,7 +333,7 @@ async function copyOpenClawConfig() {
         }
         ElMessage.success(t("openclaw.copySuccess"));
         window.setTimeout(() => {
-            form.gateway_token = "";
+            form.gatewayToken = "";
         }, 1000);
     } catch (error) {
         ElMessage.error(error instanceof Error ? error.message : String(error));

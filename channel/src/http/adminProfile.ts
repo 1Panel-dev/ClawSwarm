@@ -70,10 +70,13 @@ export async function handleAdminAgentProfileRoute(params: {
             agentId: agentKey,
             displayName: parsed.data.displayName,
             profileFiles: {
+                agentsMd: parsed.data.agentsMd,
+                toolsMd: parsed.data.toolsMd,
                 identityMd: parsed.data.identityMd,
                 soulMd: parsed.data.soulMd,
                 userMd: parsed.data.userMd,
                 memoryMd: parsed.data.memoryMd,
+                heartbeatMd: parsed.data.heartbeatMd,
             },
             cfg: hostConfig,
         });

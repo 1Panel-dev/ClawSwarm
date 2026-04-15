@@ -16,6 +16,21 @@ from src.services.agent_cleanup import delete_agent_private_conversations
 from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.openclaw_probe_service import fetch_channel_agents as fetch_channel_agents_from_openclaw
 
+
+def find_existing_agent_by_key(*, db: Session, instance_id: int, agent_key: str) -> AgentProfile | None:
+    """查找某个实例下仍然存在于 OpenClaw 的同名 agent。"""
+    normalized_key = agent_key.strip()
+    if not normalized_key:
+        return None
+    return db.scalar(
+        select(AgentProfile).where(
+            AgentProfile.instance_id == instance_id,
+            AgentProfile.agent_key == normalized_key,
+            AgentProfile.removed_from_openclaw.is_(False),
+        )
+    )
+
+
 def can_edit_agent_profile(agent: AgentProfile) -> bool:
     """默认把导入的 `main` agent 视为只读，除非它是 ClawSwarm 自己创建的。"""
     if agent.created_via_clawswarm:
@@ -119,18 +134,28 @@ def ensure_listable_agents(db: Session, instance_id: int) -> list[AgentProfile]:
 
 async def create_agent_for_instance(*, db: Session, instance: OpenClawInstance, payload: AgentCreate) -> AgentProfile:
     """先在远端创建 agent，再同步到本地目录。"""
+    existing_agent = find_existing_agent_by_key(db=db, instance_id=instance.id, agent_key=payload.agent_key)
+    if existing_agent is not None:
+        raise HTTPException(status_code=409, detail="agent key already exists in this instance")
+
     remote_create_payload = {
         "agentKey": payload.agent_key,
         "displayName": payload.display_name,
     }
     if payload.identity_md is not None:
         remote_create_payload["identityMd"] = payload.identity_md
+    if payload.agents_md is not None:
+        remote_create_payload["agentsMd"] = payload.agents_md
     if payload.soul_md is not None:
         remote_create_payload["soulMd"] = payload.soul_md
+    if payload.tools_md is not None:
+        remote_create_payload["toolsMd"] = payload.tools_md
     if payload.user_md is not None:
         remote_create_payload["userMd"] = payload.user_md
     if payload.memory_md is not None:
         remote_create_payload["memoryMd"] = payload.memory_md
+    if payload.heartbeat_md is not None:
+        remote_create_payload["heartbeatMd"] = payload.heartbeat_md
 
     try:
         created_remote_agent = await channel_client.create_agent(
@@ -220,10 +245,13 @@ async def load_agent_profile(*, db: Session, agent: AgentProfile) -> AgentProfil
 
     return AgentProfileRead(
         **dump_model(validate_orm(AgentRead, agent)),
+        agents_md=str(profile.get("agentsMd") or ""),
+        tools_md=str(profile.get("toolsMd") or ""),
         identity_md=str(profile.get("identityMd") or ""),
         soul_md=str(profile.get("soulMd") or ""),
         user_md=str(profile.get("userMd") or ""),
         memory_md=str(profile.get("memoryMd") or ""),
+        heartbeat_md=str(profile.get("heartbeatMd") or ""),
     )
 
 
@@ -240,14 +268,20 @@ async def update_agent_profile(*, db: Session, agent: AgentProfile, payload: Age
     remote_payload: dict[str, str] = {}
     if payload.display_name is not None:
         remote_payload["displayName"] = payload.display_name
+    if payload.agents_md is not None:
+        remote_payload["agentsMd"] = payload.agents_md
     if payload.identity_md is not None:
         remote_payload["identityMd"] = payload.identity_md
     if payload.soul_md is not None:
         remote_payload["soulMd"] = payload.soul_md
+    if payload.tools_md is not None:
+        remote_payload["toolsMd"] = payload.tools_md
     if payload.user_md is not None:
         remote_payload["userMd"] = payload.user_md
     if payload.memory_md is not None:
         remote_payload["memoryMd"] = payload.memory_md
+    if payload.heartbeat_md is not None:
+        remote_payload["heartbeatMd"] = payload.heartbeat_md
 
     if remote_payload:
         try:
@@ -273,7 +307,7 @@ async def update_agent_profile(*, db: Session, agent: AgentProfile, payload: Age
             raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
 
     for key, value in payload_data.items():
-        if key in {"identity_md", "soul_md", "user_md", "memory_md"}:
+        if key in {"agents_md", "identity_md", "soul_md", "tools_md", "user_md", "memory_md", "heartbeat_md"}:
             continue
         setattr(agent, key, value)
     if not (agent.cs_id or "").strip():

@@ -42,6 +42,8 @@ from src.models.project_document import ProjectDocument
 from src.core.config import settings
 from src.api.routes.agents import sync_instance_agents
 from src.api.routes import instances as instances_route
+from src.schemas.agent import AgentCreate
+from src.services.agent_profile_service import create_agent_for_instance
 from src.services.auth import build_session_cookie_value, ensure_default_user, get_auth_cookie_name
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
 from src.services.document_template_service import PROJECT_INTRO_TEMPLATE_NAME, ensure_builtin_document_templates
@@ -251,6 +253,51 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertEqual(new_login.json()["username"], "admin")
         self.assertEqual(new_login.json()["display_name"], "Owner")
         self.assertFalse(new_login.json()["using_default_password"])
+
+    def test_create_agent_rejects_duplicate_agent_key_before_openclaw_request(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OC1",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            db.add(
+                AgentProfile(
+                    instance_id=instance.id,
+                    agent_key="main",
+                    display_name="Main",
+                    role_name="assistant",
+                    enabled=True,
+                    removed_from_openclaw=False,
+                )
+            )
+            db.commit()
+
+            db.refresh(instance)
+
+            with patch("src.services.agent_profile_service.channel_client.create_agent", new_callable=AsyncMock) as mocked_create:
+                with self.assertRaises(HTTPException) as exc_info:
+                    self._run_async(
+                        create_agent_for_instance(
+                            db=db,
+                            instance=instance,
+                            payload=AgentCreate(
+                                agent_key="main",
+                                display_name="Another Main",
+                                role_name="assistant",
+                            ),
+                        )
+                    )
+
+                self.assertEqual(exc_info.exception.status_code, 409)
+                self.assertEqual(exc_info.exception.detail, "agent key already exists in this instance")
+                mocked_create.assert_not_awaited()
 
     def test_auth_profile_update_allows_display_name_change_without_current_password(self) -> None:
         self.client.cookies.clear()
