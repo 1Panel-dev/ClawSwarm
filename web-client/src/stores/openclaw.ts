@@ -154,10 +154,13 @@ export const useOpenClawStore = defineStore("openclaw", {
                 agent_key: string;
                 display_name: string;
                 role_name?: string | null;
+                agents_md?: string | null;
+                tools_md?: string | null;
                 identity_md?: string | null;
                 soul_md?: string | null;
                 user_md?: string | null;
                 memory_md?: string | null;
+                heartbeat_md?: string | null;
                 enabled?: boolean;
             },
         ) {
@@ -186,10 +189,13 @@ export const useOpenClawStore = defineStore("openclaw", {
             payload: {
                 display_name?: string | null;
                 role_name?: string | null;
+                agents_md?: string | null;
+                tools_md?: string | null;
                 identity_md?: string | null;
                 soul_md?: string | null;
                 user_md?: string | null;
                 memory_md?: string | null;
+                heartbeat_md?: string | null;
                 enabled?: boolean;
             },
         ): Promise<AgentReadApi> {

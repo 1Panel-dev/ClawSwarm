@@ -111,7 +111,7 @@
 /**
  * Agent 创建与编辑抽屉。
  *
- * 负责基础字段以及四个工作区文件的编辑。
+ * 负责基础字段以及 Agent workspace 文件的编辑。
  */
 import {ArrowDown, EditPen} from "@element-plus/icons-vue";
 import {computed, reactive, ref, watch} from "vue";
@@ -123,10 +123,13 @@ type AgentDrawerCreatePayload = {
   agent_key: string;
   display_name: string;
   role_name: string;
+  agents_md?: string;
+  tools_md?: string;
   identity_md?: string;
   soul_md?: string;
   user_md?: string;
   memory_md?: string;
+  heartbeat_md?: string;
 };
 
 type AgentDrawerEditPayload = {
@@ -135,10 +138,13 @@ type AgentDrawerEditPayload = {
   agent_key: string;
   display_name: string;
   role_name: string;
+  agents_md?: string;
+  tools_md?: string;
   identity_md?: string;
   soul_md?: string;
   user_md?: string;
   memory_md?: string;
+  heartbeat_md?: string;
 };
 
 type AgentDrawerInitialValue = {
@@ -146,10 +152,13 @@ type AgentDrawerInitialValue = {
   agent_key: string;
   display_name: string;
   role_name: string | null;
+  agents_md: string;
+  tools_md: string;
   identity_md: string;
   soul_md: string;
   user_md: string;
   memory_md: string;
+  heartbeat_md: string;
 };
 
 const props = defineProps<{
@@ -169,9 +178,9 @@ const {t} = useI18n();
 
 const fileFields = [
   {
-    key: "identity_md",
-    labelKey: "openclaw.identityFile",
-    placeholderKey: "openclaw.identityPlaceholder",
+    key: "agents_md",
+    labelKey: "openclaw.agentsFile",
+    placeholderKey: "openclaw.agentsPlaceholder",
   },
   {
     key: "soul_md",
@@ -179,9 +188,24 @@ const fileFields = [
     placeholderKey: "openclaw.soulPlaceholder",
   },
   {
+    key: "tools_md",
+    labelKey: "openclaw.toolsFile",
+    placeholderKey: "openclaw.toolsPlaceholder",
+  },
+  {
+    key: "identity_md",
+    labelKey: "openclaw.identityFile",
+    placeholderKey: "openclaw.identityPlaceholder",
+  },
+  {
     key: "user_md",
     labelKey: "openclaw.userFile",
     placeholderKey: "openclaw.userPlaceholder",
+  },
+  {
+    key: "heartbeat_md",
+    labelKey: "openclaw.heartbeatFile",
+    placeholderKey: "openclaw.heartbeatPlaceholder",
   },
   {
     key: "memory_md",
@@ -197,39 +221,54 @@ const form = reactive({
   agent_key: "",
   display_name: "",
   role_name: "",
+  agents_md: "",
+  tools_md: "",
   identity_md: "",
   soul_md: "",
   user_md: "",
   memory_md: "",
+  heartbeat_md: "",
 });
 const selectedTemplateKey = ref("blank");
 
 const fileExpandedState = reactive<Record<FileFieldKey, boolean>>({
+  agents_md: false,
+  tools_md: false,
   identity_md: false,
   soul_md: false,
   user_md: false,
   memory_md: false,
+  heartbeat_md: false,
 });
 
 const fileEditableState = reactive<Record<FileFieldKey, boolean>>({
+  agents_md: true,
+  tools_md: true,
   identity_md: true,
   soul_md: true,
   user_md: true,
   memory_md: true,
+  heartbeat_md: true,
 });
 
 const fileDirtyState = reactive<Record<FileFieldKey, boolean>>({
+  agents_md: false,
+  tools_md: false,
   identity_md: false,
   soul_md: false,
   user_md: false,
   memory_md: false,
+  heartbeat_md: false,
 });
 
 const initialFileValues = reactive<Record<FileFieldKey, string>>({
+  agents_md: "",
+  tools_md: "",
   identity_md: "",
   soul_md: "",
   user_md: "",
   memory_md: "",
+  heartbeat_md: "",
 });
 
 const isEditMode = computed(() => props.mode === "edit");
@@ -250,10 +289,13 @@ function resetForm() {
   form.agent_key = "";
   form.display_name = "";
   form.role_name = "";
+  form.agents_md = "";
+  form.tools_md = "";
   form.identity_md = "";
   form.soul_md = "";
   form.user_md = "";
   form.memory_md = "";
+  form.heartbeat_md = "";
 }
 
 function applyTemplate(templateKey: string) {
@@ -265,10 +307,13 @@ function applyTemplate(templateKey: string) {
   form.agent_key = template.agent_key;
   form.display_name = template.display_name;
   form.role_name = template.role_name;
+  form.agents_md = template.agents_md;
+  form.tools_md = template.tools_md;
   form.identity_md = template.identity_md;
   form.soul_md = template.soul_md;
   form.user_md = template.user_md;
   form.memory_md = template.memory_md;
+  form.heartbeat_md = template.heartbeat_md;
 }
 
 function hasCreateFormContent() {
@@ -276,10 +321,13 @@ function hasCreateFormContent() {
     form.agent_key.trim()
     || form.display_name.trim()
     || form.role_name.trim()
+    || form.agents_md.trim()
+    || form.tools_md.trim()
     || form.identity_md.trim()
     || form.soul_md.trim()
     || form.user_md.trim()
-    || form.memory_md.trim(),
+    || form.memory_md.trim()
+    || form.heartbeat_md.trim(),
   );
 }
 
@@ -341,15 +389,21 @@ watch(
       form.agent_key = props.initialValue.agent_key;
       form.display_name = props.initialValue.display_name;
       form.role_name = props.initialValue.role_name ?? "";
+      form.agents_md = props.initialValue.agents_md;
+      form.tools_md = props.initialValue.tools_md;
       form.identity_md = props.initialValue.identity_md;
       form.soul_md = props.initialValue.soul_md;
       form.user_md = props.initialValue.user_md;
       form.memory_md = props.initialValue.memory_md;
+      form.heartbeat_md = props.initialValue.heartbeat_md;
       resetFileUiState();
+      initialFileValues.agents_md = props.initialValue.agents_md;
+      initialFileValues.tools_md = props.initialValue.tools_md;
       initialFileValues.identity_md = props.initialValue.identity_md;
       initialFileValues.soul_md = props.initialValue.soul_md;
       initialFileValues.user_md = props.initialValue.user_md;
       initialFileValues.memory_md = props.initialValue.memory_md;
+      initialFileValues.heartbeat_md = props.initialValue.heartbeat_md;
       return;
     }
 
@@ -377,6 +431,12 @@ function submit() {
     };
 
     // 编辑模式下只提交真正改过的文件。
+    if (fileDirtyState.agents_md) {
+      payload.agents_md = form.agents_md;
+    }
+    if (fileDirtyState.tools_md) {
+      payload.tools_md = form.tools_md;
+    }
     if (fileDirtyState.identity_md) {
       payload.identity_md = form.identity_md;
     }
@@ -388,6 +448,9 @@ function submit() {
     }
     if (fileDirtyState.memory_md) {
       payload.memory_md = form.memory_md;
+    }
+    if (fileDirtyState.heartbeat_md) {
+      payload.heartbeat_md = form.heartbeat_md;
     }
 
     emit("submit", {
@@ -401,10 +464,13 @@ function submit() {
     agent_key: form.agent_key.trim(),
     display_name: form.display_name.trim(),
     role_name: form.role_name.trim(),
+    ...(form.agents_md.trim() ? {agents_md: form.agents_md} : {}),
+    ...(form.tools_md.trim() ? {tools_md: form.tools_md} : {}),
     ...(form.identity_md.trim() ? {identity_md: form.identity_md} : {}),
     ...(form.soul_md.trim() ? {soul_md: form.soul_md} : {}),
     ...(form.user_md.trim() ? {user_md: form.user_md} : {}),
     ...(form.memory_md.trim() ? {memory_md: form.memory_md} : {}),
+    ...(form.heartbeat_md.trim() ? {heartbeat_md: form.heartbeat_md} : {}),
   });
 }
 </script>

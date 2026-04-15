@@ -202,10 +202,13 @@ const editingAgentProfile = ref<{
   agent_key: string;
   display_name: string;
   role_name: string | null;
+  agents_md: string;
+  tools_md: string;
   identity_md: string;
   soul_md: string;
   user_md: string;
   memory_md: string;
+  heartbeat_md: string;
 } | null>(null);
 
 const instances = computed(() => openClawStore.instances);
@@ -357,10 +360,13 @@ async function openAgentEdit(instanceId: number, instanceName: string, agent: Ag
       agent_key: profile.agent_key,
       display_name: profile.display_name,
       role_name: profile.role_name,
+      agents_md: profile.agents_md,
+      tools_md: profile.tools_md,
       identity_md: profile.identity_md,
       soul_md: profile.soul_md,
       user_md: profile.user_md,
       memory_md: profile.memory_md,
+      heartbeat_md: profile.heartbeat_md,
     };
     agentDrawerVisible.value = true;
   } catch (error) {
@@ -407,10 +413,13 @@ async function handleCreateAgent(payload: {
   agent_key: string;
   display_name: string;
   role_name: string;
+  agents_md?: string;
+  tools_md?: string;
   identity_md?: string;
   soul_md?: string;
   user_md?: string;
   memory_md?: string;
+  heartbeat_md?: string;
 }) {
   if (activeInstanceId.value === null) {
     return;
@@ -430,19 +439,25 @@ async function handleEditAgent(payload: {
   agent_key: string;
   display_name: string;
   role_name: string;
+  agents_md?: string;
+  tools_md?: string;
   identity_md?: string;
   soul_md?: string;
   user_md?: string;
   memory_md?: string;
+  heartbeat_md?: string;
 }) {
   try {
     const agent = await openClawStore.updateExistingAgent(payload.agent_id, {
       display_name: payload.display_name,
       role_name: payload.role_name,
+      agents_md: payload.agents_md,
+      tools_md: payload.tools_md,
       identity_md: payload.identity_md,
       soul_md: payload.soul_md,
       user_md: payload.user_md,
       memory_md: payload.memory_md,
+      heartbeat_md: payload.heartbeat_md,
     });
     agentDrawerVisible.value = false;
     editingAgentProfile.value = null;
@@ -501,10 +516,13 @@ function handleAgentSubmit(
     agent_key: string;
     display_name: string;
     role_name: string;
+    agents_md?: string;
+    tools_md?: string;
     identity_md?: string;
     soul_md?: string;
     user_md?: string;
     memory_md?: string;
+    heartbeat_md?: string;
   }
     | {
     mode: "edit";
@@ -512,10 +530,13 @@ function handleAgentSubmit(
     agent_key: string;
     display_name: string;
     role_name: string;
+    agents_md?: string;
+    tools_md?: string;
     identity_md?: string;
     soul_md?: string;
     user_md?: string;
     memory_md?: string;
+    heartbeat_md?: string;
   },
 ) {
   if (payload.mode === "edit") {

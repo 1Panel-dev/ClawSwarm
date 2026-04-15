@@ -12,8 +12,11 @@ export interface AgentReadApi {
 }
 
 export interface AgentProfileReadApi extends AgentReadApi {
+    agents_md: string;
+    tools_md: string;
     identity_md: string;
     soul_md: string;
     user_md: string;
     memory_md: string;
+    heartbeat_md: string;
 }

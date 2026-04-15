@@ -13,10 +13,13 @@ export type AgentTemplateDefinition = {
     agent_key: string;
     display_name: string;
     role_name: string;
+    agents_md: string;
+    tools_md: string;
     identity_md: string;
     soul_md: string;
     user_md: string;
     memory_md: string;
+    heartbeat_md: string;
 };
 
 export const AGENT_TEMPLATES: AgentTemplateDefinition[] = [
@@ -26,10 +29,13 @@ export const AGENT_TEMPLATES: AgentTemplateDefinition[] = [
         agent_key: "",
         display_name: "",
         role_name: "",
+        agents_md: "",
+        tools_md: "",
         identity_md: "",
         soul_md: "",
         user_md: "",
         memory_md: "",
+        heartbeat_md: "",
     },
     {
         key: "project-manager",
@@ -37,10 +43,13 @@ export const AGENT_TEMPLATES: AgentTemplateDefinition[] = [
         agent_key: "project-manager",
         display_name: "项目经理",
         role_name: "项目经理",
+        agents_md: "",
+        tools_md: "",
         identity_md: projectManagerIdentity,
         soul_md: projectManagerSoul,
         user_md: projectManagerUser,
         memory_md: projectManagerMemory,
+        heartbeat_md: "",
     },
     {
         key: "execution-engineer",
@@ -48,9 +57,12 @@ export const AGENT_TEMPLATES: AgentTemplateDefinition[] = [
         agent_key: "execution-engineer",
         display_name: "执行工程师",
         role_name: "执行工程师",
+        agents_md: "",
+        tools_md: "",
         identity_md: executionEngineerIdentity,
         soul_md: executionEngineerSoul,
         user_md: executionEngineerUser,
         memory_md: executionEngineerMemory,
+        heartbeat_md: "",
     },
 ];

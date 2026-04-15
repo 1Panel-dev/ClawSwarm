@@ -125,12 +125,18 @@ async def create_agent_for_instance(*, db: Session, instance: OpenClawInstance, 
     }
     if payload.identity_md is not None:
         remote_create_payload["identityMd"] = payload.identity_md
+    if payload.agents_md is not None:
+        remote_create_payload["agentsMd"] = payload.agents_md
     if payload.soul_md is not None:
         remote_create_payload["soulMd"] = payload.soul_md
+    if payload.tools_md is not None:
+        remote_create_payload["toolsMd"] = payload.tools_md
     if payload.user_md is not None:
         remote_create_payload["userMd"] = payload.user_md
     if payload.memory_md is not None:
         remote_create_payload["memoryMd"] = payload.memory_md
+    if payload.heartbeat_md is not None:
+        remote_create_payload["heartbeatMd"] = payload.heartbeat_md
 
     try:
         created_remote_agent = await channel_client.create_agent(
@@ -220,10 +226,13 @@ async def load_agent_profile(*, db: Session, agent: AgentProfile) -> AgentProfil
 
     return AgentProfileRead(
         **dump_model(validate_orm(AgentRead, agent)),
+        agents_md=str(profile.get("agentsMd") or ""),
+        tools_md=str(profile.get("toolsMd") or ""),
         identity_md=str(profile.get("identityMd") or ""),
         soul_md=str(profile.get("soulMd") or ""),
         user_md=str(profile.get("userMd") or ""),
         memory_md=str(profile.get("memoryMd") or ""),
+        heartbeat_md=str(profile.get("heartbeatMd") or ""),
     )
 
 
@@ -240,14 +249,20 @@ async def update_agent_profile(*, db: Session, agent: AgentProfile, payload: Age
     remote_payload: dict[str, str] = {}
     if payload.display_name is not None:
         remote_payload["displayName"] = payload.display_name
+    if payload.agents_md is not None:
+        remote_payload["agentsMd"] = payload.agents_md
     if payload.identity_md is not None:
         remote_payload["identityMd"] = payload.identity_md
     if payload.soul_md is not None:
         remote_payload["soulMd"] = payload.soul_md
+    if payload.tools_md is not None:
+        remote_payload["toolsMd"] = payload.tools_md
     if payload.user_md is not None:
         remote_payload["userMd"] = payload.user_md
     if payload.memory_md is not None:
         remote_payload["memoryMd"] = payload.memory_md
+    if payload.heartbeat_md is not None:
+        remote_payload["heartbeatMd"] = payload.heartbeat_md
 
     if remote_payload:
         try:
@@ -273,7 +288,7 @@ async def update_agent_profile(*, db: Session, agent: AgentProfile, payload: Age
             raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
 
     for key, value in payload_data.items():
-        if key in {"identity_md", "soul_md", "user_md", "memory_md"}:
+        if key in {"agents_md", "identity_md", "soul_md", "tools_md", "user_md", "memory_md", "heartbeat_md"}:
             continue
         setattr(agent, key, value)
     if not (agent.cs_id or "").strip():
