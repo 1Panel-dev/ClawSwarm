@@ -16,6 +16,21 @@ from src.services.agent_cleanup import delete_agent_private_conversations
 from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.openclaw_probe_service import fetch_channel_agents as fetch_channel_agents_from_openclaw
 
+
+def find_existing_agent_by_key(*, db: Session, instance_id: int, agent_key: str) -> AgentProfile | None:
+    """查找某个实例下仍然存在于 OpenClaw 的同名 agent。"""
+    normalized_key = agent_key.strip()
+    if not normalized_key:
+        return None
+    return db.scalar(
+        select(AgentProfile).where(
+            AgentProfile.instance_id == instance_id,
+            AgentProfile.agent_key == normalized_key,
+            AgentProfile.removed_from_openclaw.is_(False),
+        )
+    )
+
+
 def can_edit_agent_profile(agent: AgentProfile) -> bool:
     """默认把导入的 `main` agent 视为只读，除非它是 ClawSwarm 自己创建的。"""
     if agent.created_via_clawswarm:
@@ -119,6 +134,10 @@ def ensure_listable_agents(db: Session, instance_id: int) -> list[AgentProfile]:
 
 async def create_agent_for_instance(*, db: Session, instance: OpenClawInstance, payload: AgentCreate) -> AgentProfile:
     """先在远端创建 agent，再同步到本地目录。"""
+    existing_agent = find_existing_agent_by_key(db=db, instance_id=instance.id, agent_key=payload.agent_key)
+    if existing_agent is not None:
+        raise HTTPException(status_code=409, detail="agent key already exists in this instance")
+
     remote_create_payload = {
         "agentKey": payload.agent_key,
         "displayName": payload.display_name,
