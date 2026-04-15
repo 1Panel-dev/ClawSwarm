@@ -25,7 +25,7 @@
             </el-select>
           </el-form-item>
 
-          <el-form-item :label="t('openclaw.agentKey')">
+          <el-form-item :label="t('openclaw.agentKey')" :error="agentKeyDuplicateError">
             <el-input
               v-model="form.agent_key"
               maxlength="120"
@@ -166,6 +166,7 @@ const props = defineProps<{
   submitting: boolean;
   instanceName: string;
   mode: "create" | "edit";
+  existingAgentKeys?: string[];
   initialValue?: AgentDrawerInitialValue | null;
 }>();
 
@@ -283,6 +284,19 @@ const drawerTitle = computed(() =>
     ? t("openclaw.editAgent")
     : t("openclaw.createAgent"),
 );
+const normalizedExistingAgentKeys = computed(() =>
+  new Set((props.existingAgentKeys ?? []).map((key) => key.trim()).filter(Boolean)),
+);
+const agentKeyDuplicateError = computed(() => {
+  if (isEditMode.value) {
+    return "";
+  }
+  const normalizedKey = form.agent_key.trim();
+  if (!normalizedKey) {
+    return "";
+  }
+  return normalizedExistingAgentKeys.value.has(normalizedKey) ? t("openclaw.agentKeyDuplicate") : "";
+});
 
 function resetForm() {
   form.agent_id = 0;
@@ -414,7 +428,7 @@ watch(
   {immediate: true},
 );
 
-const canSubmit = computed(() => !!form.agent_key.trim() && !!form.display_name.trim());
+const canSubmit = computed(() => !!form.agent_key.trim() && !!form.display_name.trim() && !agentKeyDuplicateError.value);
 
 function submit() {
   if (!canSubmit.value) {

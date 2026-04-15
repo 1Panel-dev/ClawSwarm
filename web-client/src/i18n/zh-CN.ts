@@ -183,6 +183,7 @@ export const zhCN = {
     agentDrawerEditTitle: "编辑 {name} 下的 Agent",
     agentKey: "Agent Key",
     agentKeyPlaceholder: "例如：main / weather / coder-01",
+    agentKeyDuplicate: "该实例下已存在相同的 Agent Key",
     displayName: "显示名称",
     displayNamePlaceholder: "例如：主助手 / 天气助理",
     roleName: "角色名称",

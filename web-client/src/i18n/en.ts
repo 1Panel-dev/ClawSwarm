@@ -183,6 +183,7 @@ export const en = {
     agentDrawerEditTitle: "Edit Agent under {name}",
     agentKey: "Agent Key",
     agentKeyPlaceholder: "For example: main / weather / coder-01",
+    agentKeyDuplicate: "An agent with the same Agent Key already exists in this instance",
     displayName: "Display name",
     displayNamePlaceholder: "For example: Main Assistant / Weather Bot",
     roleName: "Role name",

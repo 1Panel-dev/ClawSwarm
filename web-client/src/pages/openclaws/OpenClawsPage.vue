@@ -84,58 +84,24 @@
               </el-space>
             </div>
 
-            <el-table
+            <div
               v-if="instance.agents.length"
-              :data="instance.agents"
-              stripe
-              table-layout="fixed"
+              class="openclaws-page__agent-table"
+              :style="{ height: `${getAgentTableHeight(instance.agents.length)}px` }"
             >
-              <el-table-column prop="display_name" :label="t('openclaw.displayName')" min-width="300" show-overflow-tooltip/>
-              <el-table-column prop="agent_key" :label="t('openclaw.agentKey')" min-width="300" show-overflow-tooltip/>
-              <el-table-column prop="cs_id" label="CS ID" min-width="200" show-overflow-tooltip/>
-              <el-table-column :label="t('openclaw.roleName')" min-width="240" show-overflow-tooltip>
-                <template #default="{ row }">
-                  {{ row.role_name || "—" }}
+              <el-auto-resizer>
+                <template #default="{ width }">
+                  <el-table-v2
+                    :columns="agentTableColumns"
+                    :data="getAgentTableRows(instance)"
+                    :width="width"
+                    :height="getAgentTableHeight(instance.agents.length)"
+                    :row-height="AGENT_TABLE_ROW_HEIGHT"
+                    :header-height="AGENT_TABLE_HEADER_HEIGHT"
+                  />
                 </template>
-              </el-table-column>
-              <el-table-column :label="t('openclaw.agentStatus')" min-width="120">
-                <template #default="{ row }">
-                  <el-tag :type="row.enabled ? 'success' : 'info'" effect="light">
-                    {{ row.enabled ? t("common.enable") : t("common.disable") }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column :label="t('openclaw.actions')" min-width="220" fixed="right">
-                <template #default="{ row }">
-                  <el-space>
-                    <el-tooltip v-if="canEditAgent(row)" :content="t('common.edit')" placement="top">
-                      <el-button
-                        circle
-                        :disabled="pageBusy"
-                        @click="openAgentEdit(instance.id, instance.name, row)"
-                      >
-                        <el-icon><EditPen /></el-icon>
-                      </el-button>
-                    </el-tooltip>
-                    <el-tooltip
-                      :content="row.enabled ? t('common.disable') : t('common.enable')"
-                      placement="top"
-                    >
-                      <el-button
-                        :type="row.enabled ? 'warning' : 'success'"
-                        circle
-                        :disabled="pageBusy"
-                        @click="toggleAgent(row.id, !row.enabled)"
-                      >
-                        <el-icon>
-                          <component :is="row.enabled ? SwitchButton : VideoPlay" />
-                        </el-icon>
-                      </el-button>
-                    </el-tooltip>
-                  </el-space>
-                </template>
-              </el-table-column>
-            </el-table>
+              </el-auto-resizer>
+            </div>
 
             <el-empty v-else :description="t('openclaw.noAgents')"/>
           </el-card>
@@ -164,6 +130,7 @@
       v-model:visible="agentDrawerVisible"
       :submitting="creatingAgent || editingAgent"
       :instance-name="activeInstanceName"
+      :existing-agent-keys="activeInstanceAgentKeys"
       :mode="agentDrawerMode"
       :initial-value="editingAgentProfile"
       @submit="handleAgentSubmit"
@@ -174,12 +141,14 @@
 
 <script setup lang="ts">
 import { Delete, EditPen, Plus, RefreshRight, SwitchButton, VideoPlay } from "@element-plus/icons-vue";
-import {computed, onBeforeUnmount, onMounted, ref} from "vue";
+import { ElButton, ElIcon, ElTag, ElTooltip } from "element-plus";
+import {computed, h, onBeforeUnmount, onMounted, ref} from "vue";
 
 import AgentCreateDrawer from "@/pages/openclaws/components/AgentCreateDrawer.vue";
 import InstanceCreateDrawer from "@/pages/openclaws/components/InstanceCreateDrawer.vue";
 import {useI18n} from "@/composables/useI18n";
 import {useOpenClawStore} from "@/stores/openclaw";
+import type {OpenClawInstanceView} from "@/stores/openclaw";
 import type {AgentReadApi} from "@/types/api/agent";
 import type {InstanceCredentialsReadApi, InstanceReadApi} from "@/types/api/instance";
 
@@ -210,6 +179,7 @@ const editingAgentProfile = ref<{
   memory_md: string;
   heartbeat_md: string;
 } | null>(null);
+const activeInstanceAgentKeys = ref<string[]>([]);
 
 const instances = computed(() => openClawStore.instances);
 const loading = computed(() => openClawStore.loading);
@@ -232,6 +202,121 @@ const pageBusy = computed(
     editingAgent.value ||
     loadingAgentProfileId.value !== null,
 );
+
+const AGENT_TABLE_ROW_HEIGHT = 52;
+const AGENT_TABLE_HEADER_HEIGHT = 44;
+const AGENT_TABLE_MAX_VISIBLE_ROWS = 5;
+
+type AgentTableRow = AgentReadApi & {
+  instanceId: number;
+  instanceName: string;
+};
+
+function getAgentTableRows(instance: OpenClawInstanceView): AgentTableRow[] {
+  return instance.agents.map((agent) => ({
+    ...agent,
+    instanceId: instance.id,
+    instanceName: instance.name,
+  }));
+}
+
+function getAgentTableHeight(agentCount: number) {
+  return AGENT_TABLE_HEADER_HEIGHT + Math.min(agentCount, AGENT_TABLE_MAX_VISIBLE_ROWS) * AGENT_TABLE_ROW_HEIGHT;
+}
+
+const agentTableColumns = computed<any[]>(() => [
+  {
+    key: "display_name",
+    dataKey: "display_name",
+    title: t("openclaw.displayName"),
+    width: 220,
+    minWidth: 200,
+    flexGrow: 1.4,
+  },
+  {
+    key: "agent_key",
+    dataKey: "agent_key",
+    title: t("openclaw.agentKey"),
+    width: 220,
+    minWidth: 200,
+    flexGrow: 1.4,
+  },
+  {
+    key: "cs_id",
+    dataKey: "cs_id",
+    title: "CS ID",
+    width: 160,
+    minWidth: 150,
+    flexGrow: 1,
+  },
+  {
+    key: "role_name",
+    dataKey: "role_name",
+    title: t("openclaw.roleName"),
+    width: 180,
+    minWidth: 160,
+    flexGrow: 1.2,
+    cellRenderer: ({ cellData }: { cellData: string | null }) => cellData || "—",
+  },
+  {
+    key: "enabled",
+    dataKey: "enabled",
+    title: t("openclaw.agentStatus"),
+    width: 120,
+    minWidth: 120,
+    cellRenderer: ({ cellData }: { cellData: boolean }) =>
+      h(
+        ElTag,
+        { type: cellData ? "success" : "info", effect: "light" },
+        () => (cellData ? t("common.enable") : t("common.disable")),
+      ),
+  },
+  {
+    key: "actions",
+    dataKey: "id",
+    title: t("openclaw.actions"),
+    width: 180,
+    minWidth: 170,
+    align: "center",
+    cellRenderer: ({ rowData }: { rowData: AgentTableRow }) =>
+      h("div", { class: "openclaws-page__agent-actions" }, [
+        canEditAgent(rowData)
+          ? h(
+              ElTooltip,
+              { content: t("common.edit"), placement: "top" },
+              () =>
+                h(
+                  ElButton,
+                  {
+                    circle: true,
+                    disabled: pageBusy.value,
+                    onClick: () => openAgentEdit(rowData.instanceId, rowData.instanceName, rowData),
+                  },
+                  () => h(ElIcon, null, () => h(EditPen)),
+                ),
+            )
+          : null,
+        h(
+          ElTooltip,
+          {
+            content: rowData.enabled ? t("common.disable") : t("common.enable"),
+            placement: "top",
+          },
+          () =>
+            h(
+              ElButton,
+              {
+                type: rowData.enabled ? "warning" : "success",
+                circle: true,
+                disabled: pageBusy.value,
+                onClick: () => toggleAgent(rowData.id, !rowData.enabled),
+              },
+              () => h(ElIcon, null, () => h(rowData.enabled ? SwitchButton : VideoPlay)),
+            ),
+        ),
+      ]),
+  },
+]);
 
 onMounted(async () => {
   if (!instances.value.length) {
@@ -344,6 +429,7 @@ async function openInstanceEdit(instance: InstanceReadApi) {
 function openAgentCreate(instanceId: number, instanceName: string) {
   activeInstanceId.value = instanceId;
   activeInstanceName.value = instanceName;
+  activeInstanceAgentKeys.value = instances.value.find((item) => item.id === instanceId)?.agents.map((agent) => agent.agent_key) ?? [];
   agentDrawerMode.value = "create";
   editingAgentProfile.value = null;
   agentDrawerVisible.value = true;
@@ -353,6 +439,7 @@ async function openAgentEdit(instanceId: number, instanceName: string, agent: Ag
   try {
     activeInstanceId.value = instanceId;
     activeInstanceName.value = instanceName;
+    activeInstanceAgentKeys.value = [];
     agentDrawerMode.value = "edit";
     const profile = await openClawStore.loadAgentProfile(agent.id);
     editingAgentProfile.value = {
@@ -569,6 +656,15 @@ function handleAgentSubmit(
 .openclaws-page__instance {
   display: grid;
   gap: var(--space-3);
+}
+
+.openclaws-page__agent-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-direction: row;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .openclaws-page__instance-actions {
