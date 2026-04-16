@@ -52,25 +52,37 @@ describe("updateRealOpenClawAgent", () => {
             },
         });
 
-        expect(
-            getRealOpenClawAgentProfile({
-                agentId: "execution-engineer2",
-                cfg: {
-                    agents: {
-                        list: [
-                            {
-                                id: "execution-engineer2",
-                                workspace: workspaceDir,
-                            },
-                        ],
-                    },
+        const profile = getRealOpenClawAgentProfile({
+            agentId: "execution-engineer2",
+            cfg: {
+                agents: {
+                    list: [
+                        {
+                            id: "execution-engineer2",
+                            workspace: workspaceDir,
+                        },
+                    ],
                 },
-            }),
-        ).toEqual({
+            },
+        });
+
+        expect(profile.profileFiles).toEqual({
+            agentsMd: "",
+            toolsMd: "",
             identityMd: "# IDENTITY.md\n\nidentity original\n",
             soulMd: "# SOUL.md\n\nsoul original\n",
             userMd: "# USER.md\n\nuser original\n",
             memoryMd: "# MEMORY.md\n\nmemory updated\n",
+            heartbeatMd: "",
+        });
+
+        expect(profile.files).toContainEqual({
+            name: "IDENTITY.md",
+            content: "# IDENTITY.md\n\nidentity original\n",
+        });
+        expect(profile.files).toContainEqual({
+            name: "MEMORY.md",
+            content: "# MEMORY.md\n\nmemory updated\n",
         });
     });
 });
