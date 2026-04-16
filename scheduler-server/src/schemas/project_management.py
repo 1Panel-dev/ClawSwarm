@@ -17,6 +17,7 @@ class ProjectMember(BaseModel):
     agent_key: str = Field(min_length=1, max_length=120)
     cs_id: str = Field(min_length=1, max_length=32)
     openclaw: str = Field(min_length=1, max_length=120)
+    role: str = Field(default="", max_length=120)
 
 
 class ProjectCreate(BaseModel):

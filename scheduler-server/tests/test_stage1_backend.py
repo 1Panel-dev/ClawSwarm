@@ -367,8 +367,8 @@ class Stage1BackendTests(unittest.TestCase):
             UUID(detail.id)
             self.assertEqual(project.current_progress, "已完成设计讨论")
             self.assertEqual(json.loads(project.members_json), [
-                {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
-                {"agent_key": "worker", "cs_id": "CSA-0002", "openclaw": "OC2"},
+                {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1", "role": ""},
+                {"agent_key": "worker", "cs_id": "CSA-0002", "openclaw": "OC2", "role": ""},
             ])
             self.assertEqual(len(detail.members), 2)
 
@@ -473,7 +473,7 @@ class Stage1BackendTests(unittest.TestCase):
                 "description": "接口路由测试",
                 "current_progress": "排期中",
                 "members": [
-                    {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
+                    {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1", "role": "项目经理"},
                 ],
             },
         )
@@ -483,6 +483,7 @@ class Stage1BackendTests(unittest.TestCase):
         core_document_id = project_payload["documents"][0]["id"]
         self.assertEqual(len(project_payload["members"]), 1)
         self.assertEqual(project_payload["members"][0]["cs_id"], "CSA-0001")
+        self.assertEqual(project_payload["members"][0]["role"], "项目经理")
 
         list_response = self.client.get("/api/projects")
         self.assertEqual(list_response.status_code, 200)

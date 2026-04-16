@@ -29,6 +29,7 @@ def normalize_project_members(members: list[ProjectMember]) -> list[ProjectMembe
                 agent_key=item.agent_key.strip(),
                 cs_id=cs_id,
                 openclaw=item.openclaw.strip(),
+                role=item.role.strip(),
             )
         )
     return normalized

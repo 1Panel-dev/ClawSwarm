@@ -44,6 +44,7 @@
                 <div class="project-members__item-main">
                   <el-text type="primary">{{ member.openclaw }}</el-text>
                   <strong>{{ member.agentKey }}</strong>
+                  <span v-if="member.role">{{ member.role }}</span>
                   <span>{{ member.csId }}</span>
                 </div>
                 <el-button text :icon="Delete" @click="removeMember(member.csId)"></el-button>
@@ -84,7 +85,7 @@
                 <el-option
                   v-for="agent in instance.agents"
                   :key="agent.id"
-                  :label="`${agent.agentKey} / ${agent.csId}`"
+                  :label="formatMemberLabel(agent)"
                   :value="{ ...agent, openclaw: instance.name }"
                 />
               </el-option-group>
@@ -142,7 +143,9 @@ const availableInstances = computed(() =>
   addressBookStore.instances.map((instance) => ({
     id: instance.id,
     name: instance.name,
-    agents: instance.agents.map((agent) => toSelectableProjectMember(agent, instance.name)),
+    agents: instance.agents
+      .filter((agent) => agent.enabled)
+      .map((agent) => toSelectableProjectMember(agent, instance.name)),
   })),
 );
 const selectedAgents = ref<SelectableProjectMember[]>([]);
@@ -161,7 +164,7 @@ watch(
     form.name = props.project?.name ?? "";
     form.description = props.project?.description ?? "";
     form.currentProgress = props.project?.currentProgress ?? "";
-    form.members = props.project?.members.map((item) => ({...item})) ?? [];
+    form.members = props.project?.members.map(completeMemberRole) ?? [];
   },
 );
 
@@ -181,6 +184,23 @@ function confirmAddMember() {
 
 function removeMember(csId: string) {
   form.members = form.members.filter((item) => item.csId !== csId);
+}
+
+function formatMemberLabel(member: SelectableProjectMember) {
+  return [member.agentKey, member.role, member.csId].filter(Boolean).join(" / ");
+}
+
+function completeMemberRole(member: ProjectMemberOutput): ProjectMemberOutput {
+  if (member.role) {
+    return {...member};
+  }
+  const agent = availableInstances.value
+    .flatMap((instance) => instance.agents)
+    .find((item) => item.csId === member.csId);
+  return {
+    ...member,
+    role: agent?.role ?? "",
+  };
 }
 
 function submit() {

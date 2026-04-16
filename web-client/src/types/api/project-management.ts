@@ -2,6 +2,7 @@ export interface ProjectMemberResponse {
     agent_key: string;
     cs_id: string;
     openclaw: string;
+    role: string;
 }
 
 export interface ProjectDocumentResponse {
