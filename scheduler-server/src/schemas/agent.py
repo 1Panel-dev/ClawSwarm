@@ -8,11 +8,18 @@ from pydantic import BaseModel, Field
 from src.schemas.common import TimestampedModel
 
 
+class AgentWorkspaceFile(BaseModel):
+    # 用文件名作为稳定标识，后面 channel 会按这个名字直接读写 workspace 文件。
+    name: str = Field(min_length=1, max_length=200)
+    content: str | None = None
+
+
 class AgentCreate(BaseModel):
     # agent_key 会直接参与后续路由，所以这里要求调用方传稳定值。
     agent_key: str = Field(min_length=1, max_length=120)
     display_name: str = Field(min_length=1, max_length=120)
     role_name: str | None = Field(default=None, max_length=120)
+    files: list[AgentWorkspaceFile] | None = None
     agents_md: str | None = None
     tools_md: str | None = None
     identity_md: str | None = None
@@ -26,6 +33,7 @@ class AgentCreate(BaseModel):
 class AgentUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=120)
     role_name: str | None = Field(default=None, max_length=120)
+    files: list[AgentWorkspaceFile] | None = None
     agents_md: str | None = None
     tools_md: str | None = None
     identity_md: str | None = None
@@ -48,6 +56,7 @@ class AgentRead(TimestampedModel):
 
 
 class AgentProfileRead(AgentRead):
+    files: list[AgentWorkspaceFile]
     agents_md: str
     tools_md: str
     identity_md: str

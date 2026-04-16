@@ -10,11 +10,85 @@ from sqlalchemy.orm import Session
 from src.integrations.channel_client import channel_client
 from src.models.agent_profile import AgentProfile
 from src.models.openclaw_instance import OpenClawInstance
-from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate
+from src.schemas.agent import AgentCreate, AgentProfileRead, AgentRead, AgentUpdate, AgentWorkspaceFile
 from src.schemas.common import dump_model, validate_orm
 from src.services.agent_cleanup import delete_agent_private_conversations
 from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.openclaw_probe_service import fetch_channel_agents as fetch_channel_agents_from_openclaw
+
+LEGACY_WORKSPACE_FILE_MAP = {
+    "agents_md": "AGENTS.md",
+    "tools_md": "TOOLS.md",
+    "identity_md": "IDENTITY.md",
+    "soul_md": "SOUL.md",
+    "user_md": "USER.md",
+    "memory_md": "MEMORY.md",
+    "heartbeat_md": "HEARTBEAT.md",
+}
+
+WORKSPACE_FILE_TO_LEGACY_FIELD = {value: key for key, value in LEGACY_WORKSPACE_FILE_MAP.items()}
+
+
+def _merge_workspace_files(*, files: list[AgentWorkspaceFile] | None, payload_data: dict[str, object]) -> list[dict[str, str | None]]:
+    merged: dict[str, str | None] = {}
+    for file in files or []:
+        normalized_name = file.name.strip()
+        if not normalized_name:
+            continue
+        merged[normalized_name] = file.content
+
+    for field_name, filename in LEGACY_WORKSPACE_FILE_MAP.items():
+        if field_name not in payload_data:
+            continue
+        merged[filename] = payload_data[field_name]  # type: ignore[assignment]
+
+    return [{"name": name, "content": content} for name, content in merged.items()]
+
+
+def _build_legacy_workspace_payload(files: list[dict[str, str | None]]) -> dict[str, str | None]:
+    remote_payload: dict[str, str | None] = {}
+    for file in files:
+        field_name = WORKSPACE_FILE_TO_LEGACY_FIELD.get(str(file.get("name") or "").strip())
+        if field_name is None:
+            continue
+        camel_name = "".join(part.capitalize() if index else part for index, part in enumerate(field_name.split("_")))
+        remote_payload[camel_name] = file.get("content")
+    return remote_payload
+
+
+def _legacy_fields_from_remote_profile(profile: dict[str, object], files: list[AgentWorkspaceFile]) -> dict[str, str]:
+    files_by_name = {item.name: item.content or "" for item in files}
+    legacy_fields: dict[str, str] = {}
+    for field_name, filename in LEGACY_WORKSPACE_FILE_MAP.items():
+        camel_name = "".join(part.capitalize() if index else part for index, part in enumerate(field_name.split("_")))
+        legacy_fields[field_name] = files_by_name.get(filename) or str(profile.get(camel_name) or "")
+    return legacy_fields
+
+
+def _workspace_files_from_remote_profile(profile: dict[str, object]) -> list[AgentWorkspaceFile]:
+    raw_files = profile.get("files")
+    files: list[AgentWorkspaceFile] = []
+    if isinstance(raw_files, list):
+        for item in raw_files:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name") or "").strip()
+            if not name:
+                continue
+            files.append(
+                AgentWorkspaceFile(
+                    name=name,
+                    content=str(item.get("content") or ""),
+                )
+            )
+
+    legacy_fields = _legacy_fields_from_remote_profile(profile, files)
+    existing_names = {item.name for item in files}
+    for field_name, filename in LEGACY_WORKSPACE_FILE_MAP.items():
+        if filename in existing_names:
+            continue
+        files.append(AgentWorkspaceFile(name=filename, content=legacy_fields[field_name]))
+    return files
 
 
 def find_existing_agent_by_key(*, db: Session, instance_id: int, agent_key: str) -> AgentProfile | None:
@@ -138,24 +212,15 @@ async def create_agent_for_instance(*, db: Session, instance: OpenClawInstance, 
     if existing_agent is not None:
         raise HTTPException(status_code=409, detail="agent key already exists in this instance")
 
+    payload_data = dump_model(payload, exclude_unset=True)
+    workspace_files = _merge_workspace_files(files=payload.files, payload_data=payload_data)
     remote_create_payload = {
         "agentKey": payload.agent_key,
         "displayName": payload.display_name,
     }
-    if payload.identity_md is not None:
-        remote_create_payload["identityMd"] = payload.identity_md
-    if payload.agents_md is not None:
-        remote_create_payload["agentsMd"] = payload.agents_md
-    if payload.soul_md is not None:
-        remote_create_payload["soulMd"] = payload.soul_md
-    if payload.tools_md is not None:
-        remote_create_payload["toolsMd"] = payload.tools_md
-    if payload.user_md is not None:
-        remote_create_payload["userMd"] = payload.user_md
-    if payload.memory_md is not None:
-        remote_create_payload["memoryMd"] = payload.memory_md
-    if payload.heartbeat_md is not None:
-        remote_create_payload["heartbeatMd"] = payload.heartbeat_md
+    if workspace_files:
+        remote_create_payload["files"] = workspace_files
+        remote_create_payload.update(_build_legacy_workspace_payload(workspace_files))
 
     try:
         created_remote_agent = await channel_client.create_agent(
@@ -243,15 +308,13 @@ async def load_agent_profile(*, db: Session, agent: AgentProfile) -> AgentProfil
     except ValueError as exc:
         raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
 
+    files = _workspace_files_from_remote_profile(profile)
+    legacy_fields = _legacy_fields_from_remote_profile(profile, files)
+
     return AgentProfileRead(
         **dump_model(validate_orm(AgentRead, agent)),
-        agents_md=str(profile.get("agentsMd") or ""),
-        tools_md=str(profile.get("toolsMd") or ""),
-        identity_md=str(profile.get("identityMd") or ""),
-        soul_md=str(profile.get("soulMd") or ""),
-        user_md=str(profile.get("userMd") or ""),
-        memory_md=str(profile.get("memoryMd") or ""),
-        heartbeat_md=str(profile.get("heartbeatMd") or ""),
+        files=files,
+        **legacy_fields,
     )
 
 
@@ -265,23 +328,13 @@ async def update_agent_profile(*, db: Session, agent: AgentProfile, payload: Age
         raise HTTPException(status_code=404, detail="instance not found")
 
     payload_data = dump_model(payload, exclude_unset=True)
-    remote_payload: dict[str, str] = {}
+    workspace_files = _merge_workspace_files(files=payload.files, payload_data=payload_data)
+    remote_payload: dict[str, object] = {}
     if payload.display_name is not None:
         remote_payload["displayName"] = payload.display_name
-    if payload.agents_md is not None:
-        remote_payload["agentsMd"] = payload.agents_md
-    if payload.identity_md is not None:
-        remote_payload["identityMd"] = payload.identity_md
-    if payload.soul_md is not None:
-        remote_payload["soulMd"] = payload.soul_md
-    if payload.tools_md is not None:
-        remote_payload["toolsMd"] = payload.tools_md
-    if payload.user_md is not None:
-        remote_payload["userMd"] = payload.user_md
-    if payload.memory_md is not None:
-        remote_payload["memoryMd"] = payload.memory_md
-    if payload.heartbeat_md is not None:
-        remote_payload["heartbeatMd"] = payload.heartbeat_md
+    if workspace_files:
+        remote_payload["files"] = workspace_files
+        remote_payload.update(_build_legacy_workspace_payload(workspace_files))
 
     if remote_payload:
         try:
@@ -307,7 +360,7 @@ async def update_agent_profile(*, db: Session, agent: AgentProfile, payload: Age
             raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
 
     for key, value in payload_data.items():
-        if key in {"agents_md", "identity_md", "soul_md", "tools_md", "user_md", "memory_md", "heartbeat_md"}:
+        if key in {"files", "agents_md", "identity_md", "soul_md", "tools_md", "user_md", "memory_md", "heartbeat_md"}:
             continue
         setattr(agent, key, value)
     if not (agent.cs_id or "").strip():
