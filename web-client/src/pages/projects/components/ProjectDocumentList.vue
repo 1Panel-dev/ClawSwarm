@@ -21,7 +21,7 @@
         v-for="group in groupedDocuments"
         :key="group.category"
         class="document-list__group"
-      >111
+      >
         <button class="document-list__group-header" type="button" @click="toggleGroup(group.category)">
           <span>{{ group.category }}</span>
           <span>{{ expandedGroups[group.category] ? "−" : "+" }}</span>
@@ -53,10 +53,10 @@
 import { computed, reactive, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { ProjectDocumentView } from "@/types/view/project-management";
+import type { ProjectDocumentOutput } from "@/types/view/project-management";
 
 const props = defineProps<{
-    documents: ProjectDocumentView[];
+    documents: ProjectDocumentOutput[];
     selectedId: string | null;
 }>();
 
@@ -70,7 +70,7 @@ const expandedGroups = reactive<Record<string, boolean>>({});
 
 const coreDocuments = computed(() => props.documents.filter((item) => item.isCore));
 const groupedDocuments = computed(() => {
-    const groups = new Map<string, ProjectDocumentView[]>();
+    const groups = new Map<string, ProjectDocumentOutput[]>();
     for (const item of props.documents.filter((doc) => !doc.isCore)) {
       if (!groups.has(item.category)) {
         groups.set(item.category, []);

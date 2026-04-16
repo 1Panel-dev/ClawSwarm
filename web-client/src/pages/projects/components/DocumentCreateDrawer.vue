@@ -74,12 +74,12 @@
 import { reactive, ref, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { DocumentTemplateView, ProjectDocumentCreateInput } from "@/types/view/project-management";
+import type { DocumentTemplateOutput, ProjectDocumentCreateInput } from "@/types/view/project-management";
 import { PROJECT_DOCUMENT_CATEGORIES } from "@/types/view/project-management";
 
 const props = defineProps<{
     visible: boolean;
-    templates: DocumentTemplateView[];
+    templates: DocumentTemplateOutput[];
     submitting?: boolean;
 }>();
 

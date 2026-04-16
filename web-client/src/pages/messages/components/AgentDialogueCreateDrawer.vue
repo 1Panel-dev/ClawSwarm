@@ -79,12 +79,12 @@ const props = defineProps<{
 const emit = defineEmits<{
     "update:visible": [value: boolean];
     submit: [payload: {
-        source_agent_id: number;
-        target_agent_id: number;
+        sourceAgentId: number;
+        targetAgentId: number;
         topic: string;
-        window_seconds: number;
-        soft_message_limit: number;
-        hard_message_limit: number;
+        windowSeconds: number;
+        softMessageLimit: number;
+        hardMessageLimit: number;
     }];
 }>();
 
@@ -130,12 +130,12 @@ function submit() {
         return;
     }
     emit("submit", {
-        source_agent_id: sourceAgentId.value,
-        target_agent_id: targetAgentId.value,
+        sourceAgentId: sourceAgentId.value,
+        targetAgentId: targetAgentId.value,
         topic: topic.value.trim(),
-        window_seconds: windowSeconds.value,
-        soft_message_limit: softMessageLimit.value,
-        hard_message_limit: hardMessageLimit.value,
+        windowSeconds: windowSeconds.value,
+        softMessageLimit: softMessageLimit.value,
+        hardMessageLimit: hardMessageLimit.value,
     });
 }
 </script>

@@ -43,7 +43,7 @@
               <el-option
                 v-for="agent in instance.agents"
                 :key="`${instance.id}:${agent.id}`"
-                :label="`${agent.display_name} / ${instance.name}`"
+                :label="`${agent.displayName} / ${instance.name}`"
                 :value="`${instance.id}:${agent.id}`"
                 :disabled="!agent.enabled"
               />
@@ -70,21 +70,18 @@
  */
 import { ref, watch } from "vue";
 import { useI18n } from "@/composables/useI18n";
-import type { AddressBookInstanceApi } from "@/types/api/addressBook";
+import type { AddressBookInstanceOutput } from "@/types/view/addressBook";
+import type { GroupCreateInput } from "@/types/view/group";
 
 const props = defineProps<{
     visible: boolean;
     submitting: boolean;
-    instances: AddressBookInstanceApi[];
+    instances: AddressBookInstanceOutput[];
 }>();
 
 const emit = defineEmits<{
     "update:visible": [value: boolean];
-    submit: [payload: {
-        name: string;
-        description: string;
-        members: Array<{ instance_id: number; agent_id: number }>;
-    }];
+    submit: [payload: GroupCreateInput];
 }>();
 
 const name = ref("");
@@ -113,8 +110,8 @@ function submit() {
         members: selectedValues.value.map((value) => {
             const [instanceId, agentId] = value.split(":").map((item) => Number(item));
             return {
-                instance_id: instanceId,
-                agent_id: agentId,
+                instanceId,
+                agentId,
             };
         }),
     });

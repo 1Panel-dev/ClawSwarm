@@ -73,36 +73,36 @@
             class="sidebar__item"
             :class="{
               'sidebar__item--active': currentConversationId === item.id,
-              'sidebar__item--group': item.type === 'group',
-              'sidebar__item--direct': item.type === 'direct',
+              'sidebar__item--group': item.kind === 'group',
+              'sidebar__item--direct': item.kind === 'direct',
             }"
             type="button"
             @contextmenu.prevent="openRecentConversationMenu($event, item.id)"
             @click="openConversation(item.id)"
           >
             <div class="sidebar__item-body">
-              <div v-if="item.type === 'direct'" class="sidebar__recent-direct">
+              <div v-if="item.kind === 'direct'" class="sidebar__recent-direct">
                 <div class="sidebar__row sidebar__row--recent-direct">
                   <div
                     class="sidebar__item-title sidebar__item-title--recent sidebar__item-title--instance"
-                    :title="item.instance_name ?? conversationDisplayName(item)"
+                    :title="item.instanceName || conversationDisplayName(item)"
                   >
-                    {{ item.instance_name ?? conversationDisplayName(item) }}
+                    {{ item.instanceName || conversationDisplayName(item) }}
                   </div>
                   <div class="sidebar__meta sidebar__meta--recent">
                     <span class="sidebar__conversation-kind">
-                      {{ conversationKindLabel(item.type) }}
+                      {{ conversationKindLabel(item.kind) }}
                     </span>
                     <span class="sidebar__item-time">
-                      {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
+                      {{ item.timeText ? formatRelativeTime(item.timeText) : "" }}
                     </span>
                   </div>
                 </div>
                 <div
                   class="sidebar__item-title sidebar__item-title--recent sidebar__item-title--agent"
-                  :title="item.agent_display_name ?? conversationDisplayName(item)"
+                  :title="item.agentDisplayName || conversationDisplayName(item)"
                 >
-                  {{ item.agent_display_name ?? conversationDisplayName(item) }}
+                  {{ item.agentDisplayName || conversationDisplayName(item) }}
                 </div>
               </div>
               <div v-else class="sidebar__row">
@@ -116,18 +116,18 @@
                   <span
                     class="sidebar__conversation-kind"
                     :class="{
-                      'sidebar__conversation-kind--group': item.type === 'group',
-                      'sidebar__conversation-kind--agent-dialogue': item.type === 'agent_dialogue',
+                      'sidebar__conversation-kind--group': item.kind === 'group',
+                      'sidebar__conversation-kind--agent-dialogue': item.kind === 'agent_dialogue',
                     }"
                   >
-                    {{ conversationKindLabel(item.type) }}
+                    {{ conversationKindLabel(item.kind) }}
                   </span>
                   <span class="sidebar__item-time">
-                    {{ item.last_message_at ? formatRelativeTime(item.last_message_at) : "" }}
+                    {{ item.timeText ? formatRelativeTime(item.timeText) : "" }}
                   </span>
                 </div>
               </div>
-              <div class="sidebar__item-preview">{{ item.last_message_preview ?? t("conversation.noMessages") }}</div>
+              <div class="sidebar__item-preview">{{ item.preview || t("conversation.noMessages") }}</div>
             </div>
           </button>
         </template>
@@ -162,8 +162,8 @@
                   :class="{
                     'sidebar__item--active':
                       currentConversation?.type === 'direct'
-                      && currentConversation.direct_instance_id === item.instanceId
-                      && currentConversation.direct_agent_id === item.agentId,
+                      && currentConversation.directInstanceId === item.instanceId
+                      && currentConversation.directAgentId === item.agentId,
                   }"
                   type="button"
                   @click="openDirect(item.instanceId, item.agentId)"
@@ -256,7 +256,8 @@ import { useI18n } from "@/composables/useI18n";
 import { useAddressBookStore } from "@/stores/addressBook";
 import { useConversationStore } from "@/stores/conversation";
 import { useGroupStore } from "@/stores/group";
-import type { ConversationListItemApi } from "@/types/api/conversation";
+import type { ConversationListItemOutput } from "@/types/view/conversation";
+import type { GroupCreateInput, GroupMemberInput } from "@/types/view/group";
 import { parseServerDateTime } from "@/utils/datetime";
 
 const router = useRouter();
@@ -294,8 +295,8 @@ const filteredRecentConversations = computed(() =>
             return true;
         }
         return (
-            item.display_title.toLowerCase().includes(keyword.value)
-            || (item.last_message_preview ?? "").toLowerCase().includes(keyword.value)
+            item.title.toLowerCase().includes(keyword.value)
+            || item.preview.toLowerCase().includes(keyword.value)
         );
     }),
 );
@@ -305,9 +306,9 @@ const filteredAgentGroups = computed(() =>
             const enabledAgents = instance.agents.filter((agent) => agent.enabled);
             const instanceMatched = keyword.value ? instance.name.toLowerCase().includes(keyword.value) : true;
             const agentMatched = enabledAgents.some((agent) =>
-                agent.display_name.toLowerCase().includes(keyword.value)
-                || (agent.role_name ?? "").toLowerCase().includes(keyword.value)
-                || agent.cs_id.toLowerCase().includes(keyword.value),
+                agent.displayName.toLowerCase().includes(keyword.value)
+                || (agent.roleName ?? "").toLowerCase().includes(keyword.value)
+                || agent.csId.toLowerCase().includes(keyword.value),
             );
             if (!enabledAgents.length) {
                 return null;
@@ -322,9 +323,9 @@ const filteredAgentGroups = computed(() =>
                     instanceId: instance.id,
                     instanceName: instance.name,
                     agentId: agent.id,
-                    displayName: agent.display_name,
-                    roleName: agent.role_name,
-                    csId: agent.cs_id,
+                    displayName: agent.displayName,
+                    roleName: agent.roleName,
+                    csId: agent.csId,
                 })),
             };
         })
@@ -351,7 +352,7 @@ const agentOptions = computed(() =>
             .filter((agent) => agent.enabled)
             .map((agent) => ({
                 value: agent.id,
-                label: `${agent.display_name} / ${instance.name}`,
+                label: `${agent.displayName} / ${instance.name}`,
             })),
     ),
 );
@@ -377,8 +378,8 @@ async function openDirect(instanceId: number, agentId: number) {
     if (
         currentConversation
         && currentConversation.type === "direct"
-        && currentConversation.direct_instance_id === instanceId
-        && currentConversation.direct_agent_id === agentId
+        && currentConversation.directInstanceId === instanceId
+        && currentConversation.directAgentId === agentId
     ) {
         return;
     }
@@ -393,7 +394,7 @@ async function openGroup(groupId: number) {
     if (
         currentConversation
         && currentConversation.type === "group"
-        && currentConversation.group_id === groupId
+        && currentConversation.groupId === groupId
     ) {
         return;
     }
@@ -410,8 +411,8 @@ async function openConversation(conversationId: number) {
         return;
     }
     await conversationStore.openConversation(conversationId);
-    if (conversationStore.currentConversation?.type === "group" && conversationStore.currentConversation.group_id) {
-        await groupStore.loadGroupDetail(conversationStore.currentConversation.group_id);
+    if (conversationStore.currentConversation?.type === "group" && conversationStore.currentConversation.groupId) {
+        await groupStore.loadGroupDetail(conversationStore.currentConversation.groupId);
     } else {
         groupStore.currentGroupDetail = null;
     }
@@ -449,11 +450,7 @@ function hideRecentConversation() {
     ElMessage.success(t("conversation.removedFromRecent"));
 }
 
-async function handleCreateGroup(payload: {
-    name: string;
-    description: string;
-    members: Array<{ instance_id: number; agent_id: number }>;
-}) {
+async function handleCreateGroup(payload: GroupCreateInput) {
     const group = await groupStore.createNewGroup(payload);
     createDrawerVisible.value = false;
     ElMessage.success(t("conversation.creatingGroupSuccess", { name: group.name }));
@@ -466,7 +463,7 @@ async function manageGroup(groupId: number) {
     memberDrawerVisible.value = true;
 }
 
-async function handleAddMembers(payload: Array<{ instance_id: number; agent_id: number }>) {
+async function handleAddMembers(payload: GroupMemberInput[]) {
     if (!groupStore.currentGroupDetail) {
         return;
     }
@@ -493,7 +490,7 @@ async function handleDeleteGroup() {
     }
 
     const deletingOpenConversation =
-        currentConversation.value?.type === "group" && currentConversation.value.group_id === currentGroup.id;
+        currentConversation.value?.type === "group" && currentConversation.value.groupId === currentGroup.id;
 
     await groupStore.deleteCurrentGroup(currentGroup.id);
     memberDrawerVisible.value = false;
@@ -510,17 +507,17 @@ async function handleDeleteGroup() {
 }
 
 async function handleCreateAgentDialogue(payload: {
-    source_agent_id: number;
-    target_agent_id: number;
+    sourceAgentId: number;
+    targetAgentId: number;
     topic: string;
-    window_seconds: number;
-    soft_message_limit: number;
-    hard_message_limit: number;
+    windowSeconds: number;
+    softMessageLimit: number;
+    hardMessageLimit: number;
 }) {
     const dialogue = await conversationStore.createAndOpenAgentDialogue(payload);
     agentDialogueDrawerVisible.value = false;
     ElMessage.success(t("conversation.agentDialogueCreated"));
-    await router.push(`/messages/conversation/${dialogue.conversation_id}`);
+    await router.push(`/messages/conversation/${dialogue.conversationId}`);
 }
 
 function normalizeMessageStatus(status: string) {
@@ -559,11 +556,8 @@ function avatarText(value: string) {
         .toUpperCase();
 }
 
-function conversationDisplayName(item: ConversationListItemApi) {
-    if (item.type === "direct" && item.agent_display_name && item.instance_name) {
-        return `${item.agent_display_name} / ${item.instance_name}`;
-    }
-    return item.display_title;
+function conversationDisplayName(item: ConversationListItemOutput) {
+    return item.title;
 }
 
 function conversationKindLabel(type: string) {

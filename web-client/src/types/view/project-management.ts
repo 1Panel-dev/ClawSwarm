@@ -26,21 +26,21 @@ export const PROJECT_DOCUMENT_CATEGORIES: ProjectDocumentCategory[] = [
     "其他",
 ];
 
-export type ProjectMemberView = Camelized<ProjectMemberResponse>;
+export type ProjectMemberOutput = Camelized<ProjectMemberResponse>;
 
-export type ProjectDocumentView = Camelized<ProjectDocumentResponse>;
+export type ProjectDocumentOutput = Camelized<ProjectDocumentResponse>;
 
-export type ProjectView = Camelized<ProjectResponse>;
+export type ProjectOutput = Camelized<ProjectResponse>;
 
-export type ProjectDetailView = Camelized<ProjectDetailResponse>;
+export type ProjectDetailOutput = Camelized<ProjectDetailResponse>;
 
-export type DocumentTemplateView = Camelized<DocumentTemplateResponse>;
+export type DocumentTemplateOutput = Camelized<DocumentTemplateResponse>;
 
 export interface ProjectCreateInput {
     name: string;
     description: string;
     currentProgress: string;
-    members: ProjectMemberView[];
+    members: ProjectMemberOutput[];
 }
 
 export interface ProjectUpdateInput extends ProjectCreateInput {}

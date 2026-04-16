@@ -76,12 +76,12 @@ import { useI18n } from "@/composables/useI18n";
 import { useOpenClawStore } from "@/stores/openclaw";
 import type {
   OpenClawAgentCreateInput,
-  OpenClawAgentProfileView,
+  OpenClawAgentOutput,
+  OpenClawAgentProfileOutput,
   OpenClawAgentUpdateInput,
-  OpenClawAgentView,
-  OpenClawInstanceCredentialsView,
+  OpenClawInstanceCredentialsOutput,
   OpenClawInstanceUpdateInput,
-  OpenClawInstanceView,
+  OpenClawInstanceOutput,
   OpenClawQuickConnectInput,
 } from "@/types/view/openclaw";
 
@@ -96,10 +96,10 @@ const syncingAgents = ref(false);
 const refreshTimer = ref<number | null>(null);
 const activeInstanceId = ref<number | null>(null);
 const activeInstanceName = ref("");
-const editingInstance = ref<OpenClawInstanceView | null>(null);
-const createCredentials = ref<OpenClawInstanceCredentialsView | null>(null);
-const editCredentials = ref<OpenClawInstanceCredentialsView | null>(null);
-const editingAgentProfile = ref<OpenClawAgentProfileView | null>(null);
+const editingInstance = ref<OpenClawInstanceOutput | null>(null);
+const createCredentials = ref<OpenClawInstanceCredentialsOutput | null>(null);
+const editCredentials = ref<OpenClawInstanceCredentialsOutput | null>(null);
+const editingAgentProfile = ref<OpenClawAgentProfileOutput | null>(null);
 const activeInstanceAgentKeys = ref<string[]>([]);
 
 const instances = computed(() => openClawStore.instances);
@@ -166,7 +166,7 @@ async function toggleInstance(instanceId: number, enable: boolean) {
   await openClawStore.setInstanceEnabled(instanceId, enable);
 }
 
-async function confirmDeleteInstance(instance: OpenClawInstanceView) {
+async function confirmDeleteInstance(instance: OpenClawInstanceOutput) {
   try {
     await ElMessageBox.confirm(
       t("openclaw.deleteInstanceConfirm", {name: instance.name}),
@@ -198,7 +198,7 @@ function openCreateInstance() {
   createDrawerVisible.value = true;
 }
 
-async function openInstanceEdit(instance: OpenClawInstanceView) {
+async function openInstanceEdit(instance: OpenClawInstanceOutput) {
   try {
     editingInstance.value = instance;
     editCredentials.value = await openClawStore.loadInstanceCredentials(instance.id);
@@ -217,7 +217,7 @@ function openAgentCreate(instanceId: number, instanceName: string) {
   agentDrawerVisible.value = true;
 }
 
-async function openAgentEdit(instanceId: number, instanceName: string, agent: OpenClawAgentView) {
+async function openAgentEdit(instanceId: number, instanceName: string, agent: OpenClawAgentOutput) {
   try {
     activeInstanceId.value = instanceId;
     activeInstanceName.value = instanceName;
@@ -231,7 +231,7 @@ async function openAgentEdit(instanceId: number, instanceName: string, agent: Op
   }
 }
 
-function handleAgentTableEdit(agent: OpenClawAgentView & { instanceId: number; instanceName: string }) {
+function handleAgentTableEdit(agent: OpenClawAgentOutput & { instanceId: number; instanceName: string }) {
   return openAgentEdit(agent.instanceId, agent.instanceName, agent);
 }
 

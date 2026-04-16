@@ -1,7 +1,7 @@
 /**
- * OpenClaw 模块前端业务层类型。
+ * OpenClaw 模块前端业务层输入/输出类型。
  *
- * 这里统一使用 camelCase，供页面、组件和 store 消费；
+ * 这里统一使用 camelCase，供页面、组件、store 和 API 封装层消费；
  * 与后端接口原样字段的转换放在 API 或 mapper 层处理。
  */
 import type {
@@ -16,21 +16,21 @@ import type {
 } from "@/types/api/instance";
 import type { Camelized } from "@/utils/case";
 
-export type OpenClawAgentView = Camelized<OpenClawAgentResponse>;
+export type OpenClawAgentOutput = Camelized<OpenClawAgentResponse>;
 
-export type OpenClawAgentProfileView = Camelized<OpenClawAgentProfileResponse>;
+export type OpenClawAgentProfileOutput = Camelized<OpenClawAgentProfileResponse>;
 
-export interface OpenClawInstanceView extends Camelized<OpenClawInstanceResponse> {
-    agents: OpenClawAgentView[];
+export interface OpenClawInstanceOutput extends Camelized<OpenClawInstanceResponse> {
+    agents: OpenClawAgentOutput[];
 }
 
-export type OpenClawInstanceCredentialsView = Camelized<OpenClawInstanceCredentialsResponse>;
+export type OpenClawInstanceCredentialsOutput = Camelized<OpenClawInstanceCredentialsResponse>;
 
-export type OpenClawSyncAgentsView = Camelized<OpenClawSyncAgentsResponse>;
+export type OpenClawSyncAgentsOutput = Camelized<OpenClawSyncAgentsResponse>;
 
-export interface OpenClawConnectResultView extends Camelized<OpenClawConnectResponse> {
-    instance: OpenClawInstanceView;
-    credentials: OpenClawInstanceCredentialsView;
+export interface OpenClawConnectResultOutput extends Camelized<OpenClawConnectResponse> {
+    instance: OpenClawInstanceOutput;
+    credentials: OpenClawInstanceCredentialsOutput;
 }
 
 export interface OpenClawInstanceCreateInput {

@@ -30,15 +30,15 @@ import { ElButton, ElIcon, ElTag, ElTooltip } from "element-plus";
 import { computed, h } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { OpenClawAgentView, OpenClawInstanceView } from "@/types/view/openclaw";
+import type { OpenClawAgentOutput, OpenClawInstanceOutput } from "@/types/view/openclaw";
 
-type AgentTableRow = OpenClawAgentView & {
+type AgentTableRow = OpenClawAgentOutput & {
   instanceId: number;
   instanceName: string;
 };
 
 const props = defineProps<{
-  instance: OpenClawInstanceView;
+  instance: OpenClawInstanceOutput;
   pageBusy: boolean;
 }>();
 
@@ -65,7 +65,7 @@ const tableHeight = computed(
   () => AGENT_TABLE_HEADER_HEIGHT + Math.min(rows.value.length, AGENT_TABLE_MAX_VISIBLE_ROWS) * AGENT_TABLE_ROW_HEIGHT,
 );
 
-function canEditAgent(agent: OpenClawAgentView) {
+function canEditAgent(agent: OpenClawAgentOutput) {
   return agent.createdViaClawswarm || agent.agentKey.trim().toLowerCase() !== "main";
 }
 

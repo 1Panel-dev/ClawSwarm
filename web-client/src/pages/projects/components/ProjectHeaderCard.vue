@@ -22,11 +22,11 @@
 <script setup lang="ts">
 import { Back } from "@element-plus/icons-vue";
 import { useI18n } from "@/composables/useI18n";
-import type { ProjectDetailView } from "@/types/view/project-management";
+import type { ProjectDetailOutput } from "@/types/view/project-management";
 import { formatServerDateTime } from "@/utils/datetime";
 
 defineProps<{
-    project: ProjectDetailView;
+    project: ProjectDetailOutput;
 }>();
 
 defineEmits<{

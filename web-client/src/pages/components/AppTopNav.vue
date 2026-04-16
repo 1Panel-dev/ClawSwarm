@@ -39,7 +39,7 @@
           <el-icon>
             <UserFilled/>
           </el-icon>
-          <span>{{ authStore.user?.display_name ?? authStore.user?.username ?? "User" }}</span>
+          <span>{{ authStore.user?.displayName ?? authStore.user?.username ?? "User" }}</span>
           <el-icon>
             <ArrowDown/>
           </el-icon>
@@ -58,7 +58,7 @@
     :visible="accountDialogVisible"
     :submitting="accountSubmitting"
     :username="authStore.user?.username ?? ''"
-    :display-name="authStore.user?.display_name ?? ''"
+    :display-name="authStore.user?.displayName ?? ''"
     @update:visible="accountDialogVisible = $event"
     @submit="handleAccountSubmit"
   />
@@ -73,6 +73,7 @@ import {useRoute, useRouter} from "vue-router";
 
 import AccountDialog from "@/pages/components/AccountDialog.vue";
 import {useAuthStore} from "@/stores/auth";
+import type { UpdateProfileInput } from "@/types/view/auth";
 
 const {locale, localeOptions, setLocale, t} = useI18n();
 const authStore = useAuthStore();
@@ -83,7 +84,7 @@ const accountSubmitting = ref(false);
 
 const navItems = [
   {labelKey: "nav.messages", to: "/messages"},
-  {labelKey: "nav.projects", to: "/projects"},
+  // {labelKey: "nav.projects", to: "/projects"},
   {labelKey: "nav.openclaw", to: "/openclaws"},
 ];
 
@@ -104,11 +105,7 @@ async function handleCommand(command: string) {
   }
 }
 
-async function handleAccountSubmit(payload: {
-  display_name: string;
-  current_password?: string;
-  new_password?: string;
-}) {
+async function handleAccountSubmit(payload: UpdateProfileInput) {
   accountSubmitting.value = true;
   try {
     await authStore.updateProfile(payload);

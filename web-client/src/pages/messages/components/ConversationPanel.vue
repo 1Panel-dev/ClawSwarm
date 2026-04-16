@@ -74,38 +74,38 @@ const title = computed(() => {
         return t("conversation.selectConversation");
     }
     if (conversation.type === "agent_dialogue" && currentAgentDialogue.value) {
-        const sourceLabel = currentAgentDialogue.value.source_agent_instance_name
-            ? `${currentAgentDialogue.value.source_agent_display_name} / ${currentAgentDialogue.value.source_agent_instance_name}`
-            : currentAgentDialogue.value.source_agent_display_name;
-        const targetLabel = currentAgentDialogue.value.target_agent_instance_name
-            ? `${currentAgentDialogue.value.target_agent_display_name} / ${currentAgentDialogue.value.target_agent_instance_name}`
-            : currentAgentDialogue.value.target_agent_display_name;
+        const sourceLabel = currentAgentDialogue.value.sourceAgentInstanceName
+            ? `${currentAgentDialogue.value.sourceAgentDisplayName} / ${currentAgentDialogue.value.sourceAgentInstanceName}`
+            : currentAgentDialogue.value.sourceAgentDisplayName;
+        const targetLabel = currentAgentDialogue.value.targetAgentInstanceName
+            ? `${currentAgentDialogue.value.targetAgentDisplayName} / ${currentAgentDialogue.value.targetAgentInstanceName}`
+            : currentAgentDialogue.value.targetAgentDisplayName;
         return `${sourceLabel} ↔ ${targetLabel}`;
     }
-    if (conversation.type === "direct" && conversation.direct_instance_id && conversation.direct_agent_id) {
-        const instance = addressBookStore.instances.find((item) => item.id === conversation.direct_instance_id);
-        const agent = instance?.agents.find((item) => item.id === conversation.direct_agent_id);
+    if (conversation.type === "direct" && conversation.directInstanceId && conversation.directAgentId) {
+        const instance = addressBookStore.instances.find((item) => item.id === conversation.directInstanceId);
+        const agent = instance?.agents.find((item) => item.id === conversation.directAgentId);
         if (instance && agent) {
-            return `${agent.display_name} / ${instance.name}`;
+            return `${agent.displayName} / ${instance.name}`;
         }
     }
     return conversation.title ?? t("conversation.selectConversation");
 });
 const directConversationCsId = computed(() => {
     const conversation = conversationStore.currentConversation;
-    if (!conversation || conversation.type !== "direct" || !conversation.direct_instance_id || !conversation.direct_agent_id) {
+    if (!conversation || conversation.type !== "direct" || !conversation.directInstanceId || !conversation.directAgentId) {
         return "";
     }
-    const instance = addressBookStore.instances.find((item) => item.id === conversation.direct_instance_id);
-    const agent = instance?.agents.find((item) => item.id === conversation.direct_agent_id);
-    return agent?.cs_id ?? "";
+    const instance = addressBookStore.instances.find((item) => item.id === conversation.directInstanceId);
+    const agent = instance?.agents.find((item) => item.id === conversation.directAgentId);
+    return agent?.csId ?? "";
 });
 const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
 const isAgentDialogueConversation = computed(() => conversationStore.currentConversation?.type === "agent_dialogue");
 const mentionOptions = computed(() =>
     (groupStore.currentGroupDetail?.members ?? []).map((member) => ({
-        value: `${member.instance_id}:${member.agent_id}`,
-        label: `${member.display_name} / ${member.instance_name}`,
+        value: `${member.instanceId}:${member.agentId}`,
+        label: `${member.displayName} / ${member.instanceName}`,
     })),
 );
 const showTypingIndicator = computed(() =>
@@ -138,30 +138,30 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
 
     // 群聊优先使用当前群详情补齐角色名和实例信息。
     for (const member of groupStore.currentGroupDetail?.members ?? []) {
-        const instance = addressBookStore.instances.find((item) => item.id === member.instance_id);
-        const agent = instance?.agents.find((item) => item.id === member.agent_id);
-        assignMeta(member.display_name, {
-            roleName: member.role_name,
-            csId: agent?.cs_id ?? null,
-            instanceName: member.instance_name,
+        const instance = addressBookStore.instances.find((item) => item.id === member.instanceId);
+        const agent = instance?.agents.find((item) => item.id === member.agentId);
+        assignMeta(member.displayName, {
+            roleName: member.roleName,
+            csId: agent?.csId ?? null,
+            instanceName: member.instanceName,
         });
     }
 
     if (currentAgentDialogue.value) {
-        const sourceLabel = currentAgentDialogue.value.source_agent_display_name.trim();
+        const sourceLabel = currentAgentDialogue.value.sourceAgentDisplayName.trim();
         if (sourceLabel) {
             assignMeta(sourceLabel, {
-                roleName: map[currentAgentDialogue.value.source_agent_cs_id ?? ""]?.roleName ?? map[sourceLabel]?.roleName ?? null,
-                csId: currentAgentDialogue.value.source_agent_cs_id,
-                instanceName: currentAgentDialogue.value.source_agent_instance_name ?? null,
+                roleName: map[currentAgentDialogue.value.sourceAgentCsId ?? ""]?.roleName ?? map[sourceLabel]?.roleName ?? null,
+                csId: currentAgentDialogue.value.sourceAgentCsId,
+                instanceName: currentAgentDialogue.value.sourceAgentInstanceName ?? null,
             });
         }
-        const targetLabel = currentAgentDialogue.value.target_agent_display_name.trim();
+        const targetLabel = currentAgentDialogue.value.targetAgentDisplayName.trim();
         if (targetLabel) {
             assignMeta(targetLabel, {
-                roleName: map[currentAgentDialogue.value.target_agent_cs_id ?? ""]?.roleName ?? map[targetLabel]?.roleName ?? null,
-                csId: currentAgentDialogue.value.target_agent_cs_id,
-                instanceName: currentAgentDialogue.value.target_agent_instance_name ?? null,
+                roleName: map[currentAgentDialogue.value.targetAgentCsId ?? ""]?.roleName ?? map[targetLabel]?.roleName ?? null,
+                csId: currentAgentDialogue.value.targetAgentCsId,
+                instanceName: currentAgentDialogue.value.targetAgentInstanceName ?? null,
             });
         }
     }
@@ -169,7 +169,7 @@ const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
     // 再用通讯录补齐单聊和普通消息里的身份信息。
     for (const instance of addressBookStore.instances) {
         for (const agent of instance.agents) {
-            assignMeta(agent.display_name, { roleName: agent.role_name, csId: agent.cs_id, instanceName: instance.name });
+            assignMeta(agent.displayName, { roleName: agent.roleName, csId: agent.csId, instanceName: instance.name });
         }
     }
 

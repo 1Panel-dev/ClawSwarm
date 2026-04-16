@@ -75,12 +75,12 @@ import { computed, reactive, ref, watch } from "vue";
 
 import ProjectMarkdownPreview from "@/pages/projects/components/ProjectMarkdownPreview.vue";
 import { useI18n } from "@/composables/useI18n";
-import { PROJECT_DOCUMENT_CATEGORIES, type ProjectDocumentUpdateInput, type ProjectDocumentView } from "@/types/view/project-management";
+import { PROJECT_DOCUMENT_CATEGORIES, type ProjectDocumentOutput, type ProjectDocumentUpdateInput } from "@/types/view/project-management";
 import { formatServerDateTime } from "@/utils/datetime";
 
 const props = defineProps<{
     projectId: string;
-    document: ProjectDocumentView | null;
+    document: ProjectDocumentOutput | null;
     saving?: boolean;
 }>();
 

@@ -78,11 +78,11 @@ import {useI18n} from "@/composables/useI18n";
 import {
   PROJECT_DOCUMENT_CATEGORIES,
   type DocumentTemplateUpdateInput,
-  type DocumentTemplateView
+  type DocumentTemplateOutput
 } from "@/types/view/project-management";
 
 const props = defineProps<{
-  template: DocumentTemplateView | null;
+  template: DocumentTemplateOutput | null;
   submitting?: boolean;
 }>();
 

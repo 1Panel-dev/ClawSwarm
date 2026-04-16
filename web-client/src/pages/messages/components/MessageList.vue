@@ -8,7 +8,7 @@
     </div>
     <template v-else>
       <div
-        v-for="message in visibleMessageViews"
+        v-for="message in visibleMessages"
         :key="message.id"
         class="message-list__item"
         :class="messageItemClass(message)"
@@ -115,9 +115,7 @@ import MessageAttachmentCard from "@/pages/messages/components/MessageAttachment
 import MessageMarkdown from "@/pages/messages/components/MessageMarkdown.vue";
 import MessageToolCard from "@/pages/messages/components/MessageToolCard.vue";
 import { useI18n } from "@/composables/useI18n";
-import type { MessageReadApi } from "@/types/api/conversation";
-import type { MessagePartView, MessageView } from "@/types/view/message";
-import { toMessageView } from "@/types/view/message";
+import type { MessageOutput, MessagePartOutput } from "@/types/view/message";
 import { formatServerDateTime } from "@/utils/datetime";
 
 type SenderMeta = {
@@ -127,7 +125,7 @@ type SenderMeta = {
 };
 
 const props = defineProps<{
-    messages: MessageReadApi[];
+    messages: MessageOutput[];
     loading: boolean;
     hasMoreMessages?: boolean;
     loadingOlderMessages?: boolean;
@@ -163,16 +161,15 @@ const SPEAKER_COLORS = [
 ];
 
 const resolvedSenderMetaMap = computed(() => props.senderMetaMap ?? {});
-const messageViews = computed(() => props.messages.map((item) => toMessageView(item)));
-const visibleMessageViews = computed(() => messageViews.value.filter((item) => item.parts.length > 0));
+const visibleMessages = computed(() => props.messages.filter((item) => item.parts.length > 0));
 
 const latestMessageTrigger = computed(() => {
     const lastMessage = props.messages.at(-1);
     return [
         props.loading ? "loading" : "ready",
         lastMessage?.id ?? "",
-        lastMessage?.updated_at ?? "",
-        lastMessage?.content ?? "",
+        lastMessage?.updatedAt ?? "",
+        lastMessage?.parts.map((part) => formatMessagePart(part)).join("\n") ?? "",
         props.showTypingIndicator ? "typing" : "idle",
     ].join("|");
 });
@@ -180,7 +177,7 @@ const latestMessageTrigger = computed(() => {
 const speakerColorMap = computed<Record<string, string>>(() => {
     const speakerKeys = Array.from(
         new Set(
-            messageViews.value
+            props.messages
                 .filter((message) => message.senderType !== "user" && message.senderType !== "system")
                 .map((message) => speakerKeyFor(message))
                 .filter((value): value is string => Boolean(value)),
@@ -234,19 +231,19 @@ watch(
     },
 );
 
-function normalizedSenderCsId(message: MessageView) {
+function normalizedSenderCsId(message: MessageOutput) {
     return message.senderCsId?.trim() || "";
 }
 
-function normalizedSenderLabel(message: MessageView) {
+function normalizedSenderLabel(message: MessageOutput) {
     return message.senderLabel.trim();
 }
 
-function speakerKeyFor(message: MessageView) {
+function speakerKeyFor(message: MessageOutput) {
     return normalizedSenderCsId(message) || normalizedSenderLabel(message) || message.id;
 }
 
-function senderMetaFor(message: MessageView) {
+function senderMetaFor(message: MessageOutput) {
     const csId = normalizedSenderCsId(message);
     if (csId && resolvedSenderMetaMap.value[csId]) {
         return resolvedSenderMetaMap.value[csId];
@@ -258,7 +255,7 @@ function senderMetaFor(message: MessageView) {
     return undefined;
 }
 
-function messageItemClass(message: MessageView) {
+function messageItemClass(message: MessageOutput) {
     return {
         "message-list__item--user": message.senderType === "user",
         "message-list__item--process": isCompactProcessMessage(message),
@@ -266,7 +263,7 @@ function messageItemClass(message: MessageView) {
     };
 }
 
-function speakerStyleFor(message: MessageView) {
+function speakerStyleFor(message: MessageOutput) {
     if (!shouldAccentSpeakers.value) {
         return undefined;
     }
@@ -320,7 +317,7 @@ async function syncLatestScrollPosition() {
     }
 }
 
-function isCompactProcessMessage(message: MessageView) {
+function isCompactProcessMessage(message: MessageOutput) {
     if (message.senderType === "user") {
         return false;
     }
@@ -335,18 +332,18 @@ function isCompactProcessMessage(message: MessageView) {
     return markdownParts.every((part) => part.content.trim().length <= 220);
 }
 
-function isTranscriptSummaryMarkdown(part: MessagePartView) {
+function isTranscriptSummaryMarkdown(part: MessagePartOutput) {
     return part.kind === "markdown" && part.content.trim().startsWith("Transcript part (");
 }
 
-function shouldHideMarkdownPart(message: MessageView, part: MessagePartView) {
+function shouldHideMarkdownPart(message: MessageOutput, part: MessagePartOutput) {
     if (!isCompactProcessMessage(message) || part.kind !== "markdown") {
         return false;
     }
     return !isTranscriptSummaryMarkdown(part) && part.content.trim().length > 0;
 }
 
-function displaySenderLabel(message: MessageView) {
+function displaySenderLabel(message: MessageOutput) {
     if (!isCompactProcessMessage(message)) {
         return message.senderLabel;
     }
@@ -357,7 +354,7 @@ function displaySenderLabel(message: MessageView) {
     return toolPart.status === "running" || toolPart.status === "pending" ? "Assistant" : "Tool";
 }
 
-function compactToolTitle(message: MessageView, part: Extract<MessagePartView, { kind: "tool_card" }>) {
+function compactToolTitle(message: MessageOutput, part: Extract<MessagePartOutput, { kind: "tool_card" }>) {
     if (!isCompactProcessMessage(message)) {
         return part.title;
     }
@@ -366,7 +363,7 @@ function compactToolTitle(message: MessageView, part: Extract<MessagePartView, {
         : `Tool output ${part.title}`;
 }
 
-function formatMessagePart(part: MessagePartView): string {
+function formatMessagePart(part: MessagePartOutput): string {
     if (part.kind === "markdown") {
         return part.content.trim();
     }
@@ -376,11 +373,11 @@ function formatMessagePart(part: MessagePartView): string {
     return [part.title, part.summary].filter(Boolean).join("\n");
 }
 
-function serializeMessage(message: MessageView) {
+function serializeMessage(message: MessageOutput) {
     return message.parts.map((part) => formatMessagePart(part)).filter(Boolean).join("\n\n").trim();
 }
 
-async function copyMessage(message: MessageView) {
+async function copyMessage(message: MessageOutput) {
     const text = serializeMessage(message);
     if (!text) {
         return;

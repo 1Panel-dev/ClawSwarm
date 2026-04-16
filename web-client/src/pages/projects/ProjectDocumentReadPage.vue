@@ -20,12 +20,12 @@ import { useRoute } from "vue-router";
 
 import ProjectMarkdownPreview from "@/pages/projects/components/ProjectMarkdownPreview.vue";
 import { fetchProjectDocument } from "@/api/projects";
-import type { ProjectDocumentResponse } from "@/types/api/project-management";
 import { useI18n } from "@/composables/useI18n";
+import type { ProjectDocumentOutput } from "@/types/view/project-management";
 
 const route = useRoute();
 const { t } = useI18n();
-const document = ref<ProjectDocumentResponse | null>(null);
+const document = ref<ProjectDocumentOutput | null>(null);
 const loading = ref(false);
 
 async function loadDocument() {

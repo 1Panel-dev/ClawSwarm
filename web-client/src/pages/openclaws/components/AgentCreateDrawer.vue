@@ -117,7 +117,7 @@ import {ArrowDown, EditPen} from "@element-plus/icons-vue";
 import {computed, reactive, ref, watch} from "vue";
 import {useI18n} from "@/composables/useI18n";
 import {AGENT_TEMPLATES} from "@/constants/agentTemplates";
-import type { OpenClawAgentProfileView } from "@/types/view/openclaw";
+import type { OpenClawAgentProfileOutput } from "@/types/view/openclaw";
 
 type AgentDrawerCreateInput = {
   mode: "create";
@@ -154,7 +154,7 @@ const props = defineProps<{
   instanceName: string;
   mode: "create" | "edit";
   existingAgentKeys?: string[];
-  initialValue?: OpenClawAgentProfileView | null;
+  initialValue?: OpenClawAgentProfileOutput | null;
 }>();
 
 const emit = defineEmits<{
@@ -487,12 +487,6 @@ function submit() {
   display: grid;
   gap: var(--space-4);
   min-height: 100%;
-}
-
-.drawer-instance-line {
-  color: var(--color-text-secondary);
-  font-size: 0.88rem;
-  line-height: 1.5;
 }
 
 .agent-template-select {

@@ -18,18 +18,17 @@ import {
 import type {
     DocumentTemplateCreateInput,
     DocumentTemplateUpdateInput,
-    DocumentTemplateView,
+    DocumentTemplateOutput,
     ProjectCreateInput,
-    ProjectDetailView,
+    ProjectDetailOutput,
     ProjectDocumentCreateInput,
     ProjectDocumentUpdateInput,
-    ProjectDocumentView,
+    ProjectDocumentOutput,
     ProjectUpdateInput,
-    ProjectView,
+    ProjectOutput,
 } from "@/types/view/project-management";
-import { camelizeKeys } from "@/utils/case";
 
-function toProjectSummaryFromDetail(item: ProjectDetailView): ProjectView {
+function toProjectSummaryFromDetail(item: ProjectDetailOutput): ProjectOutput {
     return {
         id: item.id,
         name: item.name,
@@ -41,13 +40,13 @@ function toProjectSummaryFromDetail(item: ProjectDetailView): ProjectView {
     };
 }
 
-function replaceProject(items: ProjectView[], nextItem: ProjectView): ProjectView[] {
+function replaceProject(items: ProjectOutput[], nextItem: ProjectOutput): ProjectOutput[] {
     const found = items.some((item) => item.id === nextItem.id);
     const nextItems = found ? items.map((item) => (item.id === nextItem.id ? nextItem : item)) : [nextItem, ...items];
     return nextItems.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
 }
 
-function replaceDocument(items: ProjectDocumentView[], nextItem: ProjectDocumentView): ProjectDocumentView[] {
+function replaceDocument(items: ProjectDocumentOutput[], nextItem: ProjectDocumentOutput): ProjectDocumentOutput[] {
     const found = items.some((item) => item.id === nextItem.id);
     const nextItems = found ? items.map((item) => (item.id === nextItem.id ? nextItem : item)) : [...items, nextItem];
     return nextItems.sort((a, b) => {
@@ -61,7 +60,7 @@ function replaceDocument(items: ProjectDocumentView[], nextItem: ProjectDocument
     });
 }
 
-function replaceTemplate(items: DocumentTemplateView[], nextItem: DocumentTemplateView): DocumentTemplateView[] {
+function replaceTemplate(items: DocumentTemplateOutput[], nextItem: DocumentTemplateOutput): DocumentTemplateOutput[] {
     const found = items.some((item) => item.id === nextItem.id);
     const nextItems = found ? items.map((item) => (item.id === nextItem.id ? nextItem : item)) : [nextItem, ...items];
     return nextItems.sort((a, b) => {
@@ -74,9 +73,9 @@ function replaceTemplate(items: DocumentTemplateView[], nextItem: DocumentTempla
 
 export const useProjectManagementStore = defineStore("projectManagement", {
     state: () => ({
-        projects: [] as ProjectView[],
-        templates: [] as DocumentTemplateView[],
-        activeProject: null as ProjectDetailView | null,
+        projects: [] as ProjectOutput[],
+        templates: [] as DocumentTemplateOutput[],
+        activeProject: null as ProjectDetailOutput | null,
         activeDocumentId: null as string | null,
         loadingProjects: false,
         loadingProjectDetail: false,
@@ -88,7 +87,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         templatesError: "",
     }),
     getters: {
-        activeDocument(state): ProjectDocumentView | null {
+        activeDocument(state): ProjectDocumentOutput | null {
             return state.activeProject?.documents.find((item) => item.id === state.activeDocumentId) ?? null;
         },
     },
@@ -97,7 +96,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             this.loadingProjects = true;
             this.projectsError = "";
             try {
-                this.projects = (await fetchProjects()).map(camelizeKeys);
+                this.projects = await fetchProjects();
             } catch (error) {
                 this.projectsError = error instanceof Error ? error.message : String(error);
             } finally {
@@ -107,7 +106,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async loadProjectDetail(projectId: string) {
             this.loadingProjectDetail = true;
             try {
-                this.activeProject = camelizeKeys(await fetchProjectDetail(projectId));
+                this.activeProject = await fetchProjectDetail(projectId);
                 this.activeDocumentId = this.activeProject.documents[0]?.id ?? null;
                 this.projects = replaceProject(this.projects, toProjectSummaryFromDetail(this.activeProject));
             } finally {
@@ -118,13 +117,13 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             if (!this.activeProject || !this.activeDocumentId) {
                 return;
             }
-            const item = camelizeKeys(await fetchProjectDocument(this.activeProject.id, this.activeDocumentId));
+            const item = await fetchProjectDocument(this.activeProject.id, this.activeDocumentId);
             this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
         },
         async createProject(payload: ProjectCreateInput) {
             this.submittingProject = true;
             try {
-                const detail = camelizeKeys(await createProjectRequest(payload));
+                const detail = await createProjectRequest(payload);
                 this.activeProject = detail;
                 this.activeDocumentId = detail.documents[0]?.id ?? null;
                 this.projects = replaceProject(this.projects, toProjectSummaryFromDetail(detail));
@@ -136,7 +135,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async updateProject(projectId: string, payload: ProjectUpdateInput) {
             this.submittingProject = true;
             try {
-                const item = camelizeKeys(await updateProjectRequest(projectId, payload));
+                const item = await updateProjectRequest(projectId, payload);
                 this.projects = replaceProject(this.projects, item);
                 if (this.activeProject?.id === item.id) {
                     this.activeProject = {
@@ -152,7 +151,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async createDocument(projectId: string, payload: ProjectDocumentCreateInput) {
             this.submittingDocument = true;
             try {
-                const item = camelizeKeys(await createProjectDocumentRequest(projectId, payload));
+                const item = await createProjectDocumentRequest(projectId, payload);
                 if (this.activeProject?.id === projectId) {
                     this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
                 }
@@ -165,7 +164,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async updateDocument(projectId: string, documentId: string, payload: ProjectDocumentUpdateInput) {
             this.submittingDocument = true;
             try {
-                const item = camelizeKeys(await updateProjectDocumentRequest(projectId, documentId, payload));
+                const item = await updateProjectDocumentRequest(projectId, documentId, payload);
                 if (this.activeProject?.id === projectId) {
                     this.activeProject.documents = replaceDocument(this.activeProject.documents, item);
                 }
@@ -192,7 +191,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             this.loadingTemplates = true;
             this.templatesError = "";
             try {
-                this.templates = (await fetchDocumentTemplates()).map(camelizeKeys);
+                this.templates = await fetchDocumentTemplates();
             } catch (error) {
                 this.templatesError = error instanceof Error ? error.message : String(error);
             } finally {
@@ -200,12 +199,12 @@ export const useProjectManagementStore = defineStore("projectManagement", {
             }
         },
         async loadTemplate(templateId: string) {
-            return camelizeKeys(await fetchDocumentTemplate(templateId));
+            return await fetchDocumentTemplate(templateId);
         },
         async createTemplate(payload: DocumentTemplateCreateInput) {
             this.submittingTemplate = true;
             try {
-                const item = camelizeKeys(await createDocumentTemplateRequest(payload));
+                const item = await createDocumentTemplateRequest(payload);
                 this.templates = replaceTemplate(this.templates, item);
                 return item;
             } finally {
@@ -215,7 +214,7 @@ export const useProjectManagementStore = defineStore("projectManagement", {
         async updateTemplate(templateId: string, payload: DocumentTemplateUpdateInput) {
             this.submittingTemplate = true;
             try {
-                const item = camelizeKeys(await updateDocumentTemplateRequest(templateId, payload));
+                const item = await updateDocumentTemplateRequest(templateId, payload);
                 this.templates = replaceTemplate(this.templates, item);
                 return item;
             } finally {

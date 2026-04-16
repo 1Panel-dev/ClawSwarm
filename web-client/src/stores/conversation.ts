@@ -21,9 +21,13 @@ import {
     isMessageMockEnabled,
     sendMockConversationMessage,
 } from "@/mocks/messageWorkbench";
+import { toConversationMessagesOutput } from "@/stores/conversationMappers";
 import { useAddressBookStore } from "@/stores/addressBook";
-import type { ConversationReadApi, DispatchReadApi, MessageReadApi } from "@/types/api/conversation";
-import type { AgentDialogueReadApi } from "@/types/api/agent-dialogue";
+import type { AgentDialogueCreateInput, AgentDialogueOutput } from "@/types/view/agent-dialogue";
+import type { ConversationOutput, DispatchOutput } from "@/types/view/conversation";
+import type { MessageOutput } from "@/types/view/message";
+import { toMessageOutput } from "@/types/view/message";
+import { camelizeKeys } from "@/utils/case";
 
 const CONVERSATION_INITIAL_PAGE_SIZE = 100;
 const CONVERSATION_HISTORY_PAGE_SIZE = 100;
@@ -42,10 +46,10 @@ function mergeById<T extends { id: string }>(base: T[], incoming: T[]): T[] {
 export const useConversationStore = defineStore("conversation", {
     state: () => ({
         currentConversationId: null as number | null,
-        currentConversation: null as ConversationReadApi | null,
-        currentAgentDialogue: null as AgentDialogueReadApi | null,
-        messages: [] as MessageReadApi[],
-        dispatches: [] as DispatchReadApi[],
+        currentConversation: null as ConversationOutput | null,
+        currentAgentDialogue: null as AgentDialogueOutput | null,
+        messages: [] as MessageOutput[],
+        dispatches: [] as DispatchOutput[],
         nextMessageCursor: null as string | null,
         nextDispatchCursor: null as string | null,
         oldestLoadedMessageId: null as string | null,
@@ -58,32 +62,25 @@ export const useConversationStore = defineStore("conversation", {
     actions: {
         async openDirectConversation(instanceId: number, agentId: number) {
             const conversation = isMessageMockEnabled()
-                ? await createMockDirectConversation(instanceId, agentId)
+                ? camelizeKeys(await createMockDirectConversation(instanceId, agentId))
                 : await createDirectConversation(instanceId, agentId);
             await useAddressBookStore().refreshRecentConversations();
             await this.openConversation(conversation.id, conversation);
         },
         async openGroupConversation(groupId: number) {
             const conversation = isMessageMockEnabled()
-                ? await createMockGroupConversation(groupId)
+                ? camelizeKeys(await createMockGroupConversation(groupId))
                 : await createGroupConversation(groupId);
             await useAddressBookStore().refreshRecentConversations();
             await this.openConversation(conversation.id, conversation);
         },
-        async createAndOpenAgentDialogue(payload: {
-            source_agent_id: number;
-            target_agent_id: number;
-            topic: string;
-            window_seconds?: number;
-            soft_message_limit?: number;
-            hard_message_limit?: number;
-        }) {
+        async createAndOpenAgentDialogue(payload: AgentDialogueCreateInput) {
             const dialogue = await createAgentDialogue(payload);
             await useAddressBookStore().refreshRecentConversations();
-            await this.openConversation(dialogue.conversation_id);
+            await this.openConversation(dialogue.conversationId);
             return dialogue;
         },
-        async openConversation(conversationId: number, seedConversation?: ConversationReadApi) {
+        async openConversation(conversationId: number, seedConversation?: ConversationOutput) {
             this.currentConversationId = conversationId;
             this.currentConversation = seedConversation ?? null;
             this.currentAgentDialogue = null;
@@ -104,21 +101,21 @@ export const useConversationStore = defineStore("conversation", {
             this.loading = true;
             try {
                 const payload = isMessageMockEnabled()
-                    ? await fetchMockConversationMessages(this.currentConversationId)
+                    ? toConversationMessagesOutput(await fetchMockConversationMessages(this.currentConversationId))
                     : await fetchConversationMessages(this.currentConversationId, {
                         limit: CONVERSATION_INITIAL_PAGE_SIZE,
                         includeDispatches: true,
                     });
                 this.currentConversation = payload.conversation;
-                this.currentAgentDialogue = payload.conversation.agent_dialogue_id
-                    ? await fetchAgentDialogue(payload.conversation.agent_dialogue_id)
+                this.currentAgentDialogue = payload.conversation.agentDialogueId
+                    ? await fetchAgentDialogue(payload.conversation.agentDialogueId)
                     : null;
                 this.messages = payload.messages;
                 this.dispatches = payload.dispatches;
-                this.nextMessageCursor = payload.next_message_cursor;
-                this.nextDispatchCursor = payload.next_dispatch_cursor;
-                this.oldestLoadedMessageId = payload.oldest_loaded_message_id;
-                this.hasMoreMessages = payload.has_more_messages;
+                this.nextMessageCursor = payload.nextMessageCursor;
+                this.nextDispatchCursor = payload.nextDispatchCursor;
+                this.oldestLoadedMessageId = payload.oldestLoadedMessageId;
+                this.hasMoreMessages = payload.hasMoreMessages;
                 this.lastErrorMessage = null;
             } catch (error) {
                 this.lastErrorMessage = error instanceof Error ? error.message : "加载会话失败";
@@ -133,26 +130,28 @@ export const useConversationStore = defineStore("conversation", {
             }
             try {
                 const payload = isMessageMockEnabled()
-                    ? await fetchMockConversationMessages(this.currentConversationId, {
-                        messageAfter: this.nextMessageCursor,
-                        dispatchAfter: this.nextDispatchCursor,
-                    })
+                    ? toConversationMessagesOutput(
+                        await fetchMockConversationMessages(this.currentConversationId, {
+                            messageAfter: this.nextMessageCursor,
+                            dispatchAfter: this.nextDispatchCursor,
+                        }),
+                    )
                     : await fetchConversationMessages(this.currentConversationId, {
                         limit: CONVERSATION_INITIAL_PAGE_SIZE,
                         includeDispatches: true,
                     });
                 this.currentConversation = payload.conversation;
-                this.currentAgentDialogue = payload.conversation.agent_dialogue_id
-                    ? await fetchAgentDialogue(payload.conversation.agent_dialogue_id)
+                this.currentAgentDialogue = payload.conversation.agentDialogueId
+                    ? await fetchAgentDialogue(payload.conversation.agentDialogueId)
                     : null;
                 this.messages = mergeById(this.messages, payload.messages);
                 this.dispatches = mergeById(this.dispatches, payload.dispatches);
-                this.nextMessageCursor = payload.next_message_cursor;
-                this.nextDispatchCursor = payload.next_dispatch_cursor;
+                this.nextMessageCursor = payload.nextMessageCursor;
+                this.nextDispatchCursor = payload.nextDispatchCursor;
                 if (!this.oldestLoadedMessageId) {
-                    this.oldestLoadedMessageId = payload.oldest_loaded_message_id;
+                    this.oldestLoadedMessageId = payload.oldestLoadedMessageId;
                 }
-                this.hasMoreMessages = payload.has_more_messages || this.hasMoreMessages;
+                this.hasMoreMessages = payload.hasMoreMessages || this.hasMoreMessages;
                 this.lastErrorMessage = null;
             } catch (error) {
                 this.lastErrorMessage = error instanceof Error ? error.message : "轮询会话失败";
@@ -170,8 +169,8 @@ export const useConversationStore = defineStore("conversation", {
                     includeDispatches: false,
                 });
                 this.messages = mergeById(payload.messages, this.messages);
-                this.oldestLoadedMessageId = payload.oldest_loaded_message_id;
-                this.hasMoreMessages = payload.has_more_messages;
+                this.oldestLoadedMessageId = payload.oldestLoadedMessageId;
+                this.hasMoreMessages = payload.hasMoreMessages;
                 this.lastErrorMessage = null;
                 return payload.messages;
             } catch (error) {
@@ -188,18 +187,20 @@ export const useConversationStore = defineStore("conversation", {
             this.sending = true;
             try {
                 const message = isMessageMockEnabled()
-                    ? await sendMockConversationMessage(this.currentConversationId, {
-                        content,
-                        mentions,
-                        useDedicatedDirectSession,
-                    })
+                    ? toMessageOutput(
+                        await sendMockConversationMessage(this.currentConversationId, {
+                            content,
+                            mentions,
+                            useDedicatedDirectSession,
+                        }),
+                    )
                     : await sendConversationMessage(this.currentConversationId, {
                         content,
                         mentions,
-                        use_dedicated_direct_session: useDedicatedDirectSession,
+                        useDedicatedDirectSession,
                     });
-                this.messages = mergeById(this.messages, [message as MessageReadApi]);
-                this.nextMessageCursor = (message as MessageReadApi).id;
+                this.messages = mergeById(this.messages, [message]);
+                this.nextMessageCursor = message.id;
                 await useAddressBookStore().refreshRecentConversations();
                 this.lastErrorMessage = null;
             } catch (error) {

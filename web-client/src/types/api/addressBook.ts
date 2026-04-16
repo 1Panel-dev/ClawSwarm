@@ -3,7 +3,7 @@
  *
  * 这一层保持与后端字段一致。
  */
-export interface AddressBookAgentApi {
+export interface AddressBookAgentResponse {
     id: number;
     agent_key: string;
     cs_id: string;
@@ -12,14 +12,14 @@ export interface AddressBookAgentApi {
     enabled: boolean;
 }
 
-export interface AddressBookInstanceApi {
+export interface AddressBookInstanceResponse {
     id: number;
     name: string;
     status: string;
-    agents: AddressBookAgentApi[];
+    agents: AddressBookAgentResponse[];
 }
 
-export interface AddressBookGroupMemberApi {
+export interface AddressBookGroupMemberResponse {
     id: number;
     instance_id: number;
     agent_id: number;
@@ -28,14 +28,14 @@ export interface AddressBookGroupMemberApi {
     instance_name: string;
 }
 
-export interface AddressBookGroupApi {
+export interface AddressBookGroupResponse {
     id: number;
     name: string;
     description: string | null;
-    members: AddressBookGroupMemberApi[];
+    members: AddressBookGroupMemberResponse[];
 }
 
-export interface AddressBookResponseApi {
-    instances: AddressBookInstanceApi[];
-    groups: AddressBookGroupApi[];
+export interface AddressBookResponse {
+    instances: AddressBookInstanceResponse[];
+    groups: AddressBookGroupResponse[];
 }

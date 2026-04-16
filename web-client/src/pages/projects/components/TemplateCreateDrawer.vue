@@ -56,11 +56,11 @@
 import { reactive, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import { PROJECT_DOCUMENT_CATEGORIES, type DocumentTemplateCreateInput, type DocumentTemplateView } from "@/types/view/project-management";
+import { PROJECT_DOCUMENT_CATEGORIES, type DocumentTemplateCreateInput, type DocumentTemplateOutput } from "@/types/view/project-management";
 
 const props = defineProps<{
     visible: boolean;
-    template?: DocumentTemplateView | null;
+    template?: DocumentTemplateOutput | null;
     submitting?: boolean;
 }>();
 

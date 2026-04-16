@@ -21,10 +21,10 @@
 import { ElTag } from "element-plus";
 
 import { useI18n } from "@/composables/useI18n";
-import type { OpenClawInstanceView } from "@/types/view/openclaw";
+import type { OpenClawInstanceOutput } from "@/types/view/openclaw";
 
 defineProps<{
-    instance: OpenClawInstanceView;
+    instance: OpenClawInstanceOutput;
 }>();
 
 const { t } = useI18n();

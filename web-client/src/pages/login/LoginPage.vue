@@ -47,7 +47,7 @@ async function handleSubmit() {
             password: form.password,
         });
         ElMessage.success(t("auth.loginSuccess"));
-        if (authStore.user?.using_default_password) {
+        if (authStore.user?.usingDefaultPassword) {
             window.localStorage.setItem("clawswarm.open-account-dialog", "1");
             ElMessage.warning(t("auth.defaultPasswordWarning"));
         }

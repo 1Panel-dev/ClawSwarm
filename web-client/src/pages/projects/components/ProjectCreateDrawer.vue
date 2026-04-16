@@ -113,15 +113,15 @@ import {useAddressBookStore} from "@/stores/addressBook";
 import { toSelectableProjectMember, type SelectableProjectMember } from "@/stores/projectManagementMappers";
 import type {
   ProjectCreateInput,
-  ProjectMemberView,
+  ProjectMemberOutput,
   ProjectUpdateInput,
-  ProjectView
+  ProjectOutput
 } from "@/types/view/project-management";
 
 const props = defineProps<{
   visible: boolean;
   submitting?: boolean;
-  project?: ProjectView | null;
+  project?: ProjectOutput | null;
 }>();
 
 const emit = defineEmits<{
@@ -135,7 +135,7 @@ const form = reactive({
   name: "",
   description: "",
   currentProgress: "",
-  members: [] as ProjectMemberView[],
+  members: [] as ProjectMemberOutput[],
 });
 const memberDialogVisible = ref(false);
 const availableInstances = computed(() =>

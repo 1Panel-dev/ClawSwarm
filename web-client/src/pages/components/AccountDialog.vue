@@ -10,16 +10,16 @@
         <div class="account-dialog__static-value">{{ username }}</div>
       </el-form-item>
       <el-form-item :label="t('auth.displayName')">
-        <el-input v-model="form.display_name" maxlength="120" />
+        <el-input v-model="form.displayName" maxlength="120" />
       </el-form-item>
       <el-form-item :label="t('auth.currentPassword')">
-        <el-input v-model="form.current_password" type="password" show-password autocomplete="current-password" />
+        <el-input v-model="form.currentPassword" type="password" show-password autocomplete="current-password" />
       </el-form-item>
       <el-form-item :label="t('auth.newPassword')">
-        <el-input v-model="form.new_password" type="password" show-password autocomplete="new-password" />
+        <el-input v-model="form.newPassword" type="password" show-password autocomplete="new-password" />
       </el-form-item>
       <el-form-item :label="t('auth.confirmPassword')">
-        <el-input v-model="form.confirm_password" type="password" show-password autocomplete="new-password" />
+        <el-input v-model="form.confirmPassword" type="password" show-password autocomplete="new-password" />
       </el-form-item>
     </el-form>
 
@@ -36,6 +36,7 @@
 import { reactive, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
+import type { UpdateProfileInput } from "@/types/view/auth";
 
 const props = defineProps<{
     visible: boolean;
@@ -46,19 +47,15 @@ const props = defineProps<{
 
 const emit = defineEmits<{
     "update:visible": [value: boolean];
-    submit: [{
-        display_name: string;
-        current_password?: string;
-        new_password?: string;
-    }];
+    submit: [payload: UpdateProfileInput];
 }>();
 
 const { t } = useI18n();
 const form = reactive({
-    display_name: "",
-    current_password: "",
-    new_password: "",
-    confirm_password: "",
+    displayName: "",
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
 });
 
 watch(
@@ -67,18 +64,18 @@ watch(
         if (!visible) {
             return;
         }
-        form.display_name = props.displayName;
-        form.current_password = "";
-        form.new_password = "";
-        form.confirm_password = "";
+        form.displayName = props.displayName;
+        form.currentPassword = "";
+        form.newPassword = "";
+        form.confirmPassword = "";
     },
 );
 
 function handleSave() {
-    const displayName = form.display_name.trim();
-    const currentPassword = form.current_password;
-    const newPassword = form.new_password.trim();
-    const confirmPassword = form.confirm_password.trim();
+    const displayName = form.displayName.trim();
+    const currentPassword = form.currentPassword;
+    const newPassword = form.newPassword.trim();
+    const confirmPassword = form.confirmPassword.trim();
 
     if (!displayName) {
         ElMessage.error(t("auth.accountRequired"));
@@ -100,9 +97,9 @@ function handleSave() {
     }
 
     emit("submit", {
-        display_name: displayName,
-        current_password: currentPassword || undefined,
-        new_password: newPassword || undefined,
+        displayName,
+        currentPassword: currentPassword || undefined,
+        newPassword: newPassword || undefined,
     });
 }
 </script>
@@ -115,7 +112,7 @@ function handleSave() {
 }
 
 .account-dialog__static-value {
-  color: #303133;
+  color: var(--color-text-primary);
   line-height: 32px;
 }
 </style>

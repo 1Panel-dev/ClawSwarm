@@ -171,12 +171,12 @@
 import { computed, reactive, ref, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { OpenClawInstanceView } from "@/types/view/openclaw";
+import type { OpenClawAgentOutput, OpenClawInstanceOutput } from "@/types/view/openclaw";
 import type { TaskCreatePayload, TaskPriority } from "@/types/view/task";
 
 const props = defineProps<{
     visible: boolean;
-    instances: OpenClawInstanceView[];
+    instances: OpenClawInstanceOutput[];
 }>();
 
 const emit = defineEmits<{
@@ -205,9 +205,9 @@ const enabledInstances = computed(() =>
     props.instances
         .map((instance) => ({
             ...instance,
-            agents: instance.agents.filter((agent) => agent.enabled),
+            agents: instance.agents.filter((agent: OpenClawAgentOutput) => agent.enabled),
         }))
-        .filter((instance) => instance.agents.length > 0),
+        .filter((instance: OpenClawInstanceOutput) => instance.agents.length > 0),
 );
 
 const selectedAssignee = computed(() => {

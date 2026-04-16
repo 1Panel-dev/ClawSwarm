@@ -3,16 +3,16 @@
  *
  * 用于在离线或联调不完整时验证消息页交互。
  */
-import type { AddressBookResponseApi } from "@/types/api/addressBook";
+import type { AddressBookResponse } from "@/types/api/addressBook";
 import type {
-    ConversationListItemApi,
-    ConversationMessagesResponseApi,
-    ConversationReadApi,
-    DispatchReadApi,
-    MessageReadApi,
+    ConversationListItemResponse,
+    ConversationMessagesResponse,
+    ConversationResponse,
+    DispatchResponse,
+    MessageResponse,
 } from "@/types/api/conversation";
 
-type MockConversation = ConversationReadApi & {
+type MockConversation = ConversationResponse & {
     display_title: string;
     order: number[];
     dispatchOrder: number[];
@@ -94,7 +94,7 @@ const mockAgents = [
     },
 ] as const;
 
-const addressBook: AddressBookResponseApi = {
+const addressBook: AddressBookResponse = {
     instances: [
         {
             id: MOCK_INSTANCE_ID,
@@ -107,8 +107,8 @@ const addressBook: AddressBookResponseApi = {
 };
 
 const conversations = new Map<number, MockConversation>();
-const messages = new Map<number, MessageReadApi[]>();
-const dispatches = new Map<number, DispatchReadApi[]>();
+const messages = new Map<number, MessageResponse[]>();
+const dispatches = new Map<number, DispatchResponse[]>();
 
 seed();
 
@@ -116,11 +116,11 @@ export function isMessageMockEnabled() {
     return import.meta.env.VITE_MESSAGE_MOCK === "true";
 }
 
-export async function fetchMockAddressBook(): Promise<AddressBookResponseApi> {
+export async function fetchMockAddressBook(): Promise<AddressBookResponse> {
     return structuredClone(addressBook);
 }
 
-export async function fetchMockConversationList(): Promise<ConversationListItemApi[]> {
+export async function fetchMockConversationList(): Promise<ConversationListItemResponse[]> {
     return Array.from(conversations.values())
         .map((conversation) => toConversationListItem(conversation.id))
         .sort((a, b) => {
@@ -130,7 +130,7 @@ export async function fetchMockConversationList(): Promise<ConversationListItemA
         });
 }
 
-export async function createMockDirectConversation(instanceId: number, agentId: number): Promise<ConversationReadApi> {
+export async function createMockDirectConversation(instanceId: number, agentId: number): Promise<ConversationResponse> {
     const existing = Array.from(conversations.values()).find(
         (item) => item.type === "direct" && item.direct_instance_id === instanceId && item.direct_agent_id === agentId,
     );
@@ -163,7 +163,7 @@ export async function createMockDirectConversation(instanceId: number, agentId: 
     return structuredClone(conversation);
 }
 
-export async function createMockGroupConversation(groupId: number): Promise<ConversationReadApi> {
+export async function createMockGroupConversation(groupId: number): Promise<ConversationResponse> {
     const existing = Array.from(conversations.values()).find((item) => item.type === "group" && item.group_id === groupId);
     if (existing) {
         return structuredClone(existing);
@@ -199,7 +199,7 @@ export async function fetchMockConversationMessages(
         limit?: number;
         includeDispatches?: boolean;
     },
-): Promise<ConversationMessagesResponseApi> {
+): Promise<ConversationMessagesResponse> {
     const conversation = conversations.get(conversationId);
     if (!conversation) {
         throw new Error("模拟会话不存在");
@@ -235,7 +235,7 @@ export async function fetchMockConversationMessages(
 export async function sendMockConversationMessage(
     conversationId: number,
     payload: { content: string; mentions?: string[]; useDedicatedDirectSession?: boolean },
-): Promise<MessageReadApi> {
+): Promise<MessageResponse> {
     const conversation = conversations.get(conversationId);
     if (!conversation) {
         throw new Error("模拟会话不存在");
@@ -464,7 +464,7 @@ function seedDirectConversation(
     }
 }
 
-function toConversationListItem(conversationId: number): ConversationListItemApi {
+function toConversationListItem(conversationId: number): ConversationListItemResponse {
     const conversation = conversations.get(conversationId)!;
     const conversationMessages = messages.get(conversationId) ?? [];
     const lastMessage = conversationMessages.at(-1) ?? null;
@@ -504,7 +504,7 @@ function createMessage(input: {
     content: string;
     status: string;
     createdAt?: string;
-}): MessageReadApi {
+}): MessageResponse {
     const createdAt = input.createdAt ?? nowIso();
     return {
         id: input.id ?? nextMessageId(),
@@ -518,7 +518,7 @@ function createMessage(input: {
     };
 }
 
-function createDispatch(input: { conversationId: number; agentId: number; status: string }): DispatchReadApi {
+function createDispatch(input: { conversationId: number; agentId: number; status: string }): DispatchResponse {
     const createdAt = nowIso();
     return {
         id: `dispatch_mock_${++dispatchSeq}`,
@@ -537,21 +537,21 @@ function createDispatch(input: { conversationId: number; agentId: number; status
     };
 }
 
-function pushMessage(conversationId: number, message: MessageReadApi) {
+function pushMessage(conversationId: number, message: MessageResponse) {
     const list = messages.get(conversationId) ?? [];
     list.push(message);
     messages.set(conversationId, list);
     touchConversation(conversationId, message.updated_at);
 }
 
-function pushDispatch(conversationId: number, dispatch: DispatchReadApi) {
+function pushDispatch(conversationId: number, dispatch: DispatchResponse) {
     const list = dispatches.get(conversationId) ?? [];
     list.push(dispatch);
     dispatches.set(conversationId, list);
     touchConversation(conversationId, dispatch.updated_at);
 }
 
-function updateMessage(conversationId: number, messageId: string, patch: Partial<MessageReadApi>) {
+function updateMessage(conversationId: number, messageId: string, patch: Partial<MessageResponse>) {
     const list = messages.get(conversationId) ?? [];
     const target = list.find((item) => item.id === messageId);
     if (!target) {

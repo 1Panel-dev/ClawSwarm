@@ -1,7 +1,9 @@
 import { apiClient } from "@/api/client";
-import type { AddressBookResponseApi } from "@/types/api/addressBook";
+import type { AddressBookResponse } from "@/types/api/addressBook";
+import type { AddressBookOutput } from "@/types/view/addressBook";
+import { camelizeKeys } from "@/utils/case";
 
-export async function fetchAddressBook(): Promise<AddressBookResponseApi> {
-    const response = await apiClient.get<AddressBookResponseApi>("/api/address-book");
-    return response.data;
+export async function fetchAddressBook(): Promise<AddressBookOutput> {
+    const response = await apiClient.get<AddressBookResponse>("/api/address-book");
+    return camelizeKeys(response.data);
 }

@@ -3,9 +3,9 @@
  *
  * 负责把后端消息转换成前端可直接渲染的片段结构。
  */
-import type { MessageReadApi } from "@/types/api/conversation";
+import type { MessageResponse } from "@/types/api/conversation";
 
-export type MessagePartView =
+export type MessagePartOutput =
     | {
           kind: "markdown";
           content: string;
@@ -23,7 +23,7 @@ export type MessagePartView =
           summary: string;
       };
 
-export interface MessageView {
+export interface MessageOutput {
     id: string;
     senderType: string;
     senderLabel: string;
@@ -32,10 +32,10 @@ export interface MessageView {
     status: string;
     createdAt: string;
     updatedAt: string;
-    parts: MessagePartView[];
+    parts: MessagePartOutput[];
 }
 
-export function toMessageView(message: MessageReadApi): MessageView {
+export function toMessageOutput(message: MessageResponse): MessageOutput {
     const parts = (message.parts?.length ? normalizeApiParts(message.parts) : parseMessageParts(message.content)).filter(isRenderablePart);
 
     return {
@@ -51,7 +51,7 @@ export function toMessageView(message: MessageReadApi): MessageView {
     };
 }
 
-function isRenderablePart(part: MessagePartView): boolean {
+function isRenderablePart(part: MessagePartOutput): boolean {
     if (part.kind === "markdown") {
         return part.content.trim().length > 0;
     }
@@ -61,9 +61,9 @@ function isRenderablePart(part: MessagePartView): boolean {
     return Boolean(part.title.trim() || part.summary.trim());
 }
 
-function parseMessageParts(content: string): MessagePartView[] {
+function parseMessageParts(content: string): MessagePartOutput[] {
     const pattern = /\[\[(attachment|tool):([^|\]]+)\|([^|\]]*)\|([^\]]+)\]\]/g;
-    const parts: MessagePartView[] = [];
+    const parts: MessagePartOutput[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null;
 
@@ -105,7 +105,7 @@ function parseMessageParts(content: string): MessagePartView[] {
     return parts;
 }
 
-function normalizeApiParts(parts: NonNullable<MessageReadApi["parts"]>): MessagePartView[] {
+function normalizeApiParts(parts: NonNullable<MessageResponse["parts"]>): MessagePartOutput[] {
     return parts.map((part) => {
         if (part.kind === "attachment") {
             return {
@@ -113,7 +113,7 @@ function normalizeApiParts(parts: NonNullable<MessageReadApi["parts"]>): Message
                 name: part.name,
                 mimeType: part.mime_type,
                 url: part.url,
-            } satisfies MessagePartView;
+            } satisfies MessagePartOutput;
         }
         if (part.kind === "tool_card") {
             return {
@@ -121,12 +121,12 @@ function normalizeApiParts(parts: NonNullable<MessageReadApi["parts"]>): Message
                 title: part.title,
                 status: part.status,
                 summary: part.summary,
-            } satisfies MessagePartView;
+            } satisfies MessagePartOutput;
         }
         return {
             kind: "markdown",
             content: part.content,
-        } satisfies MessagePartView;
+        } satisfies MessagePartOutput;
     });
 }
 

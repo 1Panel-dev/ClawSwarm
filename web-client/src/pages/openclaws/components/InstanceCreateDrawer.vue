@@ -103,7 +103,7 @@
 import { computed, reactive, watch } from "vue";
 import { DocumentCopy, InfoFilled } from "@element-plus/icons-vue";
 import { useI18n } from "@/composables/useI18n";
-import type { OpenClawInstanceCredentialsView } from "@/types/view/openclaw";
+import type { OpenClawInstanceCredentialsOutput } from "@/types/view/openclaw";
 
 const props = defineProps<{
     visible: boolean;
@@ -115,7 +115,7 @@ const props = defineProps<{
         channelBaseUrl: string;
         channelAccountId: string;
     } | null;
-    credentials?: OpenClawInstanceCredentialsView | null;
+    credentials?: OpenClawInstanceCredentialsOutput | null;
 }>();
 
 const emit = defineEmits<{
@@ -281,7 +281,7 @@ function resolveBackendBaseUrl() {
     return "http://127.0.0.1:18080";
 }
 
-async function copyCredential(key: keyof OpenClawInstanceCredentialsView) {
+async function copyCredential(key: keyof OpenClawInstanceCredentialsOutput) {
     if (!props.credentials) {
         return;
     }

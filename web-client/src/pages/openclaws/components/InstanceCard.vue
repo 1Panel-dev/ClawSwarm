@@ -36,10 +36,10 @@ import { useI18n } from "@/composables/useI18n";
 import InstanceAgentTable from "@/pages/openclaws/components/InstanceAgentTable.vue";
 import InstanceCardActions from "@/pages/openclaws/components/InstanceCardActions.vue";
 import InstanceCardHeader from "@/pages/openclaws/components/InstanceCardHeader.vue";
-import type { OpenClawAgentView, OpenClawInstanceView } from "@/types/view/openclaw";
+import type { OpenClawAgentOutput, OpenClawInstanceOutput } from "@/types/view/openclaw";
 
 const props = defineProps<{
-    instance: OpenClawInstanceView;
+    instance: OpenClawInstanceOutput;
     pageBusy: boolean;
     syncing: boolean;
 }>();
@@ -47,10 +47,10 @@ const props = defineProps<{
 const emit = defineEmits<{
     "create-agent": [instanceId: number, instanceName: string];
     sync: [instanceId: number, instanceName: string];
-    "edit-instance": [instance: OpenClawInstanceView];
+    "edit-instance": [instance: OpenClawInstanceOutput];
     "toggle-instance": [instanceId: number, enable: boolean];
-    "delete-instance": [instance: OpenClawInstanceView];
-    "edit-agent": [agent: OpenClawAgentView & { instanceId: number; instanceName: string }];
+    "delete-instance": [instance: OpenClawInstanceOutput];
+    "edit-agent": [agent: OpenClawAgentOutput & { instanceId: number; instanceName: string }];
     "toggle-agent": [agentId: number, enable: boolean];
 }>();
 

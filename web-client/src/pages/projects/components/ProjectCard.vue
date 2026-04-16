@@ -17,11 +17,11 @@
 
 <script setup lang="ts">
 import { useI18n } from "@/composables/useI18n";
-import type { ProjectView } from "@/types/view/project-management";
+import type { ProjectOutput } from "@/types/view/project-management";
 import { formatServerDateTime } from "@/utils/datetime";
 
 defineProps<{
-    project: ProjectView;
+    project: ProjectOutput;
 }>();
 
 defineEmits<{

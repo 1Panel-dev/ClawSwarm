@@ -4,10 +4,10 @@
       <div class="dialogue-toolbar__line">
         <span>
           {{ t("conversation.agentDialoguePair", {
-              source: dialogue.source_agent_display_name,
-              sourceCsId: dialogue.source_agent_cs_id,
-              target: dialogue.target_agent_display_name,
-              targetCsId: dialogue.target_agent_cs_id,
+              source: dialogue.sourceAgentDisplayName,
+              sourceCsId: dialogue.sourceAgentCsId,
+              target: dialogue.targetAgentDisplayName,
+              targetCsId: dialogue.targetAgentCsId,
           }) }}
         </span>
       </div>
@@ -18,8 +18,8 @@
         <span class="dialogue-toolbar__divider">·</span>
         {{ t("conversation.agentDialogueMessageDensity", {
             current: recentMessageCount,
-            soft: dialogue.soft_message_limit,
-            hard: dialogue.hard_message_limit,
+            soft: dialogue.softMessageLimit,
+            hard: dialogue.hardMessageLimit,
         }) }}
       </div>
       <div v-if="softLimitTriggered" class="dialogue-toolbar__warning">
@@ -60,13 +60,13 @@
 import { computed } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { AgentDialogueReadApi } from "@/types/api/agent-dialogue";
-import type { MessageReadApi } from "@/types/api/conversation";
+import type { AgentDialogueOutput } from "@/types/view/agent-dialogue";
+import type { MessageOutput } from "@/types/view/message";
 import { parseServerDateTime } from "@/utils/datetime";
 
 const props = defineProps<{
-    dialogue: AgentDialogueReadApi;
-    messages: MessageReadApi[];
+    dialogue: AgentDialogueOutput;
+    messages: MessageOutput[];
 }>();
 
 const emit = defineEmits<{
@@ -77,34 +77,34 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-const windowMinutes = computed(() => Math.max(1, Math.round(props.dialogue.window_seconds / 60)));
+const windowMinutes = computed(() => Math.max(1, Math.round(props.dialogue.windowSeconds / 60)));
 
 const recentMessageCount = computed(() => {
     const now = Date.now();
-    const windowStart = now - props.dialogue.window_seconds * 1000;
+    const windowStart = now - props.dialogue.windowSeconds * 1000;
     return props.messages.filter((message) => {
-        if (message.sender_type !== "user" && message.sender_type !== "agent") {
+        if (message.senderType !== "user" && message.senderType !== "agent") {
             return false;
         }
-        return parseServerDateTime(message.created_at).getTime() >= windowStart;
+        return parseServerDateTime(message.createdAt).getTime() >= windowStart;
     }).length;
 });
 
 const softLimitTriggered = computed(() => {
-    if (!props.dialogue.soft_limit_warned_at) {
+    if (!props.dialogue.softLimitWarnedAt) {
         return false;
     }
-    const warnedAt = parseServerDateTime(props.dialogue.soft_limit_warned_at);
-    return Date.now() - warnedAt.getTime() <= props.dialogue.window_seconds * 1000;
+    const warnedAt = parseServerDateTime(props.dialogue.softLimitWarnedAt);
+    return Date.now() - warnedAt.getTime() <= props.dialogue.windowSeconds * 1000;
 });
 
 const currentPartnerLabel = computed(() => {
-    if (!props.dialogue.next_agent_display_name || !props.dialogue.next_agent_cs_id) {
+    if (!props.dialogue.nextAgentDisplayName || !props.dialogue.nextAgentCsId) {
         return t("conversation.agentDialogueWaiting");
     }
     return t("conversation.agentDialogueCurrentPartner", {
-        name: props.dialogue.next_agent_display_name,
-        csId: props.dialogue.next_agent_cs_id,
+        name: props.dialogue.nextAgentDisplayName,
+        csId: props.dialogue.nextAgentCsId,
     });
 });
 </script>

@@ -2,25 +2,21 @@ import { defineStore } from "pinia";
 
 import { addGroupMembers, createGroup, deleteGroup, deleteGroupMember, fetchGroupDetail } from "@/api/groups";
 import { useAddressBookStore } from "@/stores/addressBook";
-import type { GroupDetailApi, GroupReadApi } from "@/types/api/group";
+import type { GroupCreateInput, GroupDetailOutput, GroupMemberInput, GroupOutput } from "@/types/view/group";
 
 export const useGroupStore = defineStore("group", {
     state: () => ({
-        currentGroupDetail: null as GroupDetailApi | null,
+        currentGroupDetail: null as GroupDetailOutput | null,
         editingGroupId: null as number | null,
         creating: false,
         savingMembers: false,
-        lastCreatedGroup: null as GroupReadApi | null,
+        lastCreatedGroup: null as GroupOutput | null,
     }),
     actions: {
         async loadGroupDetail(groupId: number) {
             this.currentGroupDetail = await fetchGroupDetail(groupId);
         },
-        async createNewGroup(payload: {
-            name: string;
-            description?: string | null;
-            members?: Array<{ instance_id: number; agent_id: number }>;
-        }) {
+        async createNewGroup(payload: GroupCreateInput) {
             this.creating = true;
             try {
                 const group = await createGroup(payload);
@@ -31,7 +27,7 @@ export const useGroupStore = defineStore("group", {
                 this.creating = false;
             }
         },
-        async appendMembers(groupId: number, members: Array<{ instance_id: number; agent_id: number }>) {
+        async appendMembers(groupId: number, members: GroupMemberInput[]) {
             this.savingMembers = true;
             try {
                 await addGroupMembers(groupId, members);

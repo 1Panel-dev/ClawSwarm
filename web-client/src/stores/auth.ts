@@ -1,18 +1,12 @@
 import { defineStore } from "pinia";
 
-import { fetchCurrentUser, login as loginRequest, logout as logoutRequest, updateProfile as updateProfileRequest, type LoginPayload, type UpdateProfilePayload } from "@/api/auth";
-
-type AuthUser = {
-    id: string;
-    username: string;
-    display_name: string;
-    using_default_password: boolean;
-};
+import { fetchCurrentUser, login as loginRequest, logout as logoutRequest, updateProfile as updateProfileRequest } from "@/api/auth";
+import type { AuthUserOutput, LoginInput, UpdateProfileInput } from "@/types/view/auth";
 
 type AuthState = {
-    user: AuthUser | null;
+    user: AuthUserOutput | null;
     initialized: boolean;
-    loadingMe: Promise<AuthUser | null> | null;
+    loadingMe: Promise<AuthUserOutput | null> | null;
 };
 
 export const useAuthStore = defineStore("auth", {
@@ -45,7 +39,7 @@ export const useAuthStore = defineStore("auth", {
             })();
             return this.loadingMe;
         },
-        async login(payload: LoginPayload) {
+        async login(payload: LoginInput) {
             const user = await loginRequest(payload);
             this.user = user;
             this.initialized = true;
@@ -56,7 +50,7 @@ export const useAuthStore = defineStore("auth", {
             this.user = null;
             this.initialized = true;
         },
-        async updateProfile(payload: UpdateProfilePayload) {
+        async updateProfile(payload: UpdateProfileInput) {
             const user = await updateProfileRequest(payload);
             this.user = user;
             this.initialized = true;

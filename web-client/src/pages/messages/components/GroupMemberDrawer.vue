@@ -23,8 +23,8 @@
           <div v-if="!group.members.length" class="member-card__empty">{{ t("conversation.noMembers") }}</div>
           <div v-for="member in group.members" :key="member.id" class="member-row">
             <div>
-              <div class="member-row__title">{{ member.display_name }}</div>
-              <div class="member-row__meta">{{ member.instance_name }} / {{ member.agent_key }}</div>
+              <div class="member-row__title">{{ member.displayName }}</div>
+              <div class="member-row__meta">{{ member.instanceName }} / {{ member.agentKey }}</div>
             </div>
             <el-button text type="danger" :disabled="saving" @click="emit('remove-member', member.id)">
               {{ t("conversation.remove") }}
@@ -53,7 +53,7 @@
               <el-option
                 v-for="agent in instance.agents"
                 :key="`${instance.id}-${agent.id}`"
-                :label="`${agent.display_name} / ${instance.name}`"
+                :label="`${agent.displayName} / ${instance.name}`"
                 :value="`${instance.id}:${agent.id}`"
                 :disabled="!agent.enabled || existingKeys.has(`${instance.id}:${agent.id}`)"
               />
@@ -85,19 +85,19 @@
 import { computed, ref, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { AddressBookInstanceApi } from "@/types/api/addressBook";
-import type { GroupDetailApi } from "@/types/api/group";
+import type { AddressBookInstanceOutput } from "@/types/view/addressBook";
+import type { GroupDetailOutput, GroupMemberInput } from "@/types/view/group";
 
 const props = defineProps<{
     visible: boolean;
-    group: GroupDetailApi | null;
-    instances: AddressBookInstanceApi[];
+    group: GroupDetailOutput | null;
+    instances: AddressBookInstanceOutput[];
     saving: boolean;
 }>();
 
 const emit = defineEmits<{
     "update:visible": [value: boolean];
-    "add-members": [payload: Array<{ instance_id: number; agent_id: number }>];
+    "add-members": [payload: GroupMemberInput[]];
     "remove-member": [memberId: number];
     "delete-group": [];
 }>();
@@ -117,7 +117,7 @@ watch(
 const existingKeys = computed(() => {
     const values = new Set<string>();
     for (const member of props.group?.members ?? []) {
-        values.add(`${member.instance_id}:${member.agent_id}`);
+        values.add(`${member.instanceId}:${member.agentId}`);
     }
     return values;
 });
@@ -126,8 +126,8 @@ function submit() {
     const payload = selectedValues.value.map((value) => {
         const [instanceId, agentId] = value.split(":").map((item) => Number(item));
         return {
-            instance_id: instanceId,
-            agent_id: agentId,
+            instanceId,
+            agentId,
         };
     });
     emit("add-members", payload);

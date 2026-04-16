@@ -106,8 +106,8 @@ async function handleRouteConversation(value: unknown) {
             return;
         }
     }
-    if (conversationStore.currentConversation?.type === "group" && conversationStore.currentConversation.group_id) {
-        await groupStore.loadGroupDetail(conversationStore.currentConversation.group_id);
+    if (conversationStore.currentConversation?.type === "group" && conversationStore.currentConversation.groupId) {
+        await groupStore.loadGroupDetail(conversationStore.currentConversation.groupId);
     } else {
         groupStore.currentGroupDetail = null;
     }

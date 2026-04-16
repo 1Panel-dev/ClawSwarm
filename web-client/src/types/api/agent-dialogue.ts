@@ -1,13 +1,4 @@
-export interface AgentDialogueCreateApi {
-    source_agent_id: number;
-    target_agent_id: number;
-    topic: string;
-    window_seconds?: number;
-    soft_message_limit?: number;
-    hard_message_limit?: number;
-}
-
-export interface AgentDialogueReadApi {
+export interface AgentDialogueResponse {
     id: number;
     conversation_id: number;
     source_agent_id: number;
@@ -34,8 +25,4 @@ export interface AgentDialogueReadApi {
     next_agent_display_name: string | null;
     created_at: string;
     updated_at: string;
-}
-
-export interface AgentDialogueMessageCreateApi {
-    content: string;
 }

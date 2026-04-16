@@ -1,4 +1,4 @@
-import type {AddressBookAgentApi} from "@/types/api/addressBook";
+import type { AddressBookAgentOutput } from "@/types/view/addressBook";
 
 export interface SelectableProjectMember {
   id: number;
@@ -9,13 +9,13 @@ export interface SelectableProjectMember {
   role?: string;
 }
 
-export function toSelectableProjectMember(item: AddressBookAgentApi, openclaw: string): SelectableProjectMember {
+export function toSelectableProjectMember(item: AddressBookAgentOutput, openclaw: string): SelectableProjectMember {
   return {
     id: item.id,
-    agentKey: item.agent_key,
-    name: item.display_name ?? undefined,
-    csId: item.cs_id,
-    role: item.role_name ?? undefined,
+    agentKey: item.agentKey,
+    name: item.displayName ?? undefined,
+    csId: item.csId,
+    role: item.roleName ?? undefined,
     openclaw,
   };
 }

@@ -1,5 +1,4 @@
 import { apiClient } from "@/api/client";
-import { snakeizeKeys } from "@/utils/case";
 import type {
     OpenClawConnectResponse,
     OpenClawInstanceCredentialsResponse,
@@ -8,14 +7,20 @@ import type {
     OpenClawSyncAgentsResponse,
 } from "@/types/api/instance";
 import type {
+    OpenClawConnectResultOutput,
     OpenClawInstanceCreateInput,
+    OpenClawInstanceCredentialsOutput,
+    OpenClawInstanceOutput,
     OpenClawInstanceUpdateInput,
     OpenClawQuickConnectInput,
+    OpenClawSyncAgentsOutput,
 } from "@/types/view/openclaw";
+import { camelizeKeys, snakeizeKeys } from "@/utils/case";
+import { toOpenClawConnectResultOutput, toOpenClawInstanceOutput } from "@/stores/openclawMappers";
 
-export async function fetchInstances(): Promise<OpenClawInstanceResponse[]> {
+export async function fetchInstances(): Promise<OpenClawInstanceOutput[]> {
     const response = await apiClient.get<OpenClawInstanceResponse[]>("/api/instances");
-    return response.data;
+    return response.data.map((item) => toOpenClawInstanceOutput(item, []));
 }
 
 export async function fetchInstanceHealth(): Promise<OpenClawInstanceHealthResponse[]> {
@@ -23,46 +28,46 @@ export async function fetchInstanceHealth(): Promise<OpenClawInstanceHealthRespo
     return response.data;
 }
 
-export async function createInstance(payload: OpenClawInstanceCreateInput): Promise<OpenClawInstanceResponse> {
+export async function createInstance(payload: OpenClawInstanceCreateInput): Promise<OpenClawInstanceOutput> {
     const response = await apiClient.post<OpenClawInstanceResponse>("/api/instances", snakeizeKeys(payload));
-    return response.data;
+    return toOpenClawInstanceOutput(response.data, []);
 }
 
-export async function connectOpenClaw(payload: OpenClawQuickConnectInput): Promise<OpenClawConnectResponse> {
+export async function connectOpenClaw(payload: OpenClawQuickConnectInput): Promise<OpenClawConnectResultOutput> {
     const response = await apiClient.post<OpenClawConnectResponse>("/api/instances/connect", snakeizeKeys(payload), {
         timeout: 60000,
     });
-    return response.data;
+    return toOpenClawConnectResultOutput(response.data, []);
 }
 
-export async function fetchInstanceCredentials(instanceId: number): Promise<OpenClawInstanceCredentialsResponse> {
+export async function fetchInstanceCredentials(instanceId: number): Promise<OpenClawInstanceCredentialsOutput> {
     const response = await apiClient.get<OpenClawInstanceCredentialsResponse>(`/api/instances/${instanceId}/credentials`);
-    return response.data;
+    return camelizeKeys(response.data);
 }
 
-export async function syncOpenClawAgents(instanceId: number): Promise<OpenClawSyncAgentsResponse> {
+export async function syncOpenClawAgents(instanceId: number): Promise<OpenClawSyncAgentsOutput> {
     const response = await apiClient.post<OpenClawSyncAgentsResponse>(`/api/instances/${instanceId}/sync-agents`, undefined, {
         timeout: 60000,
     });
-    return response.data;
+    return camelizeKeys(response.data);
 }
 
 export async function updateOpenClawInstance(
     instanceId: number,
     payload: OpenClawInstanceUpdateInput,
-): Promise<OpenClawInstanceResponse> {
+): Promise<OpenClawInstanceOutput> {
     const response = await apiClient.put<OpenClawInstanceResponse>(`/api/instances/${instanceId}`, snakeizeKeys(payload));
-    return response.data;
+    return toOpenClawInstanceOutput(response.data, []);
 }
 
-export async function enableInstance(instanceId: number): Promise<OpenClawInstanceResponse> {
+export async function enableInstance(instanceId: number): Promise<OpenClawInstanceOutput> {
     const response = await apiClient.post<OpenClawInstanceResponse>(`/api/instances/${instanceId}/enable`);
-    return response.data;
+    return toOpenClawInstanceOutput(response.data, []);
 }
 
-export async function disableInstance(instanceId: number): Promise<OpenClawInstanceResponse> {
+export async function disableInstance(instanceId: number): Promise<OpenClawInstanceOutput> {
     const response = await apiClient.post<OpenClawInstanceResponse>(`/api/instances/${instanceId}/disable`);
-    return response.data;
+    return toOpenClawInstanceOutput(response.data, []);
 }
 
 export async function deleteInstance(instanceId: number): Promise<void> {
