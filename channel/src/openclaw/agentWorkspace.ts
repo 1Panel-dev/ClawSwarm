@@ -14,11 +14,24 @@ type OpenClawAgentWorkspaceConfig = {
     };
 };
 
-export type AgentProfileFiles = {
+export type LegacyAgentProfileFiles = {
+    agentsMd: string;
+    toolsMd: string;
     identityMd: string;
     soulMd: string;
     userMd: string;
     memoryMd: string;
+    heartbeatMd: string;
+};
+
+export type AgentWorkspaceFile = {
+    name: string;
+    content: string;
+};
+
+export type AgentWorkspaceFileInput = {
+    name: string;
+    content?: string | null;
 };
 
 const OPENCLAW_STATE_DIR = path.join(os.homedir(), ".openclaw");
@@ -63,19 +76,29 @@ Examples:
 - decisions worth remembering
 `;
 
-export const AGENT_PROFILE_DEFAULTS: AgentProfileFiles = {
+const DEFAULT_EMPTY_TEMPLATE = "";
+
+export const AGENT_PROFILE_DEFAULTS: LegacyAgentProfileFiles = {
+    agentsMd: DEFAULT_EMPTY_TEMPLATE,
+    toolsMd: DEFAULT_EMPTY_TEMPLATE,
     identityMd: DEFAULT_IDENTITY_TEMPLATE,
     soulMd: DEFAULT_SOUL_TEMPLATE,
     userMd: DEFAULT_USER_TEMPLATE,
     memoryMd: DEFAULT_MEMORY_TEMPLATE,
+    heartbeatMd: DEFAULT_EMPTY_TEMPLATE,
 };
 
 const AGENT_PROFILE_FILENAMES = {
+    agentsMd: "AGENTS.md",
+    toolsMd: "TOOLS.md",
     identityMd: "IDENTITY.md",
     soulMd: "SOUL.md",
     userMd: "USER.md",
     memoryMd: "MEMORY.md",
+    heartbeatMd: "HEARTBEAT.md",
 } as const;
+
+const ORDERED_KNOWN_PROFILE_FILES = Object.values(AGENT_PROFILE_FILENAMES);
 
 function resolveUserPath(rawPath: string): string {
     if (!rawPath) return rawPath;
@@ -88,6 +111,10 @@ function resolveUserPath(rawPath: string): string {
 
 function normalizeAgentId(agentId: string): string {
     return agentId.trim().toLowerCase();
+}
+
+function normalizeWorkspaceFileName(name: string): string {
+    return name.trim();
 }
 
 export function resolveAgentWorkspaceDir(agentId: string, cfg?: OpenClawAgentWorkspaceConfig): string {
@@ -117,49 +144,114 @@ function ensureWorkspaceDir(workspaceDir: string): void {
 
 function buildAgentProfileFilePaths(workspaceDir: string) {
     return {
+        agentsMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.agentsMd),
+        toolsMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.toolsMd),
         identityMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.identityMd),
         soulMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.soulMd),
         userMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.userMd),
         memoryMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.memoryMd),
+        heartbeatMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.heartbeatMd),
     };
 }
 
-function withDefaultProfileFiles(partial?: Partial<AgentProfileFiles>): AgentProfileFiles {
-    return {
-        identityMd: partial?.identityMd?.trim() ? partial.identityMd : AGENT_PROFILE_DEFAULTS.identityMd,
-        soulMd: partial?.soulMd?.trim() ? partial.soulMd : AGENT_PROFILE_DEFAULTS.soulMd,
-        userMd: partial?.userMd?.trim() ? partial.userMd : AGENT_PROFILE_DEFAULTS.userMd,
-        memoryMd: partial?.memoryMd?.trim() ? partial.memoryMd : AGENT_PROFILE_DEFAULTS.memoryMd,
-    };
+export function filesFromLegacyProfileFiles(partial?: Partial<LegacyAgentProfileFiles>): AgentWorkspaceFileInput[] {
+    if (!partial) {
+        return [];
+    }
+    const files: AgentWorkspaceFileInput[] = [];
+    if (partial.agentsMd !== undefined) files.push({ name: AGENT_PROFILE_FILENAMES.agentsMd, content: partial.agentsMd });
+    if (partial.toolsMd !== undefined) files.push({ name: AGENT_PROFILE_FILENAMES.toolsMd, content: partial.toolsMd });
+    if (partial.identityMd !== undefined) files.push({ name: AGENT_PROFILE_FILENAMES.identityMd, content: partial.identityMd });
+    if (partial.soulMd !== undefined) files.push({ name: AGENT_PROFILE_FILENAMES.soulMd, content: partial.soulMd });
+    if (partial.userMd !== undefined) files.push({ name: AGENT_PROFILE_FILENAMES.userMd, content: partial.userMd });
+    if (partial.memoryMd !== undefined) files.push({ name: AGENT_PROFILE_FILENAMES.memoryMd, content: partial.memoryMd });
+    if (partial.heartbeatMd !== undefined) files.push({ name: AGENT_PROFILE_FILENAMES.heartbeatMd, content: partial.heartbeatMd });
+    return files;
 }
 
-function mergeProfileFiles(base: AgentProfileFiles, partial?: Partial<AgentProfileFiles>): AgentProfileFiles {
+function workspaceFilesToMap(files?: AgentWorkspaceFileInput[]): Map<string, string> {
+    const mapped = new Map<string, string>();
+    for (const file of files ?? []) {
+        const normalizedName = normalizeWorkspaceFileName(String(file?.name ?? ""));
+        if (!normalizedName) {
+            continue;
+        }
+        mapped.set(normalizedName, String(file.content ?? ""));
+    }
+    return mapped;
+}
+
+function withDefaultWorkspaceFiles(files?: AgentWorkspaceFileInput[]): AgentWorkspaceFile[] {
+    const merged = workspaceFilesToMap(files);
+    for (const [key, filename] of Object.entries(AGENT_PROFILE_FILENAMES)) {
+        if (merged.has(filename)) {
+            continue;
+        }
+        const fallback = AGENT_PROFILE_DEFAULTS[key as keyof LegacyAgentProfileFiles];
+        merged.set(filename, fallback);
+    }
+    return sortWorkspaceFiles(
+        Array.from(merged.entries()).map(([name, content]) => ({ name, content })),
+    );
+}
+
+function mergeWorkspaceFiles(baseFiles: AgentWorkspaceFile[], partialFiles?: AgentWorkspaceFileInput[]): AgentWorkspaceFile[] {
+    const merged = workspaceFilesToMap(baseFiles);
+    for (const [name, content] of workspaceFilesToMap(partialFiles)) {
+        merged.set(name, content);
+    }
+    return sortWorkspaceFiles(
+        Array.from(merged.entries()).map(([name, content]) => ({ name, content })),
+    );
+}
+
+function sortWorkspaceFiles(files: AgentWorkspaceFile[]): AgentWorkspaceFile[] {
+    return [...files].sort((left, right) => {
+        const leftIndex = ORDERED_KNOWN_PROFILE_FILES.indexOf(left.name);
+        const rightIndex = ORDERED_KNOWN_PROFILE_FILES.indexOf(right.name);
+        if (leftIndex !== -1 || rightIndex !== -1) {
+            if (leftIndex === -1) return 1;
+            if (rightIndex === -1) return -1;
+            return leftIndex - rightIndex;
+        }
+        return left.name.localeCompare(right.name);
+    });
+}
+
+export function legacyProfileFilesFromWorkspaceFiles(files: AgentWorkspaceFile[]): LegacyAgentProfileFiles {
+    const mapped = workspaceFilesToMap(files);
     return {
-        identityMd: partial?.identityMd !== undefined ? partial.identityMd : base.identityMd,
-        soulMd: partial?.soulMd !== undefined ? partial.soulMd : base.soulMd,
-        userMd: partial?.userMd !== undefined ? partial.userMd : base.userMd,
-        memoryMd: partial?.memoryMd !== undefined ? partial.memoryMd : base.memoryMd,
+        agentsMd: mapped.get(AGENT_PROFILE_FILENAMES.agentsMd) ?? AGENT_PROFILE_DEFAULTS.agentsMd,
+        toolsMd: mapped.get(AGENT_PROFILE_FILENAMES.toolsMd) ?? AGENT_PROFILE_DEFAULTS.toolsMd,
+        identityMd: mapped.get(AGENT_PROFILE_FILENAMES.identityMd) ?? AGENT_PROFILE_DEFAULTS.identityMd,
+        soulMd: mapped.get(AGENT_PROFILE_FILENAMES.soulMd) ?? AGENT_PROFILE_DEFAULTS.soulMd,
+        userMd: mapped.get(AGENT_PROFILE_FILENAMES.userMd) ?? AGENT_PROFILE_DEFAULTS.userMd,
+        memoryMd: mapped.get(AGENT_PROFILE_FILENAMES.memoryMd) ?? AGENT_PROFILE_DEFAULTS.memoryMd,
+        heartbeatMd: mapped.get(AGENT_PROFILE_FILENAMES.heartbeatMd) ?? AGENT_PROFILE_DEFAULTS.heartbeatMd,
     };
 }
 
 export function writeAgentProfileFiles(params: {
     agentId: string;
-    profileFiles?: Partial<AgentProfileFiles>;
-    baseFiles?: AgentProfileFiles;
+    files?: AgentWorkspaceFileInput[];
+    profileFiles?: Partial<LegacyAgentProfileFiles>;
+    baseFiles?: AgentWorkspaceFile[];
     cfg?: OpenClawAgentWorkspaceConfig;
-}): AgentProfileFiles {
+}): AgentWorkspaceFile[] {
     const workspaceDir = resolveAgentWorkspaceDir(params.agentId, params.cfg);
     ensureWorkspaceDir(workspaceDir);
-    const filePaths = buildAgentProfileFilePaths(workspaceDir);
+    const nextFilesInput = [
+        ...filesFromLegacyProfileFiles(params.profileFiles),
+        ...(params.files ?? []),
+    ];
     const nextFiles = params.baseFiles
-        ? mergeProfileFiles(params.baseFiles, params.profileFiles)
-        : withDefaultProfileFiles(params.profileFiles);
+        ? mergeWorkspaceFiles(params.baseFiles, nextFilesInput)
+        : withDefaultWorkspaceFiles(nextFilesInput);
 
-    // 这里始终写成完整文件，避免出现空文件或部分字段缺失导致的行为漂移。
-    fs.writeFileSync(filePaths.identityMd, nextFiles.identityMd, "utf8");
-    fs.writeFileSync(filePaths.soulMd, nextFiles.soulMd, "utf8");
-    fs.writeFileSync(filePaths.userMd, nextFiles.userMd, "utf8");
-    fs.writeFileSync(filePaths.memoryMd, nextFiles.memoryMd, "utf8");
+    for (const file of nextFiles) {
+        const filePath = path.join(workspaceDir, file.name);
+        fs.writeFileSync(filePath, file.content, "utf8");
+    }
 
     return nextFiles;
 }
@@ -167,23 +259,25 @@ export function writeAgentProfileFiles(params: {
 export function readAgentProfileFiles(params: {
     agentId: string;
     cfg?: OpenClawAgentWorkspaceConfig;
-}): AgentProfileFiles {
+}): AgentWorkspaceFile[] {
     const workspaceDir = resolveAgentWorkspaceDir(params.agentId, params.cfg);
-    const filePaths = buildAgentProfileFilePaths(workspaceDir);
+    const existingFiles: AgentWorkspaceFile[] = [];
 
-    const readOrDefault = (filePath: string, fallback: string) => {
-        try {
+    try {
+        for (const entry of fs.readdirSync(workspaceDir, { withFileTypes: true })) {
+            if (!entry.isFile() || !entry.name.endsWith(".md")) {
+                continue;
+            }
+            const filePath = path.join(workspaceDir, entry.name);
             const content = fs.readFileSync(filePath, "utf8");
-            return content.trim() ? content : fallback;
-        } catch {
-            return fallback;
+            existingFiles.push({
+                name: entry.name,
+                content: content.trim() ? content : "",
+            });
         }
-    };
+    } catch {
+        return withDefaultWorkspaceFiles();
+    }
 
-    return {
-        identityMd: readOrDefault(filePaths.identityMd, AGENT_PROFILE_DEFAULTS.identityMd),
-        soulMd: readOrDefault(filePaths.soulMd, AGENT_PROFILE_DEFAULTS.soulMd),
-        userMd: readOrDefault(filePaths.userMd, AGENT_PROFILE_DEFAULTS.userMd),
-        memoryMd: readOrDefault(filePaths.memoryMd, AGENT_PROFILE_DEFAULTS.memoryMd),
-    };
+    return withDefaultWorkspaceFiles(existingFiles);
 }

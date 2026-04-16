@@ -1,7 +1,7 @@
 <template>
-  <div class="page-shell">
-    <section class="page-header page-shell__header">
-      <h1 class="page-header__title page-shell__title">{{ t("tasks.title") }}</h1>
+  <div class="page-container">
+    <section class="page-header page-container__header">
+      <h1 class="page-header__title page-container__title">{{ t("tasks.title") }}</h1>
 
       <el-tabs :model-value="activeStatusTab" class="tasks-tabs" @tab-change="handleTabChange">
         <el-tab-pane
@@ -13,7 +13,7 @@
       </el-tabs>
     </section>
 
-    <section class="table-shell page-shell__body">
+    <section class="table-shell page-container__body">
       <header class="toolbar">
         <div class="toolbar__left">
           <el-button type="primary" @click="createDrawerVisible = true">
@@ -92,19 +92,16 @@
 
 <script setup lang="ts">
 /**
- * 任务页现在改成更贴近“管理台”的结构：
- * 1. 顶部状态 Tab
- * 2. 工具栏里的创建按钮和搜索框
- * 3. 下方表格列表
+ * 任务页容器。
  *
- * 这样后续接真实任务后端时，更容易直接套上真实列表和按批次查询。
+ * 负责组织任务筛选、列表、创建入口和详情抽屉。
  */
 import { computed, h, onMounted, ref } from "vue";
 import ElButton from "element-plus/es/components/button/index";
 import type { Column } from "element-plus/es/components/table-v2/index";
 
-import TaskDetailPane from "@/components/task/TaskDetailPane.vue";
-import TaskCreateDrawer from "@/components/task/TaskCreateDrawer.vue";
+import TaskDetailPane from "@/pages/tasks/components/TaskDetailPane.vue";
+import TaskCreateDrawer from "@/pages/tasks/components/TaskCreateDrawer.vue";
 import { useI18n } from "@/composables/useI18n";
 import { useOpenClawStore } from "@/stores/openclaw";
 import { useTaskStore } from "@/stores/task";
@@ -166,7 +163,7 @@ const columns = computed<Column[]>(() => [
                 "div",
                 {
                     class: "task-cell task-cell--title",
-                    // 同一张虚拟表里靠缩进表达层级，不额外切换组件或开树表。
+                    // 在同一张虚拟表里用缩进表达层级。
                     style: { paddingInlineStart: `${12 + (rowData.level ?? 0) * 22}px` },
                     title: rowData.title,
                 },
@@ -319,7 +316,7 @@ async function handleTerminateTask(taskId: string) {
 
 function openTaskDetail(taskId: string) {
     detailTaskId.value = taskId;
-    // 详情侧边栏要支持点开子任务，所以选中逻辑统一走 store 的递归查找。
+    // 详情抽屉需要支持父子任务切换，统一复用 store 的递归查找结果。
     taskStore.selectTask(taskId);
     detailDrawerVisible.value = true;
 }

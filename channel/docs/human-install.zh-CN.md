@@ -14,10 +14,10 @@ openclaw plugins install @1panel-dev/clawswarm
 
 ```bash
 cd /tmp
-npm pack @1panel-dev/clawswarm
+PKG=$(npm pack @1panel-dev/clawswarm)
 mkdir -p /tmp/clawswarm-pkg
 cd /tmp/clawswarm-pkg
-tar xzf /tmp/1panel-dev-clawswarm-1.0.1.tgz
+tar xzf "/tmp/$PKG"
 ```
 
 这会把安装包解压到 `/tmp/clawswarm-pkg/package/`。

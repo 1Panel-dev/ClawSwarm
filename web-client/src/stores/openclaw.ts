@@ -13,16 +13,26 @@ import {
     syncOpenClawAgents,
     updateOpenClawInstance,
 } from "@/api/instances";
-import type { AgentReadApi } from "@/types/api/agent";
-import type { ConnectInstanceResponseApi, InstanceCredentialsReadApi, InstanceReadApi } from "@/types/api/instance";
-
-export interface OpenClawInstanceView extends InstanceReadApi {
-    agents: AgentReadApi[];
-}
+import {
+    withOpenClawConnectAgents,
+} from "@/stores/openclawMappers";
+import type {
+    OpenClawAgentCreateInput,
+    OpenClawAgentOutput,
+    OpenClawAgentProfileOutput,
+    OpenClawAgentUpdateInput,
+    OpenClawConnectResultOutput,
+    OpenClawInstanceCreateInput,
+    OpenClawInstanceCredentialsOutput,
+    OpenClawInstanceUpdateInput,
+    OpenClawInstanceOutput,
+    OpenClawQuickConnectInput,
+    OpenClawSyncAgentsOutput,
+} from "@/types/view/openclaw";
 
 export const useOpenClawStore = defineStore("openclaw", {
     state: () => ({
-        instances: [] as OpenClawInstanceView[],
+        instances: [] as OpenClawInstanceOutput[],
         loading: false,
         savingId: null as string | null,
         creating: false,
@@ -36,10 +46,13 @@ export const useOpenClawStore = defineStore("openclaw", {
             try {
                 const instances = await fetchInstances();
                 const items = await Promise.all(
-                    instances.map(async (instance) => ({
-                        ...instance,
-                        agents: await fetchAgents(instance.id),
-                    })),
+                    instances.map(async (instance) => {
+                        const agents = await fetchAgents(instance.id);
+                        return {
+                            ...instance,
+                            agents,
+                        };
+                    }),
                 );
                 this.instances = items;
             } finally {
@@ -54,53 +67,33 @@ export const useOpenClawStore = defineStore("openclaw", {
                 status: statusById.get(instance.id) ?? instance.status,
             }));
         },
-        async createNewInstance(payload: {
-            name: string;
-            channel_base_url: string;
-            channel_account_id: string;
-            channel_signing_secret: string;
-            callback_token: string;
-        }) {
+        async createNewInstance(payload: OpenClawInstanceCreateInput) {
             this.creating = true;
             try {
-                const instance = await createInstance({
-                    ...payload,
-                    status: "active",
-                });
+                const instance = await createInstance({ ...payload, status: "active" });
                 await this.loadInstances();
                 return instance;
             } finally {
                 this.creating = false;
             }
         },
-        async quickConnectInstance(payload: {
-            name: string;
-            channel_base_url: string;
-            channel_account_id?: string;
-        }): Promise<ConnectInstanceResponseApi> {
+        async quickConnectInstance(payload: OpenClawQuickConnectInput): Promise<OpenClawConnectResultOutput> {
             this.creating = true;
             try {
                 const result = await connectOpenClaw(payload);
+                const agents = await fetchAgents(result.instance.id);
                 await this.loadInstances();
-                return result;
+                return withOpenClawConnectAgents(result, agents);
             } finally {
                 this.creating = false;
             }
         },
-        async updateInstance(
-            instanceId: number,
-            payload: {
-                name: string;
-                channel_base_url: string;
-                channel_account_id?: string;
-            },
-        ) {
+        async updateInstance(instanceId: number, payload: OpenClawInstanceUpdateInput) {
             this.creating = true;
             try {
                 const instance = await updateOpenClawInstance(instanceId, {
-                    name: payload.name,
-                    channel_base_url: payload.channel_base_url,
-                    channel_account_id: payload.channel_account_id ?? "default",
+                    ...payload,
+                    channelAccountId: payload.channelAccountId ?? "default",
                 });
                 await this.loadInstances();
                 return instance;
@@ -108,10 +101,10 @@ export const useOpenClawStore = defineStore("openclaw", {
                 this.creating = false;
             }
         },
-        async loadInstanceCredentials(instanceId: number): Promise<InstanceCredentialsReadApi> {
+        async loadInstanceCredentials(instanceId: number): Promise<OpenClawInstanceCredentialsOutput> {
             return await fetchInstanceCredentials(instanceId);
         },
-        async syncInstanceAgents(instanceId: number) {
+        async syncInstanceAgents(instanceId: number): Promise<OpenClawSyncAgentsOutput> {
             this.savingId = `instance:${instanceId}:sync`;
             try {
                 const result = await syncOpenClawAgents(instanceId);
@@ -148,19 +141,7 @@ export const useOpenClawStore = defineStore("openclaw", {
                 this.savingId = null;
             }
         },
-        async createNewAgent(
-            instanceId: number,
-            payload: {
-                agent_key: string;
-                display_name: string;
-                role_name?: string | null;
-                identity_md?: string | null;
-                soul_md?: string | null;
-                user_md?: string | null;
-                memory_md?: string | null;
-                enabled?: boolean;
-            },
-        ) {
+        async createNewAgent(instanceId: number, payload: OpenClawAgentCreateInput) {
             this.creatingAgentForInstanceId = instanceId;
             try {
                 const agent = await createAgent(instanceId, {
@@ -173,7 +154,7 @@ export const useOpenClawStore = defineStore("openclaw", {
                 this.creatingAgentForInstanceId = null;
             }
         },
-        async loadAgentProfile(agentId: number) {
+        async loadAgentProfile(agentId: number): Promise<OpenClawAgentProfileOutput> {
             this.loadingAgentProfileId = agentId;
             try {
                 return await fetchAgentProfile(agentId);
@@ -181,18 +162,7 @@ export const useOpenClawStore = defineStore("openclaw", {
                 this.loadingAgentProfileId = null;
             }
         },
-        async updateExistingAgent(
-            agentId: number,
-            payload: {
-                display_name?: string | null;
-                role_name?: string | null;
-                identity_md?: string | null;
-                soul_md?: string | null;
-                user_md?: string | null;
-                memory_md?: string | null;
-                enabled?: boolean;
-            },
-        ): Promise<AgentReadApi> {
+        async updateExistingAgent(agentId: number, payload: OpenClawAgentUpdateInput): Promise<OpenClawAgentOutput> {
             this.editingAgentId = agentId;
             try {
                 const agent = await updateAgent(agentId, payload);

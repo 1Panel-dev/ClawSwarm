@@ -3,14 +3,16 @@ import { defineStore } from "pinia";
 import { fetchAddressBook } from "@/api/addressBook";
 import { fetchConversationList } from "@/api/conversations";
 import { fetchMockAddressBook, fetchMockConversationList, isMessageMockEnabled } from "@/mocks/messageWorkbench";
-import type { AddressBookResponseApi } from "@/types/api/addressBook";
-import type { ConversationListItemApi } from "@/types/api/conversation";
+import { toConversationListItemOutputList } from "@/stores/conversationMappers";
+import type { AddressBookOutput } from "@/types/view/addressBook";
+import type { ConversationListItemOutput } from "@/types/view/conversation";
+import { camelizeKeys } from "@/utils/case";
 
 const HIDDEN_RECENT_STORAGE_KEY = "clawswarm:hidden-recent-conversations";
 
 type HiddenRecentConversationEntry = {
-    hidden_at: string;
-    last_message_id: string | null;
+    hiddenAt: string;
+    lastMessageId: string | null;
 };
 
 type HiddenRecentConversationMap = Record<string, HiddenRecentConversationEntry>;
@@ -19,8 +21,8 @@ export const useAddressBookStore = defineStore("addressBook", {
     state: () => ({
         loading: false,
         recentLoading: false,
-        addressBook: null as AddressBookResponseApi | null,
-        recentConversations: [] as ConversationListItemApi[],
+        addressBook: null as AddressBookOutput | null,
+        recentConversations: [] as ConversationListItemOutput[],
         hiddenRecentConversationMap: loadHiddenRecentConversationMap(),
     }),
     getters: {
@@ -32,14 +34,14 @@ export const useAddressBookStore = defineStore("addressBook", {
                 if (!hiddenEntry) {
                     return true;
                 }
-                return item.last_message_id !== hiddenEntry.last_message_id;
+                return item.lastMessageId !== hiddenEntry.lastMessageId;
             }),
     },
     actions: {
         async loadAddressBook() {
             this.loading = true;
             try {
-                this.addressBook = isMessageMockEnabled() ? await fetchMockAddressBook() : await fetchAddressBook();
+                this.addressBook = isMessageMockEnabled() ? camelizeKeys(await fetchMockAddressBook()) : await fetchAddressBook();
             } finally {
                 this.loading = false;
             }
@@ -48,7 +50,7 @@ export const useAddressBookStore = defineStore("addressBook", {
             this.recentLoading = true;
             try {
                 this.recentConversations = isMessageMockEnabled()
-                    ? await fetchMockConversationList()
+                    ? toConversationListItemOutputList(await fetchMockConversationList())
                     : await fetchConversationList();
                 this.reconcileHiddenRecentConversations();
             } finally {
@@ -58,11 +60,21 @@ export const useAddressBookStore = defineStore("addressBook", {
         async loadAll() {
             this.loading = true;
             try {
-                const [addressBook, recentConversations] = isMessageMockEnabled()
-                    ? await Promise.all([fetchMockAddressBook(), fetchMockConversationList()])
-                    : await Promise.all([fetchAddressBook(), fetchConversationList()]);
-                this.addressBook = addressBook;
-                this.recentConversations = recentConversations;
+                if (isMessageMockEnabled()) {
+                    const [addressBook, recentConversations] = await Promise.all([
+                        fetchMockAddressBook(),
+                        fetchMockConversationList(),
+                    ]);
+                    this.addressBook = camelizeKeys(addressBook);
+                    this.recentConversations = toConversationListItemOutputList(recentConversations);
+                } else {
+                    const [addressBook, recentConversations] = await Promise.all([
+                        fetchAddressBook(),
+                        fetchConversationList(),
+                    ]);
+                    this.addressBook = addressBook;
+                    this.recentConversations = recentConversations;
+                }
                 this.reconcileHiddenRecentConversations();
             } finally {
                 this.loading = false;
@@ -70,7 +82,7 @@ export const useAddressBookStore = defineStore("addressBook", {
         },
         async refreshRecentConversations() {
             this.recentConversations = isMessageMockEnabled()
-                ? await fetchMockConversationList()
+                ? toConversationListItemOutputList(await fetchMockConversationList())
                 : await fetchConversationList();
             this.reconcileHiddenRecentConversations();
         },
@@ -79,8 +91,8 @@ export const useAddressBookStore = defineStore("addressBook", {
             this.hiddenRecentConversationMap = {
                 ...this.hiddenRecentConversationMap,
                 [String(conversationId)]: {
-                    hidden_at: new Date().toISOString(),
-                    last_message_id: currentConversation?.last_message_id ?? null,
+                    hiddenAt: new Date().toISOString(),
+                    lastMessageId: currentConversation?.lastMessageId ?? null,
                 },
             };
             persistHiddenRecentConversationMap(this.hiddenRecentConversationMap);
@@ -94,9 +106,8 @@ export const useAddressBookStore = defineStore("addressBook", {
                 if (!hiddenEntry) {
                     continue;
                 }
-                // 最近联系人只是在当前消息快照下暂时隐藏。
-                // 只要最后一条消息变了，就说明这条会话重新活跃，应当自动回到列表中。
-                if (item.last_message_id !== hiddenEntry.last_message_id) {
+                // 会话内容变化后，自动恢复到最近联系人列表。
+                if (item.lastMessageId !== hiddenEntry.lastMessageId) {
                     delete nextMap[key];
                     changed = true;
                 }
@@ -139,25 +150,29 @@ function persistHiddenRecentConversationMap(value: HiddenRecentConversationMap) 
 function normalizeHiddenRecentConversationMap(value: Record<string, unknown>): HiddenRecentConversationMap {
     const entries = Object.entries(value).flatMap(([conversationId, rawEntry]) => {
         if (typeof rawEntry === "string") {
-            // 兼容旧格式：以前只记录隐藏时间。
-            return [[conversationId, { hidden_at: rawEntry, last_message_id: null } satisfies HiddenRecentConversationEntry] as const];
+            // 兼容只保存隐藏时间的旧格式。
+            return [[conversationId, { hiddenAt: rawEntry, lastMessageId: null } satisfies HiddenRecentConversationEntry] as const];
         }
         if (!rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) {
             return [];
         }
         const hiddenAt =
-            typeof (rawEntry as { hidden_at?: unknown }).hidden_at === "string"
-                ? (rawEntry as { hidden_at: string }).hidden_at
+            typeof (rawEntry as { hiddenAt?: unknown }).hiddenAt === "string"
+                ? (rawEntry as { hiddenAt: string }).hiddenAt
+                : typeof (rawEntry as { hidden_at?: unknown }).hidden_at === "string"
+                    ? (rawEntry as { hidden_at: string }).hidden_at
                 : null;
-        const lastMessageId = (rawEntry as { last_message_id?: unknown }).last_message_id;
+        const lastMessageId =
+            (rawEntry as { lastMessageId?: unknown }).lastMessageId
+            ?? (rawEntry as { last_message_id?: unknown }).last_message_id;
         if (!hiddenAt) {
             return [];
         }
         return [[
             conversationId,
             {
-                hidden_at: hiddenAt,
-                last_message_id: typeof lastMessageId === "string" ? lastMessageId : null,
+                hiddenAt,
+                lastMessageId: typeof lastMessageId === "string" ? lastMessageId : null,
             } satisfies HiddenRecentConversationEntry,
         ] as const];
     });

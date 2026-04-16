@@ -1,6 +1,6 @@
 <template>
-  <div class="page-shell">
-    <section class="settings-hero page-card page-shell__header">
+  <div class="page-container">
+    <section class="settings-hero page-card page-container__header">
       <div>
         <div class="settings-card__eyebrow">{{ t("settings.eyebrow") }}</div>
         <h1 class="settings-card__title">{{ t("settings.title") }}</h1>
@@ -90,10 +90,9 @@
 
 <script setup lang="ts">
 /**
- * 设置页第一阶段先把主题切换真正做起来。
+ * 设置页。
  *
- * 这是一个很重要的“先搭好基础设施”的点，
- * 后面无论是黑白主题还是别的品牌风格，都能在 token 层切换。
+ * 当前承载主题与语言相关的用户偏好设置。
  */
 import { useTheme } from "@/composables/useTheme";
 import type { SupportedLocale } from "@/i18n";

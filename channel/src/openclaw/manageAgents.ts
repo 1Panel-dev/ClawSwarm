@@ -5,10 +5,13 @@
 
 import type { AgentDescriptor } from "../types.js";
 import {
+    legacyProfileFilesFromWorkspaceFiles,
     readAgentProfileFiles,
     resolveAgentWorkspaceDir,
     writeAgentProfileFiles,
-    type AgentProfileFiles,
+    type AgentWorkspaceFile,
+    type AgentWorkspaceFileInput,
+    type LegacyAgentProfileFiles,
 } from "./agentWorkspace.js";
 import { extractJsonArray, extractJsonObject, runOpenClawCli } from "./openclawCli.js";
 
@@ -29,7 +32,7 @@ type OpenClawAgentWorkspaceConfig = {
     };
 };
 
-export type { AgentProfileFiles } from "./agentWorkspace.js";
+export type { AgentWorkspaceFile, AgentWorkspaceFileInput, LegacyAgentProfileFiles } from "./agentWorkspace.js";
 export type { OpenClawAgentWorkspaceConfig };
 
 function toAgentDescriptor(agentId: string, displayName?: string): AgentDescriptor {
@@ -78,7 +81,8 @@ export async function listRealOpenClawAgents(): Promise<AgentDescriptor[]> {
 export async function createRealOpenClawAgent(params: {
     agentId: string;
     displayName: string;
-    profileFiles?: Partial<AgentProfileFiles>;
+    files?: AgentWorkspaceFileInput[];
+    profileFiles?: Partial<LegacyAgentProfileFiles>;
     cfg?: OpenClawAgentWorkspaceConfig;
 }): Promise<AgentDescriptor> {
     // 先真实创建，再回查列表拿宿主最终状态，避免只信 add 命令的瞬时输出。
@@ -102,6 +106,7 @@ export async function createRealOpenClawAgent(params: {
     // 真实 Agent 创建完成后，再把 workspace 里的 profile 文件补齐。
     writeAgentProfileFiles({
         agentId,
+        files: params.files,
         profileFiles: params.profileFiles,
         cfg: params.cfg,
     });
@@ -112,14 +117,19 @@ export async function createRealOpenClawAgent(params: {
 export function getRealOpenClawAgentProfile(params: {
     agentId: string;
     cfg?: OpenClawAgentWorkspaceConfig;
-}): AgentProfileFiles {
-    return readAgentProfileFiles(params);
+}): { files: AgentWorkspaceFile[]; profileFiles: LegacyAgentProfileFiles } {
+    const files = readAgentProfileFiles(params);
+    return {
+        files,
+        profileFiles: legacyProfileFilesFromWorkspaceFiles(files),
+    };
 }
 
 export async function updateRealOpenClawAgent(params: {
     agentId: string;
     displayName?: string;
-    profileFiles?: Partial<AgentProfileFiles>;
+    files?: AgentWorkspaceFileInput[];
+    profileFiles?: Partial<LegacyAgentProfileFiles>;
     cfg?: OpenClawAgentWorkspaceConfig;
 }): Promise<AgentDescriptor> {
     const agentId = params.agentId.trim();
@@ -138,6 +148,7 @@ export async function updateRealOpenClawAgent(params: {
     writeAgentProfileFiles({
         agentId,
         baseFiles: currentFiles,
+        files: params.files,
         profileFiles: params.profileFiles,
         cfg: params.cfg,
     });

@@ -1,4 +1,4 @@
-export interface InstanceReadApi {
+export interface OpenClawInstanceResponse {
     id: number;
     instance_key: string;
     name: string;
@@ -9,19 +9,25 @@ export interface InstanceReadApi {
     updated_at: string;
 }
 
-export interface InstanceHealthReadApi {
+export interface OpenClawInstanceHealthResponse {
     id: number;
     status: string;
 }
 
-export interface InstanceCredentialsReadApi {
+export interface OpenClawInstanceCredentialsResponse {
     outbound_token: string;
     inbound_signing_secret: string;
 }
 
-export interface ConnectInstanceResponseApi {
-    instance: InstanceReadApi;
+export interface OpenClawConnectResponse {
+    instance: OpenClawInstanceResponse;
     imported_agent_count: number;
     agent_keys: string[];
-    credentials: InstanceCredentialsReadApi;
+    credentials: OpenClawInstanceCredentialsResponse;
+}
+
+export interface OpenClawSyncAgentsResponse {
+    instance: OpenClawInstanceResponse;
+    imported_agent_count: number;
+    agent_keys: string[];
 }

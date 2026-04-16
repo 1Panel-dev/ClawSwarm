@@ -1,7 +1,7 @@
 /**
- * 这里放会话和消息相关的后端原始返回类型。
+ * 会话与消息接口的原始响应类型。
  */
-export interface ConversationListItemApi {
+export interface ConversationListItemResponse {
     id: number;
     type: string;
     title: string | null;
@@ -29,7 +29,7 @@ export interface ConversationListItemApi {
     last_message_status: string | null;
 }
 
-export interface ConversationReadApi {
+export interface ConversationResponse {
     id: number;
     type: string;
     title: string | null;
@@ -41,7 +41,7 @@ export interface ConversationReadApi {
     updated_at: string;
 }
 
-export interface MessageReadApi {
+export interface MessageResponse {
     id: string;
     conversation_id: number;
     sender_type: string;
@@ -72,7 +72,7 @@ export interface MessageReadApi {
     >;
 }
 
-export interface DispatchReadApi {
+export interface DispatchResponse {
     id: string;
     message_id: string;
     conversation_id: number;
@@ -88,10 +88,10 @@ export interface DispatchReadApi {
     updated_at: string;
 }
 
-export interface ConversationMessagesResponseApi {
-    conversation: ConversationReadApi;
-    messages: MessageReadApi[];
-    dispatches: DispatchReadApi[];
+export interface ConversationMessagesResponse {
+    conversation: ConversationResponse;
+    messages: MessageResponse[];
+    dispatches: DispatchResponse[];
     next_message_cursor: string | null;
     next_dispatch_cursor: string | null;
     has_more_messages: boolean;

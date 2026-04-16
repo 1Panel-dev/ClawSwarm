@@ -1,3 +1,5 @@
+"""应用登录用户模型。"""
+
 from uuid import uuid4
 
 from sqlalchemy import String

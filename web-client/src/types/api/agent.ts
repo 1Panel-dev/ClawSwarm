@@ -1,4 +1,4 @@
-export interface AgentReadApi {
+export interface OpenClawAgentResponse {
     id: number;
     instance_id: number;
     agent_key: string;
@@ -11,9 +11,12 @@ export interface AgentReadApi {
     updated_at: string;
 }
 
-export interface AgentProfileReadApi extends AgentReadApi {
+export interface OpenClawAgentProfileResponse extends OpenClawAgentResponse {
+    agents_md: string;
+    tools_md: string;
     identity_md: string;
     soul_md: string;
     user_md: string;
     memory_md: string;
+    heartbeat_md: string;
 }

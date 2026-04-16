@@ -1,3 +1,5 @@
+"""登录、登出和个人资料维护路由。"""
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response

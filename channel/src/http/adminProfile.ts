@@ -36,7 +36,10 @@ export async function handleAdminAgentProfileRoute(params: {
                 agentId: agentKey,
                 cfg: hostConfig,
             });
-            sendJson(res, 200, profile);
+            sendJson(res, 200, {
+                files: profile.files,
+                ...profile.profileFiles,
+            });
         } catch (error) {
             sendJson(res, 400, { error: "agent_profile_read_failed", detail: String(error) });
         }
@@ -69,11 +72,15 @@ export async function handleAdminAgentProfileRoute(params: {
         const agent = await updateRealOpenClawAgent({
             agentId: agentKey,
             displayName: parsed.data.displayName,
+            files: parsed.data.files,
             profileFiles: {
+                agentsMd: parsed.data.agentsMd,
+                toolsMd: parsed.data.toolsMd,
                 identityMd: parsed.data.identityMd,
                 soulMd: parsed.data.soulMd,
                 userMd: parsed.data.userMd,
                 memoryMd: parsed.data.memoryMd,
+                heartbeatMd: parsed.data.heartbeatMd,
             },
             cfg: hostConfig,
         });

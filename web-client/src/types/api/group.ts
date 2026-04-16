@@ -1,4 +1,4 @@
-export interface GroupReadApi {
+export interface GroupResponse {
     id: number;
     name: string;
     description: string | null;
@@ -6,7 +6,7 @@ export interface GroupReadApi {
     updated_at: string;
 }
 
-export interface GroupMemberReadApi {
+export interface GroupMemberResponse {
     id: number;
     group_id: number;
     instance_id: number;
@@ -18,9 +18,9 @@ export interface GroupMemberReadApi {
     instance_name: string;
 }
 
-export interface GroupDetailApi {
+export interface GroupDetailResponse {
     id: number;
     name: string;
     description: string | null;
-    members: GroupMemberReadApi[];
+    members: GroupMemberResponse[];
 }

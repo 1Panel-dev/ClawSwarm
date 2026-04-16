@@ -1,3 +1,5 @@
+"""通用 schema 基类与跨版本兼容辅助函数。"""
+
 from datetime import datetime
 
 from pydantic import BaseModel

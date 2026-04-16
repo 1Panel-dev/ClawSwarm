@@ -1,0 +1,279 @@
+<template>
+  <div class="panel">
+    <header class="panel__header">
+      <div class="panel__header-main">
+        <div class="panel__title-row">
+          <h1 class="panel__title">{{ title }}</h1>
+          <span v-if="directConversationCsId" class="panel__cs-id">{{ directConversationCsId }}</span>
+        </div>
+        <AgentDialogueToolbar
+          v-if="currentAgentDialogue"
+          :dialogue="currentAgentDialogue"
+          :messages="messages"
+          @pause="pauseDialogue"
+          @resume="resumeDialogue"
+          @stop="stopDialogue"
+        />
+      </div>
+    </header>
+
+    <div v-if="errorMessage" class="panel__error">{{ errorMessage }}</div>
+    <MessageList
+      :key="conversationStore.currentConversationId ?? 'empty'"
+      :messages="messages"
+      :loading="loading"
+      :has-more-messages="conversationStore.hasMoreMessages"
+      :loading-older-messages="conversationStore.loadingOlderMessages"
+      :show-typing-indicator="showTypingIndicator"
+      :sender-meta-map="senderMetaMap"
+      @load-older="handleLoadOlderMessages"
+    />
+    <MessageComposer
+      :sending="sending"
+      :is-group="isGroupConversation"
+      :is-agent-dialogue="isAgentDialogueConversation"
+      :mention-options="mentionOptions"
+      @send="handleSend"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+/**
+ * ConversationPanel 是聊天主区域。
+ *
+ * 负责组合消息列表、对话工具条和输入区域。
+ */
+import { computed } from "vue";
+
+import AgentDialogueToolbar from "@/pages/messages/components/AgentDialogueToolbar.vue";
+import MessageComposer from "@/pages/messages/components/MessageComposer.vue";
+import MessageList from "@/pages/messages/components/MessageList.vue";
+import { useI18n } from "@/composables/useI18n";
+import { useAddressBookStore } from "@/stores/addressBook";
+import { useConversationStore } from "@/stores/conversation";
+import { useGroupStore } from "@/stores/group";
+
+defineProps<{
+    loading: boolean;
+    errorMessage: string | null;
+}>();
+
+const conversationStore = useConversationStore();
+const groupStore = useGroupStore();
+const addressBookStore = useAddressBookStore();
+const { t } = useI18n();
+
+const messages = computed(() => conversationStore.messages);
+const currentAgentDialogue = computed(() => conversationStore.currentAgentDialogue);
+const dispatches = computed(() => conversationStore.dispatches);
+const sending = computed(() => conversationStore.sending);
+const title = computed(() => {
+    const conversation = conversationStore.currentConversation;
+    if (!conversation) {
+        return t("conversation.selectConversation");
+    }
+    if (conversation.type === "agent_dialogue" && currentAgentDialogue.value) {
+        const sourceLabel = currentAgentDialogue.value.sourceAgentInstanceName
+            ? `${currentAgentDialogue.value.sourceAgentDisplayName} / ${currentAgentDialogue.value.sourceAgentInstanceName}`
+            : currentAgentDialogue.value.sourceAgentDisplayName;
+        const targetLabel = currentAgentDialogue.value.targetAgentInstanceName
+            ? `${currentAgentDialogue.value.targetAgentDisplayName} / ${currentAgentDialogue.value.targetAgentInstanceName}`
+            : currentAgentDialogue.value.targetAgentDisplayName;
+        return `${sourceLabel} ↔ ${targetLabel}`;
+    }
+    if (conversation.type === "direct" && conversation.directInstanceId && conversation.directAgentId) {
+        const instance = addressBookStore.instances.find((item) => item.id === conversation.directInstanceId);
+        const agent = instance?.agents.find((item) => item.id === conversation.directAgentId);
+        if (instance && agent) {
+            return `${agent.displayName} / ${instance.name}`;
+        }
+    }
+    return conversation.title ?? t("conversation.selectConversation");
+});
+const directConversationCsId = computed(() => {
+    const conversation = conversationStore.currentConversation;
+    if (!conversation || conversation.type !== "direct" || !conversation.directInstanceId || !conversation.directAgentId) {
+        return "";
+    }
+    const instance = addressBookStore.instances.find((item) => item.id === conversation.directInstanceId);
+    const agent = instance?.agents.find((item) => item.id === conversation.directAgentId);
+    return agent?.csId ?? "";
+});
+const isGroupConversation = computed(() => conversationStore.currentConversation?.type === "group");
+const isAgentDialogueConversation = computed(() => conversationStore.currentConversation?.type === "agent_dialogue");
+const mentionOptions = computed(() =>
+    (groupStore.currentGroupDetail?.members ?? []).map((member) => ({
+        value: `${member.instanceId}:${member.agentId}`,
+        label: `${member.displayName} / ${member.instanceName}`,
+    })),
+);
+const showTypingIndicator = computed(() =>
+    dispatches.value.some((item) => item.status === "accepted" || item.status === "streaming"),
+);
+type SenderMeta = {
+    roleName?: string | null;
+    csId?: string | null;
+    instanceName?: string | null;
+};
+
+const senderMetaMap = computed<Record<string, SenderMeta>>(() => {
+    const map: Record<string, SenderMeta> = {};
+
+    const assignMeta = (label: string | null | undefined, meta: SenderMeta) => {
+        const normalizedLabel = label?.trim();
+        const normalizedCsId = meta.csId?.trim();
+        const normalizedMeta: SenderMeta = {
+            roleName: meta.roleName ?? null,
+            csId: normalizedCsId ?? null,
+            instanceName: meta.instanceName ?? null,
+        };
+        if (normalizedCsId) {
+            map[normalizedCsId] = normalizedMeta;
+        }
+        if (normalizedLabel) {
+            map[normalizedLabel] = normalizedMeta;
+        }
+    };
+
+    // 群聊优先使用当前群详情补齐角色名和实例信息。
+    for (const member of groupStore.currentGroupDetail?.members ?? []) {
+        const instance = addressBookStore.instances.find((item) => item.id === member.instanceId);
+        const agent = instance?.agents.find((item) => item.id === member.agentId);
+        assignMeta(member.displayName, {
+            roleName: member.roleName,
+            csId: agent?.csId ?? null,
+            instanceName: member.instanceName,
+        });
+    }
+
+    if (currentAgentDialogue.value) {
+        const sourceLabel = currentAgentDialogue.value.sourceAgentDisplayName.trim();
+        if (sourceLabel) {
+            assignMeta(sourceLabel, {
+                roleName: map[currentAgentDialogue.value.sourceAgentCsId ?? ""]?.roleName ?? map[sourceLabel]?.roleName ?? null,
+                csId: currentAgentDialogue.value.sourceAgentCsId,
+                instanceName: currentAgentDialogue.value.sourceAgentInstanceName ?? null,
+            });
+        }
+        const targetLabel = currentAgentDialogue.value.targetAgentDisplayName.trim();
+        if (targetLabel) {
+            assignMeta(targetLabel, {
+                roleName: map[currentAgentDialogue.value.targetAgentCsId ?? ""]?.roleName ?? map[targetLabel]?.roleName ?? null,
+                csId: currentAgentDialogue.value.targetAgentCsId,
+                instanceName: currentAgentDialogue.value.targetAgentInstanceName ?? null,
+            });
+        }
+    }
+
+    // 再用通讯录补齐单聊和普通消息里的身份信息。
+    for (const instance of addressBookStore.instances) {
+        for (const agent of instance.agents) {
+            assignMeta(agent.displayName, { roleName: agent.roleName, csId: agent.csId, instanceName: instance.name });
+        }
+    }
+
+    return map;
+});
+
+async function handleSend(payload: {
+    content: string;
+    mentions: string[];
+    useDedicatedDirectSession: boolean;
+}) {
+    if (isAgentDialogueConversation.value && currentAgentDialogue.value) {
+        await conversationStore.sendAgentDialogueIntervention(currentAgentDialogue.value.id, payload.content);
+        return;
+    }
+    await conversationStore.sendMessage(payload.content, payload.mentions, payload.useDedicatedDirectSession);
+}
+
+async function pauseDialogue() {
+    if (!currentAgentDialogue.value) {
+        return;
+    }
+    await conversationStore.pauseCurrentAgentDialogue(currentAgentDialogue.value.id);
+}
+
+async function resumeDialogue() {
+    if (!currentAgentDialogue.value) {
+        return;
+    }
+    await conversationStore.resumeCurrentAgentDialogue(currentAgentDialogue.value.id);
+}
+
+async function stopDialogue() {
+    if (!currentAgentDialogue.value) {
+        return;
+    }
+    await conversationStore.stopCurrentAgentDialogue(currentAgentDialogue.value.id);
+}
+
+async function handleLoadOlderMessages() {
+    await conversationStore.loadOlderMessages();
+}
+
+</script>
+
+<style scoped>
+.panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.panel__header {
+  padding: var(--page-container-pad-top) var(--page-container-pad-x) 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: #ffffff;
+}
+
+.panel__header-main {
+  display: grid;
+  gap: 0;
+}
+
+.panel__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.panel__title {
+  margin: 0;
+  font-size: 1.14rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.panel__cs-id {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #f7f8fb;
+  color: #64748b;
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.panel__error {
+  margin: var(--page-container-section-gap) var(--page-container-pad-x) 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-danger) 8%, var(--color-bg-app));
+  color: var(--color-text-primary);
+}
+
+@media (max-width: 960px) {
+  .panel__header {
+    padding: 16px;
+  }
+}
+</style>

@@ -1,28 +1,34 @@
 import { apiClient } from "@/api/client";
 import type {
-    ConversationListItemApi,
-    ConversationMessagesResponseApi,
-    ConversationReadApi,
+    ConversationListItemResponse,
+    ConversationMessagesResponse,
+    ConversationResponse,
+    MessageResponse,
 } from "@/types/api/conversation";
+import type { ConversationListItemOutput, ConversationMessagesOutput, ConversationOutput } from "@/types/view/conversation";
+import type { MessageOutput } from "@/types/view/message";
+import { camelizeKeys, snakeizeKeys } from "@/utils/case";
+import { toConversationListItemOutputList, toConversationMessagesOutput } from "@/stores/conversationMappers";
+import { toMessageOutput } from "@/types/view/message";
 
-export async function fetchConversationList(): Promise<ConversationListItemApi[]> {
-    const response = await apiClient.get<ConversationListItemApi[]>("/api/conversations");
-    return response.data;
+export async function fetchConversationList(): Promise<ConversationListItemOutput[]> {
+    const response = await apiClient.get<ConversationListItemResponse[]>("/api/conversations");
+    return toConversationListItemOutputList(response.data);
 }
 
-export async function createDirectConversation(instanceId: number, agentId: number): Promise<ConversationReadApi> {
-    const response = await apiClient.post<ConversationReadApi>("/api/conversations/direct", {
+export async function createDirectConversation(instanceId: number, agentId: number): Promise<ConversationOutput> {
+    const response = await apiClient.post<ConversationResponse>("/api/conversations/direct", {
         instance_id: instanceId,
         agent_id: agentId,
     });
-    return response.data;
+    return camelizeKeys(response.data);
 }
 
-export async function createGroupConversation(groupId: number): Promise<ConversationReadApi> {
-    const response = await apiClient.post<ConversationReadApi>("/api/conversations/group", {
+export async function createGroupConversation(groupId: number): Promise<ConversationOutput> {
+    const response = await apiClient.post<ConversationResponse>("/api/conversations/group", {
         group_id: groupId,
     });
-    return response.data;
+    return camelizeKeys(response.data);
 }
 
 export async function fetchConversationMessages(
@@ -34,8 +40,8 @@ export async function fetchConversationMessages(
         limit?: number;
         includeDispatches?: boolean;
     },
-): Promise<ConversationMessagesResponseApi> {
-    const response = await apiClient.get<ConversationMessagesResponseApi>(`/api/conversations/${conversationId}/messages`, {
+): Promise<ConversationMessagesOutput> {
+    const response = await apiClient.get<ConversationMessagesResponse>(`/api/conversations/${conversationId}/messages`, {
         params: {
             messageAfter: params?.messageAfter ?? undefined,
             dispatchAfter: params?.dispatchAfter ?? undefined,
@@ -44,13 +50,16 @@ export async function fetchConversationMessages(
             includeDispatches: params?.includeDispatches ?? undefined,
         },
     });
-    return response.data;
+    return toConversationMessagesOutput(response.data);
 }
 
 export async function sendConversationMessage(
     conversationId: number,
-    payload: { content: string; mentions?: string[]; use_dedicated_direct_session?: boolean },
-) {
-    const response = await apiClient.post(`/api/conversations/${conversationId}/messages`, payload);
-    return response.data;
+    payload: { content: string; mentions?: string[]; useDedicatedDirectSession?: boolean },
+): Promise<MessageOutput> {
+    const response = await apiClient.post<MessageResponse>(
+        `/api/conversations/${conversationId}/messages`,
+        snakeizeKeys(payload),
+    );
+    return toMessageOutput(response.data);
 }

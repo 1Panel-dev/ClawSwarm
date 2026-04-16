@@ -56,11 +56,15 @@ export async function handleAdminAgentRoutes(params: {
             const agent = await createRealOpenClawAgent({
                 agentId: parsed.data.agentKey,
                 displayName: parsed.data.displayName,
+                files: parsed.data.files,
                 profileFiles: {
+                    agentsMd: parsed.data.agentsMd,
+                    toolsMd: parsed.data.toolsMd,
                     identityMd: parsed.data.identityMd,
                     soulMd: parsed.data.soulMd,
                     userMd: parsed.data.userMd,
                     memoryMd: parsed.data.memoryMd,
+                    heartbeatMd: parsed.data.heartbeatMd,
                 },
                 cfg: hostConfig,
             });

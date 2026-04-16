@@ -1,63 +1,56 @@
 import { apiClient } from "@/api/client";
-import type { AgentProfileReadApi, AgentReadApi } from "@/types/api/agent";
+import type { OpenClawAgentProfileResponse, OpenClawAgentResponse } from "@/types/api/agent";
+import type {
+    OpenClawAgentCreateInput,
+    OpenClawAgentOutput,
+    OpenClawAgentProfileOutput,
+    OpenClawAgentUpdateInput,
+} from "@/types/view/openclaw";
+import { camelizeKeys, snakeizeKeys } from "@/utils/case";
 
-export async function fetchAgents(instanceId: number): Promise<AgentReadApi[]> {
-    const response = await apiClient.get<AgentReadApi[]>(`/api/instances/${instanceId}/agents`);
-    return response.data;
+export async function fetchAgents(instanceId: number): Promise<OpenClawAgentOutput[]> {
+    const response = await apiClient.get<OpenClawAgentResponse[]>(`/api/instances/${instanceId}/agents`);
+    return response.data.map(camelizeKeys);
 }
 
 export async function createAgent(
     instanceId: number,
-    payload: {
-        agent_key: string;
-        display_name: string;
-        role_name?: string | null;
-        identity_md?: string | null;
-        soul_md?: string | null;
-        user_md?: string | null;
-        memory_md?: string | null;
-        enabled?: boolean;
-    },
-): Promise<AgentReadApi> {
-    // 真实创建 OpenClaw Agent 需要宿主执行 CLI 和后续同步，
-    // 首次创建时明显慢于普通 API，这里单独放宽超时，避免前端先误判失败。
-    const response = await apiClient.post<AgentReadApi>(`/api/instances/${instanceId}/agents`, payload, {
+    payload: OpenClawAgentCreateInput,
+): Promise<OpenClawAgentOutput> {
+    // Agent 创建会触发远端文件写入和同步，耗时通常长于普通接口。
+    const response = await apiClient.post<OpenClawAgentResponse>(
+        `/api/instances/${instanceId}/agents`,
+        snakeizeKeys(payload),
+        {
         timeout: 70000,
-    });
-    return response.data;
+        },
+    );
+    return camelizeKeys(response.data);
 }
 
-export async function fetchAgentProfile(agentId: number): Promise<AgentProfileReadApi> {
-    const response = await apiClient.get<AgentProfileReadApi>(`/api/agents/${agentId}/profile`, {
+export async function fetchAgentProfile(agentId: number): Promise<OpenClawAgentProfileOutput> {
+    const response = await apiClient.get<OpenClawAgentProfileResponse>(`/api/agents/${agentId}/profile`, {
         timeout: 30000,
     });
-    return response.data;
+    return camelizeKeys(response.data);
 }
 
 export async function updateAgent(
     agentId: number,
-    payload: {
-        display_name?: string | null;
-        role_name?: string | null;
-        identity_md?: string | null;
-        soul_md?: string | null;
-        user_md?: string | null;
-        memory_md?: string | null;
-        enabled?: boolean;
-    },
-): Promise<AgentReadApi> {
-    const response = await apiClient.put<AgentReadApi>(`/api/agents/${agentId}`, payload, {
+    payload: OpenClawAgentUpdateInput,
+): Promise<OpenClawAgentOutput> {
+    const response = await apiClient.put<OpenClawAgentResponse>(`/api/agents/${agentId}`, snakeizeKeys(payload), {
         timeout: 70000,
     });
-    return response.data;
+    return camelizeKeys(response.data);
 }
 
-export async function enableAgent(agentId: number): Promise<AgentReadApi> {
-    const response = await apiClient.post<AgentReadApi>(`/api/agents/${agentId}/enable`);
-    return response.data;
+export async function enableAgent(agentId: number): Promise<OpenClawAgentOutput> {
+    const response = await apiClient.post<OpenClawAgentResponse>(`/api/agents/${agentId}/enable`);
+    return camelizeKeys(response.data);
 }
 
-export async function disableAgent(agentId: number): Promise<AgentReadApi> {
-    const response = await apiClient.post<AgentReadApi>(`/api/agents/${agentId}/disable`);
-    return response.data;
+export async function disableAgent(agentId: number): Promise<OpenClawAgentOutput> {
+    const response = await apiClient.post<OpenClawAgentResponse>(`/api/agents/${agentId}/disable`);
+    return camelizeKeys(response.data);
 }

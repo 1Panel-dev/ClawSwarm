@@ -1,27 +1,27 @@
 /**
- * 这是 Web Client 的前端入口。
+ * 前端入口文件。
  *
- * 这里负责：
- * 1. 挂载 Vue 应用。
- * 2. 注册 Pinia、Router、按需使用的 Element Plus 组件。
- * 3. 初始化全局主题。
- * 4. 引入基础样式和设计令牌。
+ * 负责创建应用实例、注册全局依赖，并加载基础样式与主题。
  */
 import { createApp } from "vue";
 
-import App from "@/App.vue";
-import { registerProviders } from "@/app/providers";
+import App from "@/pages/frame/AppRoot.vue";
 import { i18n } from "@/i18n";
+import { router } from "@/router";
+import { pinia } from "@/stores/pinia";
 import { applyInitialTheme } from "@/theme/applyTheme";
 
 import "@/styles/reset.css";
 import "@/styles/tokens.css";
 import "@/styles/base.css";
-import "@/styles/page-shell.css";
+import "@/styles/page-container.css";
 
 const app = createApp(App);
 
-registerProviders(app);
+console.log("version:", __APP_VERSION__);
+
+app.use(pinia);
+app.use(router);
 app.use(i18n);
 applyInitialTheme();
 
