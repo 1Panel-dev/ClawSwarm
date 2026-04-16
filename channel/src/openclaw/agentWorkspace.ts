@@ -98,7 +98,7 @@ const AGENT_PROFILE_FILENAMES = {
     heartbeatMd: "HEARTBEAT.md",
 } as const;
 
-const ORDERED_KNOWN_PROFILE_FILES = Object.values(AGENT_PROFILE_FILENAMES);
+const ORDERED_KNOWN_PROFILE_FILES: readonly string[] = Object.values(AGENT_PROFILE_FILENAMES);
 
 function resolveUserPath(rawPath: string): string {
     if (!rawPath) return rawPath;
