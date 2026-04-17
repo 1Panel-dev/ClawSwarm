@@ -54,7 +54,7 @@ from src.services.document_template_service import (
     update_document_template,
 )
 from src.services.project_document_service import create_project_document, delete_project_document, update_project_document
-from src.services.project_service import create_project
+from src.services.project_service import create_project, delete_project
 from src.schemas.project_management import (
     DocumentTemplateCreate,
     DocumentTemplateUpdate,
@@ -464,6 +464,13 @@ class Stage1BackendTests(unittest.TestCase):
 
             delete_document_template_service(db, template.id)
             self.assertIsNone(db.get(DocumentTemplate, template.id))
+
+            delete_project(db, detail.id)
+            self.assertIsNone(db.get(Project, detail.id))
+            self.assertEqual(
+                list(db.scalars(select(ProjectDocument).where(ProjectDocument.project_id == detail.id))),
+                [],
+            )
 
     def test_project_management_routes_cover_crud_and_agent_readonly(self) -> None:
         create_response = self.client.post(

@@ -119,6 +119,16 @@ def update_project(db: Session, project_id: str, payload: ProjectUpdate) -> Proj
     return build_project_read(item)
 
 
+def delete_project(db: Session, project_id: str) -> None:
+    """删除项目及其全部文档。"""
+    item = get_project(db, project_id)
+    documents = list(db.scalars(select(ProjectDocument).where(ProjectDocument.project_id == project_id)))
+    for document in documents:
+        db.delete(document)
+    db.delete(item)
+    db.commit()
+
+
 def get_project_detail(db: Session, project_id: str) -> ProjectDetailRead:
     """读取项目详情与当前文档列表。"""
     item = get_project(db, project_id)
