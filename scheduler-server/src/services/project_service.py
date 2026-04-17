@@ -12,7 +12,59 @@ from src.models.project import Project
 from src.models.project_document import ProjectDocument
 from src.schemas.common import dump_model
 from src.schemas.project_management import ProjectCreate, ProjectDetailRead, ProjectMember, ProjectRead, ProjectUpdate
-from src.services.document_template_service import DEFAULT_CATEGORY, PROJECT_INTRO_TEMPLATE_NAME, get_project_intro_template_content
+
+PROJECT_INTRO_TEMPLATE_NAME = "项目简介.md"
+DEFAULT_CATEGORY = "其他"
+PROJECT_INTRO_TEMPLATE_CONTENT = """# 项目基本信息
+
+> Agent 每次启动或接手项目时，先读取此文件了解项目概况。
+
+**项目名称**：
+
+**项目描述**：
+
+**仓库地址**：
+
+## 更新说明
+
+- 项目创建或关键信息变更时更新
+- 保持简洁，只保留必要信息
+
+# 项目成员
+
+> 每个成员一条记录，新增成员时在末尾追加。Agent 通过此文件确认自己和他人的身份与职责。
+
+---
+
+## 成员
+
+**Agent Key**：
+
+**CS ID**：
+
+**角色名称**：
+
+**角色描述**：
+
+---
+
+## 更新说明
+
+- 成员加入或退出时更新
+- 角色职责变更时及时修改角色描述
+
+# 项目文档
+
+> 每个项目文档一条记录。Agent 通过此列表快速找到需要读取的项目文档。
+
+## 文档
+
+---
+
+**文档名称**：
+
+**文档链接**：
+"""
 
 
 def normalize_project_members(members: list[ProjectMember]) -> list[ProjectMember]:
@@ -96,7 +148,7 @@ def create_project(db: Session, payload: ProjectCreate) -> ProjectDetailRead:
             project_id=project.id,
             name=PROJECT_INTRO_TEMPLATE_NAME,
             category=DEFAULT_CATEGORY,
-            content=get_project_intro_template_content(db),
+            content=PROJECT_INTRO_TEMPLATE_CONTENT,
             is_core=True,
             sort_order=0,
         )

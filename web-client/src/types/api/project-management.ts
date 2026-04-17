@@ -31,17 +31,6 @@ export interface ProjectDetailResponse extends ProjectResponse {
     documents: ProjectDocumentResponse[];
 }
 
-export interface DocumentTemplateResponse {
-    id: string;
-    name: string;
-    description: string;
-    category: string;
-    content: string;
-    is_builtin: boolean;
-    created_at: string;
-    updated_at: string;
-}
-
 export interface AgentReadableProjectDocumentResponse {
     projectId: string;
     documentId: string;

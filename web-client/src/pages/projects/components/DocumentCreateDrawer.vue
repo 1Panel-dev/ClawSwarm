@@ -26,7 +26,7 @@
           >
             <div class="template-grid__card-badge">{{ template.category }}</div>
             <h3>{{ template.name }}</h3>
-            <p>{{ template.description || t("projects.noTemplateDescription") }}</p>
+            <p>{{ template.description }}</p>
           </button>
         </div>
       </template>
@@ -74,12 +74,12 @@
 import { reactive, ref, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
-import type { DocumentTemplateOutput, ProjectDocumentCreateInput } from "@/types/view/project-management";
+import { PROJECT_DOCUMENT_TEMPLATES } from "@/constants/projectDocumentTemplates";
+import type { ProjectDocumentCreateInput } from "@/types/view/project-management";
 import { PROJECT_DOCUMENT_CATEGORIES } from "@/types/view/project-management";
 
 const props = defineProps<{
     visible: boolean;
-    templates: DocumentTemplateOutput[];
     submitting?: boolean;
 }>();
 
@@ -90,11 +90,11 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 const step = ref<1 | 2>(1);
+const templates = PROJECT_DOCUMENT_TEMPLATES;
 const form = reactive({
     name: "",
     category: "其他",
     content: "",
-    templateId: "",
 });
 
 watch(
@@ -112,7 +112,6 @@ function resetState() {
     form.name = "";
     form.category = "其他";
     form.content = "";
-    form.templateId = "";
 }
 
 function handleClose() {
@@ -123,19 +122,17 @@ function selectBlank() {
     form.name = "";
     form.category = "其他";
     form.content = "";
-    form.templateId = "";
     step.value = 2;
 }
 
 function selectTemplate(templateId: string) {
-    const template = props.templates.find((item) => item.id === templateId);
+    const template = PROJECT_DOCUMENT_TEMPLATES.find((item) => item.id === templateId);
     if (!template) {
         return;
     }
     form.name = template.name;
     form.category = template.category || "其他";
     form.content = template.content;
-    form.templateId = template.id;
     step.value = 2;
 }
 
@@ -144,7 +141,6 @@ function submit() {
         name: form.name.trim(),
         category: form.category,
         content: form.content,
-        templateId: form.templateId || undefined,
     });
 }
 </script>

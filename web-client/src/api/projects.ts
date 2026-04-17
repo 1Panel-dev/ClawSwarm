@@ -1,14 +1,10 @@
 import { apiClient } from "@/api/client";
 import type {
-    DocumentTemplateResponse,
     ProjectDetailResponse,
     ProjectDocumentResponse,
     ProjectResponse,
 } from "@/types/api/project-management";
 import type {
-    DocumentTemplateCreateInput,
-    DocumentTemplateOutput,
-    DocumentTemplateUpdateInput,
     ProjectCreateInput,
     ProjectDetailOutput,
     ProjectDocumentCreateInput,
@@ -32,6 +28,10 @@ export async function createProject(payload: ProjectCreateInput): Promise<Projec
 export async function updateProject(projectId: string, payload: ProjectUpdateInput): Promise<ProjectOutput> {
     const response = await apiClient.put<ProjectResponse>(`/api/projects/${projectId}`, snakeizeKeys(payload));
     return camelizeKeys(response.data);
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+    await apiClient.delete(`/api/projects/${projectId}`);
 }
 
 export async function fetchProjectDetail(projectId: string): Promise<ProjectDetailOutput> {
@@ -69,36 +69,4 @@ export async function updateProjectDocument(
 
 export async function deleteProjectDocument(projectId: string, documentId: string): Promise<void> {
     await apiClient.delete(`/api/projects/${projectId}/documents/${documentId}`);
-}
-
-export async function fetchDocumentTemplates(): Promise<DocumentTemplateOutput[]> {
-    const response = await apiClient.get<DocumentTemplateResponse[]>("/api/document-templates");
-    return response.data.map(camelizeKeys);
-}
-
-export async function createDocumentTemplate(
-    payload: DocumentTemplateCreateInput,
-): Promise<DocumentTemplateOutput> {
-    const response = await apiClient.post<DocumentTemplateResponse>("/api/document-templates", snakeizeKeys(payload));
-    return camelizeKeys(response.data);
-}
-
-export async function fetchDocumentTemplate(templateId: string): Promise<DocumentTemplateOutput> {
-    const response = await apiClient.get<DocumentTemplateResponse>(`/api/document-templates/${templateId}`);
-    return camelizeKeys(response.data);
-}
-
-export async function updateDocumentTemplate(
-    templateId: string,
-    payload: DocumentTemplateUpdateInput,
-): Promise<DocumentTemplateOutput> {
-    const response = await apiClient.put<DocumentTemplateResponse>(
-        `/api/document-templates/${templateId}`,
-        snakeizeKeys(payload),
-    );
-    return camelizeKeys(response.data);
-}
-
-export async function deleteDocumentTemplate(templateId: string): Promise<void> {
-    await apiClient.delete(`/api/document-templates/${templateId}`);
 }

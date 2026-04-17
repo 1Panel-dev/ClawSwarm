@@ -8,10 +8,9 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.models.document_template import DocumentTemplate
 from src.models.project import Project
 from src.models.project_document import ProjectDocument
-from src.schemas.common import dump_model, validate_orm
+from src.schemas.common import validate_orm
 from src.schemas.project_management import (
     AgentReadableProjectDocumentRead,
     ProjectDocumentCreate,
@@ -73,19 +72,13 @@ def get_agent_readable_project_document(db: Session, project_id: str, document_i
 
 
 def create_project_document(db: Session, project_id: str, payload: ProjectDocumentCreate) -> ProjectDocumentRead:
-    """创建普通项目文档，可来自空白文档或模板。"""
+    """创建普通项目文档。"""
     project = get_project(db, project_id)
-    template: DocumentTemplate | None = None
-    if payload.template_id:
-        template = db.get(DocumentTemplate, payload.template_id)
-        if not template:
-            raise HTTPException(status_code=404, detail="document template not found")
-
     item = ProjectDocument(
         project_id=project_id,
-        name=(payload.name or (template.name if template else None) or "").strip(),
-        category=(payload.category or (template.category if template else None) or DEFAULT_CATEGORY).strip() or DEFAULT_CATEGORY,
-        content=payload.content if payload.content is not None else (template.content if template else ""),
+        name=(payload.name or "").strip(),
+        category=(payload.category or DEFAULT_CATEGORY).strip() or DEFAULT_CATEGORY,
+        content=payload.content or "",
         is_core=False,
         sort_order=len(list_project_documents(db, project_id)) + 10,
     )

@@ -23,10 +23,12 @@
         class="document-list__group"
       >
         <button class="document-list__group-header" type="button" @click="toggleGroup(group.category)">
-          <span>{{ group.category }}</span>
-          <span>{{ expandedGroups[group.category] ? "−" : "+" }}</span>
+          <span class="document-list__group-line"></span>
+          <span class="document-list__group-name">{{ group.category }}</span>
+          <span class="document-list__group-toggle">{{ isGroupExpanded(group.category) ? "▾" : "▸" }}</span>
+          <span class="document-list__group-line"></span>
         </button>
-        <div v-if="expandedGroups[group.category]" class="document-list__group-body">
+        <div v-if="isGroupExpanded(group.category)" class="document-list__group-body">
           <button
             v-for="item in group.items"
             :key="item.id"
@@ -50,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from "vue";
+import { computed, reactive } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
 import type { ProjectDocumentOutput } from "@/types/view/project-management";
@@ -66,7 +68,8 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
-const expandedGroups = reactive<Record<string, boolean>>({});
+const STORAGE_KEY = "clawswarm.projectDocumentGroups.expanded";
+const expandedGroups = reactive<Record<string, boolean>>(loadExpandedGroups());
 
 const coreDocuments = computed(() => props.documents.filter((item) => item.isCore));
 const groupedDocuments = computed(() => {
@@ -80,26 +83,41 @@ const groupedDocuments = computed(() => {
     return Array.from(groups.entries()).map(([category, items]) => ({ category, items }));
 });
 
-watch(
-    groupedDocuments,
-    (groups) => {
-      for (const group of groups) {
-        if (!(group.category in expandedGroups)) {
-          expandedGroups[group.category] = false;
-        }
-      }
-    },
-    { immediate: true },
-);
-
 function toggleGroup(category: string) {
-    expandedGroups[category] = !expandedGroups[category];
+    expandedGroups[category] = !isGroupExpanded(category);
+    saveExpandedGroups();
+}
+
+function isGroupExpanded(category: string) {
+    return expandedGroups[category] ?? true;
+}
+
+function loadExpandedGroups() {
+    try {
+      const value = window.localStorage.getItem(STORAGE_KEY);
+      if (!value) {
+        return {};
+      }
+      return JSON.parse(value) as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+}
+
+function saveExpandedGroups() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(expandedGroups));
+    } catch {
+      // 浏览器隐私模式或存储满时，保留本次页面内的展开状态即可。
+    }
 }
 </script>
 
 <style scoped>
 .document-list-card {
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
+  height: 100%;
   min-height: 0;
 }
 
@@ -114,6 +132,8 @@ function toggleGroup(category: string) {
   display: grid;
   gap: 4px;
   align-content: start;
+  min-height: 0;
+  overflow: auto;
 }
 
 .document-list__group {
@@ -121,7 +141,6 @@ function toggleGroup(category: string) {
   gap: 2px;
 }
 
-.document-list__group-header,
 .document-list__item {
   display: flex;
   align-items: center;
@@ -137,9 +156,43 @@ function toggleGroup(category: string) {
   transition: background-color 120ms ease, color 120ms ease;
 }
 
-.document-list__item:hover,
-.document-list__group-header:hover {
+.document-list__group-header {
+  display: grid;
+  grid-template-columns: minmax(12px, 1fr) auto auto minmax(12px, 1fr);
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 22px;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.document-list__item:hover {
   background: color-mix(in srgb, var(--color-accent) 6%, white);
+}
+
+.document-list__group-header:hover .document-list__group-name,
+.document-list__group-header:hover .document-list__group-toggle {
+  color: var(--color-accent);
+}
+
+.document-list__group-line {
+  height: 1px;
+  background: var(--color-border);
+}
+
+.document-list__group-name {
+  font-size: 0.78rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.document-list__group-toggle {
+  font-size: 0.72rem;
+  line-height: 1;
 }
 
 .document-list__item--active {
@@ -150,7 +203,6 @@ function toggleGroup(category: string) {
 .document-list__group-body {
   display: grid;
   gap: 2px;
-  padding-left: 12px;
 }
 
 .document-list__name {

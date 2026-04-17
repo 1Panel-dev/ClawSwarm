@@ -58,7 +58,6 @@ watch(() => [route.params.projectId, route.params.documentId], loadDocument);
   gap: 12px;
 }
 
-.document-read-page__meta,
 .document-read-page__meta {
   color: var(--color-text-secondary);
 }

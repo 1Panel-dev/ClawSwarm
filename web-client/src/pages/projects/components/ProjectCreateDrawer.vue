@@ -35,7 +35,9 @@
         <el-form-item :label="t('projects.projectMembers')">
           <div class="project-members">
             <div class="project-members__toolbar">
-              <el-button @click="openMemberDialog">{{ t("projects.addMember") }}</el-button>
+              <div class="project-members__toolbar-actions">
+                <el-button @click="openMemberDialog">{{ t("projects.addMember") }}</el-button>
+              </div>
               <span class="project-members__count">{{ form.members.length }}</span>
             </div>
 
@@ -238,6 +240,12 @@ function submit() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.project-members__toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .project-members__count {

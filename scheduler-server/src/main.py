@@ -15,7 +15,6 @@ from src.api.routes import (
     auth,
     callbacks,
     conversations,
-    document_templates,
     groups,
     health,
     instances,
@@ -25,7 +24,6 @@ from src.api.routes import (
 from src.core.config import settings
 from src.core.db import Base, SessionLocal, engine, ensure_runtime_schema
 from src.services.auth import ensure_default_user, get_current_user_from_request
-from src.services.document_template_service import ensure_builtin_document_templates
 import src.models  # noqa: F401
 
 
@@ -66,7 +64,6 @@ def create_app() -> FastAPI:
     ensure_runtime_schema()
     with app.state.session_local() as db:
         ensure_default_user(db)
-        ensure_builtin_document_templates(db)
 
     # 本地前后端联调默认是：
     # - scheduler-server: 127.0.0.1:8080
@@ -109,7 +106,6 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router)
     app.include_router(projects.router)
     app.include_router(projects.agent_router)
-    app.include_router(document_templates.router)
     app.include_router(callbacks.router)
     app.include_router(ws.router)
     _configure_web_client_routes(app)

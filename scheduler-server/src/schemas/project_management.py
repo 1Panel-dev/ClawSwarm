@@ -3,8 +3,7 @@
 当前范围只覆盖：
 1. 项目基础信息。
 2. 项目文档。
-3. 单篇文档模板。
-4. 人类只读页与 Agent 只读接口需要的最小响应。
+3. 人类只读页与 Agent 只读接口需要的最小响应。
 """
 from datetime import datetime
 
@@ -60,36 +59,12 @@ class ProjectDocumentCreate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     category: str | None = Field(default=None, max_length=50)
     content: str | None = Field(default=None, max_length=30000)
-    template_id: str | None = Field(default=None, min_length=1, max_length=36)
 
 
 class ProjectDocumentUpdate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     category: str = Field(max_length=50)
     content: str = Field(max_length=30000)
-
-
-class DocumentTemplateCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=500)
-    category: str = Field(default="其他", max_length=50)
-    content: str = Field(default="", max_length=30000)
-
-
-class DocumentTemplateUpdate(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=500)
-    category: str = Field(default="其他", max_length=50)
-    content: str = Field(default="", max_length=30000)
-
-
-class DocumentTemplateRead(TimestampedModel):
-    id: str
-    name: str
-    description: str
-    category: str
-    content: str
-    is_builtin: bool
 
 
 class AgentReadableProjectDocumentRead(BaseModel):
