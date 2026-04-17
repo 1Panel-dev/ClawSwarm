@@ -13,7 +13,6 @@ const MessagesPage = () => import("@/pages/messages/MessagesPage.vue");
 const OpenClawsPage = () => import("@/pages/openclaws/OpenClawsPage.vue");
 const ProjectsPage = () => import("@/pages/projects/ProjectsPage.vue");
 const ProjectDetailPage = () => import("@/pages/projects/ProjectDetailPage.vue");
-const ProjectDocumentReadPage = () => import("@/pages/projects/ProjectDocumentReadPage.vue");
 const TasksPage = () => import("@/pages/tasks/TasksPage.vue");
 const SettingsPage = () => import("@/pages/settings/SettingsPage.vue");
 
@@ -49,11 +48,6 @@ export const router = createRouter({
                 {
                     path: "projects/:projectId",
                     component: ProjectDetailPage,
-                    props: true,
-                },
-                {
-                    path: "projects/:projectId/documents/:documentId/read",
-                    component: ProjectDocumentReadPage,
                     props: true,
                 },
                 {

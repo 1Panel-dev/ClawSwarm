@@ -110,10 +110,10 @@ const isDirty = computed(() => {
 });
 
 const readOnlyLink = computed(() => {
-    if (!props.document || typeof window === "undefined") {
+    if (!props.document) {
         return "";
     }
-    return `${window.location.origin}/api/v1/clawswarm/projects/${props.projectId}/documents/${props.document.id}`;
+    return `clawswarm://projects/${props.projectId}/documents/${props.document.id}`;
 });
 
 watch(

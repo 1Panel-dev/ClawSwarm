@@ -15,7 +15,7 @@
         </p>
       </div>
       <div class="project-header-card__actions">
-        <el-tooltip placement="top" effect="light">
+        <el-tooltip placement="left-start" effect="light">
           <template #content>
             <pre class="project-header-card__copy-preview">{{ projectInfoMarkdown }}</pre>
           </template>
@@ -77,7 +77,7 @@ function formatProjectInfoMarkdown() {
         "",
         "# 📚 项目文档",
         "",
-        formatDocumentTableMarkdown(),
+        formatDocumentInfoMarkdown(),
     ].join("\n");
 }
 
@@ -95,31 +95,21 @@ function formatMemberInfoMarkdown() {
     ].join("\n")).join("\n\n");
 }
 
-function formatDocumentTableMarkdown() {
+function formatDocumentInfoMarkdown() {
     const documents = props.project.documents.filter((document) => !document.isCore);
-    const rows = documents.length
-      ? documents.map((document) => {
-        const name = escapeMarkdownTableCell(document.name);
-        const link = escapeMarkdownTableCell(buildDocumentReadLink(document.id));
-        return `| ${name} | ${link} |`;
-      })
-      : ["|  |  |"];
-    return [
-        "| 文档名称 | 文档链接 |",
-        "| --- | --- |",
-        ...rows,
-    ].join("\n");
+    const documentItems = documents.length
+      ? documents
+      : [{ id: "", name: "" }];
+    return documentItems.map((document, index) => [
+        `## 📄 文档 ${index + 1}`,
+        "",
+        `> **文档名称**：${document.name}`,
+        `> **文档链接**：${document.id ? buildDocumentReadLink(document.id) : ""}`,
+    ].join("\n")).join("\n\n");
 }
 
 function buildDocumentReadLink(documentId: string) {
-    if (typeof window === "undefined") {
-        return "";
-    }
-    return `${window.location.origin}/api/v1/clawswarm/projects/${props.project.id}/documents/${documentId}`;
-}
-
-function escapeMarkdownTableCell(value: string) {
-    return value.replaceAll("|", "\\|");
+    return `clawswarm://projects/${props.project.id}/documents/${documentId}`;
 }
 </script>
 
