@@ -9,19 +9,26 @@ import {
     resolveAccount,
 } from "../config.js";
 import { createClawSwarmRoutes } from "../http/routes.js";
-import { registerWebchatTranscriptMirror } from "../openclaw/webchatMirror.js";
+import { registerWebchatTranscriptMirror } from "../openclaw/webchat/webchatMirror.js";
 import {
     looksLikeClawSwarmCsId,
     normalizeTargetCsId,
     resolveClawSwarmMessagingTarget,
     resolveClawSwarmTarget,
     sendClawSwarmText,
-} from "../outbound/sendText.js";
-import { createPluginRuntimeServices, describeRuntimeShape } from "./runtime.js";
+} from "../flows/outbound/sendText.js";
+import { createPluginRuntimeServices, describeRuntimeShape, type PluginRuntimeServices } from "./runtime.js";
 
-function createMessagingConfig(params: {
-    logger: ReturnType<typeof createPluginRuntimeServices>["logger"];
-}) {
+interface CreateMessagingConfigParams {
+    logger: PluginRuntimeServices["logger"];
+}
+
+interface CreateOutboundConfigParams {
+    api: OpenClawPluginApi;
+    logger: PluginRuntimeServices["logger"];
+}
+
+function createMessagingConfig(params: CreateMessagingConfigParams) {
     const { logger } = params;
 
     return {
@@ -65,10 +72,7 @@ function createMessagingConfig(params: {
     };
 }
 
-function createOutboundConfig(params: {
-    api: OpenClawPluginApi;
-    logger: ReturnType<typeof createPluginRuntimeServices>["logger"];
-}) {
+function createOutboundConfig(params: CreateOutboundConfigParams) {
     const { api, logger } = params;
 
     return {

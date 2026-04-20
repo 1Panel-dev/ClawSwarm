@@ -1,8 +1,8 @@
-import { buildSessionKey } from "../router/sessionKey.js";
-import type { InboundMessage } from "../router/resolveRoute.js";
-import type { MessageStateStore } from "../store/messageState.js";
+import { buildSessionKey } from "../core/routing/sessionKey.js";
+import type { InboundMessage } from "../core/routing/resolveRoute.js";
+import type { MessageStateStore } from "../core/message/messageState.js";
 
-export function createInboundMessageState(params: {
+export interface InboundMessageStateParams {
     messageState: MessageStateStore;
     inbound: InboundMessage;
     traceId: string;
@@ -13,7 +13,9 @@ export function createInboundMessageState(params: {
         groupId?: string;
         targetAgentIds: string[];
     };
-}) {
+}
+
+export function createInboundMessageState(params: InboundMessageStateParams) {
     const { messageState, inbound, traceId, accountId, decision } = params;
     const now = new Date().toISOString();
     messageState.create({

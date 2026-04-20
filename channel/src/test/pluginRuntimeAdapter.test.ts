@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { AccountConfigSchema, resolveGatewayRuntimeConfig } from "../config.js";
-import { createPluginRuntimeAdapter } from "../openclaw/pluginRuntimeAdapter.js";
+import { createPluginRuntimeAdapter } from "../openclaw/runtime/pluginRuntimeAdapter.js";
 
 const dispatchInboundDirectDmWithRuntimeMock = vi.fn();
 

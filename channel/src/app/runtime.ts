@@ -1,12 +1,12 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 
 import { resolveAccountBootstrapConfig, type AccountConfig } from "../config.js";
-import { createLogger, wrapOpenClawLogger, type Logger } from "../observability/logger.js";
-import { createIdempotencyStore } from "../store/idempotency.js";
-import { InMemoryMessageStateStore, type MessageStateStore } from "../store/messageState.js";
-import { HttpClawSwarmCallbackClient, type ClawSwarmCallbackClient } from "../callback/client.js";
-import { createOpenClawRuntimeAdapter, type OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
-import { configureOpenClawCliRuntime } from "../openclaw/openclawCli.js";
+import { createLogger, wrapOpenClawLogger, type Logger } from "../logging/logger.js";
+import { createIdempotencyStore } from "../storage/idempotency.js";
+import { InMemoryMessageStateStore, type MessageStateStore } from "../core/message/messageState.js";
+import { HttpClawSwarmCallbackClient, type ClawSwarmCallbackClient } from "../flows/callback/client.js";
+import { createOpenClawRuntimeAdapter, type OpenClawRuntimeAdapter } from "../openclaw/runtime/adapters.js";
+import { configureOpenClawCliRuntime } from "../openclaw/agents/openclawCli.js";
 
 export function describeRuntimeShape(runtime: unknown) {
     if (!runtime || typeof runtime !== "object") {

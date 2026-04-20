@@ -1,15 +1,16 @@
-import type { Logger } from "../observability/logger.js";
-import type { IdempotencyStore } from "../store/idempotency.js";
+import type { Logger } from "../logging/logger.js";
+import type { IdempotencyStore } from "../storage/idempotency.js";
 import type { AccountConfig } from "../config.js";
-import type { MessageStateStore } from "../store/messageState.js";
-import type { ClawSwarmCallbackClient } from "../callback/client.js";
-import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
+import type { MessageStateStore } from "../core/message/messageState.js";
+import type { ClawSwarmCallbackClient } from "../flows/callback/client.js";
+import type { OpenClawRuntimeAdapter } from "../openclaw/runtime/adapters.js";
 import { handleAdminAgentRoutes } from "./adminAgents.js";
 import { handleCatalogRoutes } from "./catalog.js";
 import { handleInboundRoute } from "./inbound.js";
-import { handleDocumentRoutes } from "../documents/readDocument.js";
+import { handleDocumentRoutes } from "./documentRoutes.js";
+import type { HttpRequest, HttpResponse } from "./common.js";
 
-export function createClawSwarmRoutes(params: {
+export interface ClawSwarmRoutesParams {
     channelId: string;
     getAccount: (accountId?: string) => AccountConfig & { accountId: string };
     logger: Logger;
@@ -18,18 +19,21 @@ export function createClawSwarmRoutes(params: {
     clawSwarmFactory: (acct: AccountConfig) => ClawSwarmCallbackClient;
     openclaw: OpenClawRuntimeAdapter;
     loadHostConfig?: () => unknown;
-}) {
+}
+
+export function createClawSwarmRoutes(params: ClawSwarmRoutesParams) {
     const { channelId, getAccount, logger, idempotency, messageState, clawSwarmFactory, openclaw, loadHostConfig } = params;
 
     // 返回给 registerHttpRoute 的 handler。
-    return async function handler(req: any, res: any): Promise<boolean> {
-        const url = new URL(req.url, "http://localhost");
+    return async function handler(req: HttpRequest, res: HttpResponse): Promise<boolean> {
+        const url = new URL(req.url ?? "/", "http://localhost");
         const pathname = url.pathname;
+        const method = req.method ?? "";
 
         if (
             await handleCatalogRoutes({
                 pathname,
-                method: req.method,
+                method,
                 res,
                 channelId,
                 getAccount,
@@ -41,7 +45,7 @@ export function createClawSwarmRoutes(params: {
         if (
             await handleAdminAgentRoutes({
                 pathname,
-                method: req.method,
+                method,
                 req,
                 res,
                 getAccount,
@@ -55,7 +59,7 @@ export function createClawSwarmRoutes(params: {
         if (
             await handleDocumentRoutes({
                 pathname,
-                method: req.method,
+                method,
                 searchParams: url.searchParams,
                 res,
                 getAccount,
@@ -67,7 +71,7 @@ export function createClawSwarmRoutes(params: {
         if (
             await handleInboundRoute({
                 pathname,
-                method: req.method,
+                method,
                 req,
                 res,
                 channelId,

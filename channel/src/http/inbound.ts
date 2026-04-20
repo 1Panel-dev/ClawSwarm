@@ -1,25 +1,24 @@
 import crypto from "node:crypto";
 
-import { dispatchDirect } from "../dispatcher/dispatchDirect.js";
-import { dispatchGroup } from "../dispatcher/dispatchGroup.js";
-import { buildSessionKey } from "../router/sessionKey.js";
-import { InboundMessageSchema, resolveRoute } from "../router/resolveRoute.js";
-import { verifyInboundSignature } from "../security/signature.js";
-import type { ClawSwarmCallbackClient } from "../callback/client.js";
+import { buildSessionKey } from "../core/routing/sessionKey.js";
+import { InboundMessageSchema, resolveRoute } from "../core/routing/resolveRoute.js";
+import { verifyInboundSignature } from "./signature.js";
+import type { ClawSwarmCallbackClient } from "../flows/callback/client.js";
 import type { AccountConfig } from "../config.js";
-import type { Logger } from "../observability/logger.js";
-import type { OpenClawRuntimeAdapter } from "../openclaw/adapters.js";
-import type { RouteDecision } from "../router/resolveRoute.js";
-import type { IdempotencyStore } from "../store/idempotency.js";
-import type { MessageStateStore } from "../store/messageState.js";
-import { readRawBody, sendJson } from "./common.js";
+import type { Logger } from "../logging/logger.js";
+import type { OpenClawRuntimeAdapter } from "../openclaw/runtime/adapters.js";
+import type { InboundMessage, RouteDecision } from "../core/routing/resolveRoute.js";
+import type { IdempotencyStore } from "../storage/idempotency.js";
+import type { MessageStateStore } from "../core/message/messageState.js";
+import { runInboundDispatch } from "../flows/inbound/inboundDispatch.js";
+import { readRawBody, sendJson, type HttpRequest, type HttpResponse } from "./common.js";
 import { createInboundMessageState } from "./dispatchState.js";
 
-export async function handleInboundRoute(params: {
+export interface InboundRouteParams {
     pathname: string;
     method: string;
-    req: any;
-    res: any;
+    req: HttpRequest;
+    res: HttpResponse;
     channelId: string;
     getAccount: (accountId?: string) => AccountConfig & { accountId: string };
     logger: Logger;
@@ -27,7 +26,23 @@ export async function handleInboundRoute(params: {
     messageState: MessageStateStore;
     clawSwarmFactory: (acct: AccountConfig) => ClawSwarmCallbackClient;
     openclaw: OpenClawRuntimeAdapter;
-}): Promise<boolean> {
+}
+
+interface ScheduleInboundDispatchParams {
+    channelId: string;
+    accountId: string;
+    accountConfig: AccountConfig;
+    logger: Logger;
+    idempotency: IdempotencyStore;
+    messageState: MessageStateStore;
+    clawSwarm: ClawSwarmCallbackClient;
+    openclaw: OpenClawRuntimeAdapter;
+    inbound: InboundMessage;
+    decision: RouteDecision;
+    traceId: string;
+}
+
+export async function handleInboundRoute(params: InboundRouteParams): Promise<boolean> {
     const {
         pathname,
         method,
@@ -81,7 +96,7 @@ export async function handleInboundRoute(params: {
         return true;
     }
 
-    // 结构校验失败直接返回 400，避免非法数据进入 dispatcher。
+    // 结构校验失败直接返回 400，避免非法数据进入后续流程。
     const parsed = InboundMessageSchema.safeParse(json);
     if (!parsed.success) {
         sendJson(res, 400, { error: "invalid_payload", detail: parsed.error.issues });
@@ -128,6 +143,38 @@ export async function handleInboundRoute(params: {
         targetAgentCount: decision.targetAgentIds.length,
     });
 
+    // 真正的 Agent 执行放到异步阶段，避免 webhook 长时间阻塞。
+    scheduleInboundDispatch({
+        channelId,
+        accountId,
+        accountConfig: acct2,
+        logger,
+        idempotency,
+        messageState,
+        clawSwarm,
+        openclaw,
+        inbound,
+        decision,
+        traceId,
+    });
+
+    return true;
+}
+
+function scheduleInboundDispatch(params: ScheduleInboundDispatchParams): void {
+    const {
+        channelId,
+        accountId,
+        accountConfig,
+        logger,
+        idempotency,
+        messageState,
+        clawSwarm,
+        openclaw,
+        inbound,
+        decision,
+        traceId,
+    } = params;
     const baseLog = logger.child({
         traceId,
         accountId,
@@ -135,54 +182,19 @@ export async function handleInboundRoute(params: {
         routeKind: decision.kind,
     });
 
-    // 真正的 Agent 执行放到异步阶段，避免 webhook 长时间阻塞。
-    setImmediate(async () => {
-        try {
-            if (decision.kind === "DIRECT") {
-                await dispatchDirect({
-                    channelId,
-                    accountId,
-                    accountConfig: acct2,
-                    logger: baseLog,
-                    idempotency,
-                    messageState,
-                    clawSwarm,
-                    openclaw,
-                    inbound,
-                    agentId: decision.targetAgentIds[0],
-                    routeKind: decision.kind,
-                    traceId,
-                });
-            } else {
-                await dispatchGroup({
-                    channelId,
-                    accountId,
-                    accountConfig: acct2,
-                    logger: baseLog,
-                    idempotency,
-                    messageState,
-                    clawSwarm,
-                    openclaw,
-                    inbound,
-                    agentIds: decision.targetAgentIds,
-                    routeKind: decision.kind,
-                    traceId,
-                });
-            }
-        } catch (err) {
-            // 这里兜住 dispatch 层之外的异常，确保状态和日志都能留下来。
-            if (messageState.get(inbound.messageId)) {
-                messageState.update(inbound.messageId, {
-                    status: "FAILED",
-                    routingMode: decision.kind,
-                    targetAgentIds: decision.targetAgentIds,
-                    sessionKeys: [],
-                    error: String(err),
-                });
-            }
-            baseLog.error({ err: String(err) }, "async dispatch failed");
-        }
+    setImmediate(() => {
+        void runInboundDispatch({
+            channelId,
+            accountId,
+            accountConfig,
+            logger: baseLog,
+            idempotency,
+            messageState,
+            clawSwarm,
+            openclaw,
+            inbound,
+            decision,
+            traceId,
+        });
     });
-
-    return true;
 }

@@ -3,8 +3,34 @@
  * 只保留和请求体读取、JSON 响应相关的基础能力。
  */
 
+export type HttpHeaderValue = string | string[] | undefined;
+
+export type HttpHeaders = Record<string, HttpHeaderValue>;
+
+// OpenClaw 宿主传入的是 Node 风格 req；这里定义最小能力，避免 HTTP 层继续透传 any。
+export interface HttpRequest extends AsyncIterable<Buffer | Uint8Array | string> {
+    url?: string;
+    method?: string;
+    headers?: HttpHeaders;
+}
+
+// OpenClaw 宿主传入的是 Node 风格 res；这里只声明 channel route 真正用到的响应能力。
+export interface HttpResponse {
+    statusCode: number;
+    setHeader(name: string, value: string): void;
+    end(value?: string | Uint8Array): void;
+}
+
+// 统一读取请求头，兼容 Node 小写头名和部分测试里构造的大小写头名。
+export function getHeaderValue(headers: HttpHeaders | undefined, name: string): string | undefined {
+    const target = name.toLowerCase();
+    const value = Object.entries(headers ?? {}).find(([key]) => key.toLowerCase() === target)?.[1];
+    if (Array.isArray(value)) return value[0];
+    return value;
+}
+
 // 读取原始请求体时保留二进制内容，便于后续做签名校验。
-export async function readRawBody(req: any, maxBytes: number): Promise<Uint8Array> {
+export async function readRawBody(req: HttpRequest, maxBytes: number): Promise<Uint8Array> {
     const chunks: Buffer[] = [];
     let total = 0;
 
@@ -20,14 +46,14 @@ export async function readRawBody(req: any, maxBytes: number): Promise<Uint8Arra
 }
 
 // 统一 JSON 响应格式，避免每个分支重复写 header。
-export function sendJson(res: any, status: number, obj: unknown) {
+export function sendJson(res: HttpResponse, status: number, obj: unknown) {
     res.statusCode = status;
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(JSON.stringify(obj));
 }
 
 // 返回 Markdown 文本给 Agent，避免它再从 JSON 里二次提取正文。
-export function sendMarkdown(res: any, status: number, content: string) {
+export function sendMarkdown(res: HttpResponse, status: number, content: string) {
     res.statusCode = status;
     res.setHeader("content-type", "text/markdown; charset=utf-8");
     res.end(content);

@@ -1,7 +1,8 @@
-import { listRealOpenClawAgents } from "../openclaw/manageAgents.js";
+import { listRealOpenClawAgents } from "../openclaw/agents/manageAgents.js";
 import { z } from "zod";
 import { AccountConfigSchema } from "./schema.js";
 import { normalizeAccountConfigInput } from "./legacy.js";
+import { getRawAccountConfig } from "./host.js";
 import type { AccountConfig, AgentDirectoryEntry, GatewayRuntimeConfig, ResolvedAccount } from "./types.js";
 
 // 将配置中的 allowedAgentIds 去重，供广播默认路由使用。
@@ -63,10 +64,9 @@ const AccountRuntimeBootstrapSchema = z.object({
 });
 
 // 注册阶段只允许解析真正需要的最小配置，避免插件安装时因为业务字段缺失而失败。
-export function resolveAccountBootstrapConfig(cfg: any, accountId?: string): {
+export function resolveAccountBootstrapConfig(cfg: unknown, accountId?: string): {
     idempotency: AccountConfig["idempotency"];
 } {
-    const sec = cfg?.channels?.["clawswarm"] ?? {};
-    const raw = sec?.accounts?.[accountId ?? "default"] ?? {};
+    const raw = getRawAccountConfig(cfg, accountId ?? "default");
     return AccountRuntimeBootstrapSchema.parse(normalizeAccountConfigInput(raw));
 }
