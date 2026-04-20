@@ -11,6 +11,7 @@
 import crypto from "node:crypto";
 import { request } from "undici";
 import type { Logger } from "../../logging/logger.js";
+import { ChannelError } from "../../core/errors/channelError.js";
 
 // 插件当前向 ClawSwarm 回推的事件类型。
 export type ClawSwarmEventType = "run.accepted" | "reply.chunk" | "reply.final" | "run.error";
@@ -70,7 +71,12 @@ export class HttpClawSwarmCallbackClient implements ClawSwarmCallbackClient {
                 { statusCode: res.statusCode, body: truncate(txt, 300) },
                 "ClawSwarm callback non-2xx",
             );
-            throw new Error(`clawswarm_callback_http_${res.statusCode}`);
+            throw new ChannelError({
+                message: `ClawSwarm callback API returned HTTP ${res.statusCode}`,
+                kind: res.statusCode === 401 || res.statusCode === 403 ? "auth" : "upstream",
+                status: res.statusCode,
+                detail: truncate(txt, 300),
+            });
         }
     }
 }

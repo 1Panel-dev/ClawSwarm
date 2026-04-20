@@ -4,6 +4,7 @@
  */
 
 import type { AgentDescriptor } from "../../types.js";
+import { ChannelError } from "../../core/errors/channelError.js";
 import {
     legacyProfileFilesFromWorkspaceFiles,
     readAgentProfileFiles,
@@ -113,7 +114,10 @@ export async function createRealOpenClawAgent(params: CreateRealOpenClawAgentPar
     const addResult = extractJsonObject(addOutput);
     const agentId = String(addResult?.agentId ?? params.agentId).trim();
     if (!agentId) {
-        throw new Error("openclaw_agent_create_failed");
+        throw new ChannelError({
+            message: "OpenClaw agent creation did not return an agent id",
+            kind: "upstream",
+        });
     }
 
     await setAgentDisplayName(agentId, params.displayName);
@@ -140,7 +144,10 @@ export function getRealOpenClawAgentProfile(params: RealOpenClawAgentProfilePara
 export async function updateRealOpenClawAgent(params: UpdateRealOpenClawAgentParams): Promise<AgentDescriptor> {
     const agentId = params.agentId.trim();
     if (!agentId) {
-        throw new Error("openclaw_agent_update_failed");
+        throw new ChannelError({
+            message: "OpenClaw agent update requires an agent id",
+            kind: "bad_request",
+        });
     }
 
     await setAgentDisplayName(agentId, params.displayName);

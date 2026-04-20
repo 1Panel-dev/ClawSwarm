@@ -11,6 +11,7 @@
 import { z } from "zod";
 import type { AccountConfig } from "../../config.js";
 import { resolveAliasMap, resolveAllowedAgents } from "../../config.js";
+import { ChannelError } from "../errors/channelError.js";
 import { parseMentionsFromText } from "./mentions.js";
 import type { RoutingMode } from "../../types.js";
 
@@ -86,7 +87,10 @@ export function resolveRoute(input: InboundMessage, acct: AccountConfig): RouteD
         // 单聊要求最终必须能确定唯一目标 Agent。
         const directAgent = input.directAgentId ?? mentionTokens[0];
         if (!directAgent) {
-            throw new Error("DIRECT chat requires directAgentId or a @mention token");
+            throw new ChannelError({
+                message: "Direct chat requires directAgentId or a @mention token",
+                kind: "bad_request",
+            });
         }
         return {
             kind: "DIRECT",
@@ -113,7 +117,10 @@ export function resolveRoute(input: InboundMessage, acct: AccountConfig): RouteD
 
     const targets = fromRequest.length > 0 ? fromRequest : defaults;
     if (targets.length === 0) {
-        throw new Error("GROUP_BROADCAST requires targetAgentIds or configured allowedAgentIds");
+        throw new ChannelError({
+            message: "Group broadcast requires targetAgentIds or configured allowedAgentIds",
+            kind: "bad_request",
+        });
     }
 
     // 广播前再做一次上限截断，避免一次消息误打太多 Agent。

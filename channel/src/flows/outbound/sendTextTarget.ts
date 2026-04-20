@@ -2,6 +2,8 @@
  * 这里集中处理 sendText 的统一 CS ID 目标。
  * 只负责识别、归一化和对外层 resolver 的适配。
  */
+import { ChannelError } from "../../core/errors/channelError.js";
+
 export const CS_ID_PREFIX = "csid:" as const;
 const TARGET_CS_ID_PATTERN = /^CS[AU]-\d{4,}$/;
 
@@ -48,7 +50,7 @@ export function normalizeTargetCsId(to: string): string {
         : withoutAt;
     const value = normalized.trim().toUpperCase();
     if (!TARGET_CS_ID_PATTERN.test(value)) {
-        throw new Error("clawswarm_invalid_target_cs_id");
+        throw new ChannelError({ message: "ClawSwarm target CS ID is invalid", kind: "bad_request" });
     }
     return value;
 }
@@ -58,7 +60,10 @@ export function resolveClawSwarmTarget(to?: string): TargetResolution {
     if (!raw) {
         return {
             ok: false,
-            error: new Error("Delivering to ClawSwarm requires a target CS ID like CSA-0009 or CSU-0001."),
+            error: new ChannelError({
+                message: "Delivering to ClawSwarm requires a target CS ID like CSA-0009 or CSU-0001.",
+                kind: "bad_request",
+            }),
         };
     }
     try {

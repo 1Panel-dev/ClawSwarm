@@ -2,6 +2,7 @@
  * 这个文件负责消息状态记录。
  * 目前先用内存实现，目的是让联调和排障时能看清每条消息走到了哪一步。
  */
+import { ChannelError } from "../errors/channelError.js";
 import type { MessageStage, MessageStateRecord, RoutingMode } from "../../types.js";
 
 const ALLOWED_STAGE_TRANSITIONS: Record<MessageStage, MessageStage[]> = {
@@ -17,7 +18,10 @@ const ALLOWED_STAGE_TRANSITIONS: Record<MessageStage, MessageStage[]> = {
 export function assertMessageStageTransition(from: MessageStage, to: MessageStage): void {
     if (from === to) return;
     if (!ALLOWED_STAGE_TRANSITIONS[from].includes(to)) {
-        throw new Error(`invalid message state transition: ${from} -> ${to}`);
+        throw new ChannelError({
+            message: `Invalid message state transition: ${from} -> ${to}`,
+            kind: "internal",
+        });
     }
 }
 
@@ -51,7 +55,10 @@ export class InMemoryMessageStateStore implements MessageStateStore {
     ): MessageStateRecord {
         const current = this.records.get(messageId);
         if (!current) {
-            throw new Error(`message state not found: ${messageId}`);
+            throw new ChannelError({
+                message: `Message state not found: ${messageId}`,
+                kind: "internal",
+            });
         }
         assertMessageStageTransition(current.status, patch.status);
 

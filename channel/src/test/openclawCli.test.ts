@@ -45,7 +45,7 @@ describe("runOpenClawCli", () => {
         });
 
         await expect(runOpenClawCli(["agents", "add", "demo", "--json"])).rejects.toThrow(
-            /openclaw_runtime_command_failed/,
+            "OpenClaw runtime command failed",
         );
     });
 });

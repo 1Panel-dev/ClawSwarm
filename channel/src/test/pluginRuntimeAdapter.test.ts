@@ -91,7 +91,7 @@ describe("createPluginRuntimeAdapter", () => {
             })) {
                 // no-op
             }
-        }).rejects.toThrow("openclaw_plugin_runtime_unavailable");
+        }).rejects.toThrow("OpenClaw plugin runtime is unavailable");
     });
 
     it("keeps the explicitly selected direct route when using the official direct-DM helper", async () => {

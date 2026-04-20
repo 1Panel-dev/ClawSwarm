@@ -41,12 +41,12 @@ describe("message state transitions", () => {
         store.create(createRecord());
 
         expect(() => store.update("message-1", { status: "DISPATCHED" })).toThrow(
-            "invalid message state transition: RECEIVED -> DISPATCHED",
+            "Invalid message state transition: RECEIVED -> DISPATCHED",
         );
 
         store.update("message-1", { status: "FAILED", error: "bad payload" });
         expect(() => store.update("message-1", { status: "ROUTED" })).toThrow(
-            "invalid message state transition: FAILED -> ROUTED",
+            "Invalid message state transition: FAILED -> ROUTED",
         );
     });
 });

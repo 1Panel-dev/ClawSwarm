@@ -1,3 +1,4 @@
+import { ChannelError } from "../../core/errors/channelError.js";
 import type { OpenClawRunChunk } from "./runtimeTypes.js";
 import type { AgentTurnParams, RuntimeLike } from "./runtimeTypes.js";
 import {
@@ -102,7 +103,12 @@ export async function runViaOfficialDirectDmHelper(params: OfficialDirectDmHelpe
             });
         },
         onDispatchError: (err, info) => {
-            throw new Error(`${info.kind}:${err instanceof Error ? err.message : String(err)}`);
+            throw new ChannelError({
+                message: `OpenClaw official direct DM helper dispatch failed: ${info.kind}`,
+                kind: "upstream",
+                detail: err instanceof Error ? err.message : String(err),
+                cause: err,
+            });
         },
     });
 

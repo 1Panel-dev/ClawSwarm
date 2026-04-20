@@ -1,3 +1,4 @@
+import { ChannelError } from "../../core/errors/channelError.js";
 import type { OpenClawRunChunk, OpenClawRuntimeAdapter, RuntimeLike } from "./runtimeTypes.js";
 import { runViaManualPluginRuntime } from "./pluginRuntimeManual.js";
 import { runViaOfficialDirectDmHelper } from "./pluginRuntimeOfficial.js";
@@ -14,7 +15,13 @@ export function createPluginRuntimeAdapter(api: RuntimeLike): OpenClawRuntimeAda
                 api.logger?.warn?.("Plugin runtime transport unavailable", {
                     error: error instanceof Error ? error.message : String(error),
                 });
-                throw error instanceof Error ? error : new Error("openclaw_plugin_runtime_unavailable");
+                throw error instanceof Error
+                    ? error
+                    : new ChannelError({
+                          message: "OpenClaw plugin runtime is unavailable",
+                          kind: "internal",
+                          cause: error,
+                      });
             }
 
             const pendingChunks: OpenClawRunChunk[] = [];
@@ -49,7 +56,14 @@ export function createPluginRuntimeAdapter(api: RuntimeLike): OpenClawRuntimeAda
                 finished = true;
                 notifyReader();
             })().catch((error) => {
-                failure = error instanceof Error ? error : new Error(String(error));
+                failure =
+                    error instanceof Error
+                        ? error
+                        : new ChannelError({
+                              message: String(error),
+                              kind: "internal",
+                              cause: error,
+                          });
                 finished = true;
                 notifyReader();
             });

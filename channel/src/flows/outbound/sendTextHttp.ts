@@ -1,6 +1,7 @@
 import { request } from "undici";
 
 import type { AccountConfig } from "../../config.js";
+import { ChannelError } from "../../core/errors/channelError.js";
 
 type SendTextHttpPayload = {
     kind: string;
@@ -40,9 +41,12 @@ export async function postClawSwarmSendText(params: PostClawSwarmSendTextParams)
 
     const text = await response.body.text().catch(() => "");
     if (response.statusCode < 200 || response.statusCode >= 300) {
-        const error = new Error(`clawswarm_send_text_http_${response.statusCode}`);
-        (error as Error & { detail?: string }).detail = text.slice(0, 300);
-        throw error;
+        throw new ChannelError({
+            message: `ClawSwarm sendText API returned HTTP ${response.statusCode}`,
+            kind: response.statusCode === 401 || response.statusCode === 403 ? "auth" : "upstream",
+            status: response.statusCode,
+            detail: text.slice(0, 300),
+        });
     }
 
     let body: unknown = {};

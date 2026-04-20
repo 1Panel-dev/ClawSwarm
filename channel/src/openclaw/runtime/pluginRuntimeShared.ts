@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 
+import { ChannelError } from "../../core/errors/channelError.js";
 import type { AgentTurnParams, RuntimeLike } from "./runtimeTypes.js";
 
 // 官方 direct-dm helper 所需的最小模块形状。
@@ -197,7 +198,10 @@ export function resolvePluginRuntime(api: RuntimeLike) {
         typeof session?.resolveStorePath !== "function" ||
         typeof session?.recordInboundSession !== "function"
     ) {
-        throw new Error("openclaw_plugin_runtime_unavailable");
+        throw new ChannelError({
+            message: "OpenClaw plugin runtime is unavailable",
+            kind: "internal",
+        });
     }
 
     return {

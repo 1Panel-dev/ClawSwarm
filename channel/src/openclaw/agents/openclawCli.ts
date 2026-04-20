@@ -1,3 +1,5 @@
+import { ChannelError } from "../../core/errors/channelError.js";
+
 type JsonRecord = Record<string, unknown>;
 type RuntimeSystemResult =
     | string
@@ -37,9 +39,10 @@ function ensureRuntimeCommandSucceeded(result: RuntimeSystemResult, command: str
         return;
     }
 
-    throw new Error(
-        JSON.stringify({
-            error: "openclaw_runtime_command_failed",
+    throw new ChannelError({
+        message: "OpenClaw runtime command failed",
+        kind: result.termination === "timeout" || result.noOutputTimedOut === true ? "timeout" : "upstream",
+        detail: JSON.stringify({
             command,
             args,
             code: result.code ?? null,
@@ -50,7 +53,7 @@ function ensureRuntimeCommandSucceeded(result: RuntimeSystemResult, command: str
             stderr: result.stderr ?? "",
             stdout: result.stdout ?? result.output ?? "",
         }),
-    );
+    });
 }
 
 export function configureOpenClawCliRuntime(system?: RuntimeSystemLike) {
@@ -80,7 +83,10 @@ export async function runOpenClawCli(args: string[]): Promise<string> {
             throw error;
         }
     }
-    throw new Error("openclaw_runtime_helper_unavailable");
+    throw new ChannelError({
+        message: "OpenClaw runtime helper is unavailable",
+        kind: "internal",
+    });
 }
 
 // CLI --json 输出前后偶尔会混进日志，这里从原始文本里尽量提取首个对象。

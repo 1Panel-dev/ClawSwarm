@@ -147,7 +147,7 @@ describe("createOpenClawRuntimeAdapter", () => {
             })) {
                 // no-op
             }
-        }).rejects.toThrow("openclaw_plugin_runtime_unavailable");
+        }).rejects.toThrow("OpenClaw plugin runtime is unavailable");
     });
 
     it("uses chat_completions in auto mode when host config enables gateway.http.endpoints.chatCompletions.enabled", async () => {

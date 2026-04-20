@@ -2,6 +2,8 @@
  * 这里集中定义 sendText 的结构化协议。
  * 只负责“消息长什么样”，不负责目标识别和 HTTP 调用。
  */
+import { ChannelError } from "../../core/errors/channelError.js";
+
 export const AGENT_DIALOGUE_START_KIND = "agent_dialogue.start" as const;
 
 export type AgentDialogueStartPayload = {
@@ -19,11 +21,11 @@ function parseJsonObject(text: string): Record<string, unknown> {
     try {
         parsed = JSON.parse(text);
     } catch {
-        throw new Error("clawswarm_send_text_invalid_json");
+        throw new ChannelError({ message: "ClawSwarm sendText payload is not valid JSON", kind: "bad_request" });
     }
 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("clawswarm_send_text_invalid_payload");
+        throw new ChannelError({ message: "ClawSwarm sendText payload must be a JSON object", kind: "bad_request" });
     }
 
     return parsed as Record<string, unknown>;
@@ -32,7 +34,7 @@ function parseJsonObject(text: string): Record<string, unknown> {
 export function parseAgentDialogueStartPayload(text: string): AgentDialogueStartPayload {
     const record = parseJsonObject(text);
     if (String(record.kind ?? "").trim() !== AGENT_DIALOGUE_START_KIND) {
-        throw new Error("clawswarm_send_text_unsupported_kind");
+        throw new ChannelError({ message: "ClawSwarm sendText payload kind is unsupported", kind: "bad_request" });
     }
 
     const sourceCsId = String(record.sourceCsId ?? "").trim().toUpperCase();
@@ -43,13 +45,13 @@ export function parseAgentDialogueStartPayload(text: string): AgentDialogueStart
     const hardMessageLimit = typeof record.hardMessageLimit === "number" ? record.hardMessageLimit : undefined;
 
     if (!/^CSA-\d{4,}$/.test(sourceCsId)) {
-        throw new Error("clawswarm_send_text_invalid_source_cs_id");
+        throw new ChannelError({ message: "ClawSwarm sendText source CS ID is invalid", kind: "bad_request" });
     }
     if (!topic) {
-        throw new Error("clawswarm_send_text_missing_topic");
+        throw new ChannelError({ message: "ClawSwarm sendText topic is required", kind: "bad_request" });
     }
     if (!message) {
-        throw new Error("clawswarm_send_text_missing_message");
+        throw new ChannelError({ message: "ClawSwarm sendText message is required", kind: "bad_request" });
     }
 
     return {

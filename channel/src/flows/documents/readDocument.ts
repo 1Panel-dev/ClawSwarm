@@ -1,6 +1,7 @@
 import { request } from "undici";
 
 import type { AccountConfig } from "../../config.js";
+import { ChannelError } from "../../core/errors/channelError.js";
 
 interface AgentReadableDocument {
     content?: unknown;
@@ -16,12 +17,12 @@ export function buildClawSwarmDocumentApiPath(uri: string): string {
     try {
         parsed = new URL(uri);
     } catch {
-        throw new Error("invalid_clawswarm_document_uri");
+        throw new ChannelError({ message: "Invalid ClawSwarm document URI", kind: "bad_request" });
     }
 
     const segments = [parsed.hostname, ...parsed.pathname.split("/").filter(Boolean)];
     if (parsed.protocol !== "clawswarm:" || segments.length < 3 || !segments.includes("documents")) {
-        throw new Error("invalid_clawswarm_document_uri");
+        throw new ChannelError({ message: "Invalid ClawSwarm document URI", kind: "bad_request" });
     }
 
     return `/api/v1/clawswarm/${segments.map(encodeURIComponent).join("/")}`;
@@ -40,16 +41,23 @@ export async function readDocumentMarkdown(params: DocumentReadParams): Promise<
 
     const text = await response.body.text().catch(() => "");
     if (response.statusCode < 200 || response.statusCode >= 300) {
-        const error = new Error(`clawswarm_document_http_${response.statusCode}`);
-        (error as Error & { detail?: string }).detail = text.slice(0, 300);
-        throw error;
+        throw new ChannelError({
+            message: `ClawSwarm document API returned HTTP ${response.statusCode}`,
+            kind: response.statusCode === 401 || response.statusCode === 403 ? "auth" : "upstream",
+            status: response.statusCode,
+            detail: text.slice(0, 300),
+        });
     }
 
     let body: AgentReadableDocument = {};
     try {
         body = text ? JSON.parse(text) : {};
     } catch {
-        throw new Error("clawswarm_document_invalid_json");
+        throw new ChannelError({
+            message: "ClawSwarm document API returned invalid JSON",
+            kind: "upstream",
+            detail: text.slice(0, 300),
+        });
     }
 
     return typeof body.content === "string" ? body.content : "";

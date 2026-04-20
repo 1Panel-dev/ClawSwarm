@@ -1,5 +1,6 @@
 import type { Logger } from "../../logging/logger.js";
 import { CHANNEL_ID, type AccountConfig } from "../../config.js";
+import { ChannelError, getErrorDetail } from "../../core/errors/channelError.js";
 import { AGENT_DIALOGUE_START_KIND, parseAgentDialogueStartPayload } from "./sendTextContract.js";
 import { postClawSwarmSendText } from "./sendTextHttp.js";
 import { normalizeTargetCsId } from "./sendTextTarget.js";
@@ -39,7 +40,7 @@ export async function sendClawSwarmText(params: SendClawSwarmTextParams): Promis
             },
             "ClawSwarm sendText received an invalid CS target",
         );
-        throw new Error("clawswarm_invalid_target_cs_id");
+        throw new ChannelError({ message: "ClawSwarm target CS ID is invalid", kind: "bad_request" });
     }
 
     const payload = parseAgentDialogueStartPayload(params.ctx.text);
@@ -70,15 +71,11 @@ export async function sendClawSwarmText(params: SendClawSwarmTextParams): Promis
             },
         };
     } catch (error) {
-        const detail =
-            error instanceof Error && "detail" in error && typeof error.detail === "string"
-                ? error.detail
-                : undefined;
         params.logger.warn(
             {
                 targetCsId,
                 sourceCsId: payload.sourceCsId,
-                body: detail,
+                body: getErrorDetail(error),
                 error: error instanceof Error ? error.message : String(error),
             },
             "ClawSwarm sendText request failed",

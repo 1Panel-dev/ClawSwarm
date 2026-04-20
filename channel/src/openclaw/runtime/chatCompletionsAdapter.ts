@@ -1,3 +1,4 @@
+import { ChannelError } from "../../core/errors/channelError.js";
 import type { AgentTurnParams, OpenClawRunChunk, OpenClawRuntimeAdapter, RuntimeLike } from "./runtimeTypes.js";
 import {
     buildGatewayHeaders,
@@ -30,13 +31,21 @@ export function createChatCompletionsRuntimeAdapter(api: RuntimeLike): OpenClawR
                     status: response.status,
                     body: errorText.slice(0, 500),
                 });
-                throw new Error(`openclaw_gateway_http_${response.status}`);
+                throw new ChannelError({
+                    message: `OpenClaw gateway returned HTTP ${response.status}`,
+                    kind: response.status === 401 || response.status === 403 ? "auth" : "upstream",
+                    status: response.status,
+                    detail: errorText.slice(0, 500),
+                });
             }
 
             const contentType = response.headers.get("content-type") ?? "";
             if (contentType.includes("text/event-stream")) {
                 if (!response.body) {
-                    throw new Error("OpenClaw gateway returned an empty SSE body");
+                    throw new ChannelError({
+                        message: "OpenClaw gateway returned an empty SSE body",
+                        kind: "upstream",
+                    });
                 }
 
                 // SSE 场景会先产出增量 chunk，最后再补一个聚合 final，
@@ -58,7 +67,10 @@ export function createChatCompletionsRuntimeAdapter(api: RuntimeLike): OpenClawR
             const result = await response.json();
             const text = extractText(result);
             if (!text) {
-                throw new Error("OpenClaw gateway returned no readable text payload");
+                throw new ChannelError({
+                    message: "OpenClaw gateway returned no readable text payload",
+                    kind: "upstream",
+                });
             }
 
             yield { text, isFinal: true };

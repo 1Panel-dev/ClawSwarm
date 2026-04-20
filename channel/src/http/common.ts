@@ -3,6 +3,8 @@
  * 只保留和请求体读取、JSON 响应相关的基础能力。
  */
 
+import { ChannelError } from "../core/errors/channelError.js";
+
 export type HttpHeaderValue = string | string[] | undefined;
 
 export type HttpHeaders = Record<string, HttpHeaderValue>;
@@ -38,7 +40,9 @@ export async function readRawBody(req: HttpRequest, maxBytes: number): Promise<U
         const buf = Buffer.isBuffer(c) ? c : Buffer.from(c);
         total += buf.length;
         // 超过限制就立刻中断，避免继续吃内存。
-        if (total > maxBytes) throw new Error("body_too_large");
+        if (total > maxBytes) {
+            throw new ChannelError({ message: "HTTP request body is too large", kind: "bad_request" });
+        }
         chunks.push(buf);
     }
 

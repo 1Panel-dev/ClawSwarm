@@ -45,8 +45,8 @@ describe("clawswarm document links", () => {
             "/api/v1/clawswarm/tasks/task-1/documents/doc-1",
         );
 
-        expect(() => buildClawSwarmDocumentApiPath("https://example.com/doc")).toThrow("invalid_clawswarm_document_uri");
-        expect(() => buildClawSwarmDocumentApiPath("clawswarm://projects/only-project")).toThrow("invalid_clawswarm_document_uri");
+        expect(() => buildClawSwarmDocumentApiPath("https://example.com/doc")).toThrow("Invalid ClawSwarm document URI");
+        expect(() => buildClawSwarmDocumentApiPath("clawswarm://projects/only-project")).toThrow("Invalid ClawSwarm document URI");
     });
 
     it("reads markdown content with the account outbound token", async () => {
