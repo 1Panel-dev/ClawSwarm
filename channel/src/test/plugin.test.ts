@@ -6,6 +6,7 @@ describe("plugin registerChannel config schema", () => {
     it("registers channel root schema under channels.<id> with wildcard uiHints", () => {
         const registerChannel = vi.fn();
         const registerHttpRoute = vi.fn();
+        const registerTool = vi.fn();
 
         plugin.register({
             config: {},
@@ -17,9 +18,15 @@ describe("plugin registerChannel config schema", () => {
             runtime: {},
             registerChannel,
             registerHttpRoute,
+            registerTool,
         } as any);
 
         expect(registerChannel).toHaveBeenCalledTimes(1);
+        expect(registerTool).toHaveBeenCalledWith(
+            expect.objectContaining({
+                name: "clawswarm_read_document",
+            }),
+        );
         const registration = registerChannel.mock.calls[0][0];
         expect(registration.plugin.configSchema.schema.properties.accounts).toBeDefined();
         expect(registration.plugin.configSchema.schema.properties.baseUrl).toBeUndefined();

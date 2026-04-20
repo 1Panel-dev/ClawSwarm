@@ -7,7 +7,6 @@ import type { OpenClawRuntimeAdapter } from "../openclaw/runtime/adapters.js";
 import { handleAdminAgentRoutes } from "./adminAgents.js";
 import { handleCatalogRoutes } from "./catalog.js";
 import { handleInboundRoute } from "./inbound.js";
-import { handleDocumentRoutes } from "./documentRoutes.js";
 import type { HttpRequest, HttpResponse } from "./common.js";
 
 export interface ClawSwarmRoutesParams {
@@ -51,18 +50,6 @@ export function createClawSwarmRoutes(params: ClawSwarmRoutesParams) {
                 getAccount,
                 idempotency,
                 loadHostConfig,
-            })
-        ) {
-            return true;
-        }
-
-        if (
-            await handleDocumentRoutes({
-                pathname,
-                method,
-                searchParams: url.searchParams,
-                res,
-                getAccount,
             })
         ) {
             return true;

@@ -17,6 +17,7 @@ import {
     resolveClawSwarmTarget,
     sendClawSwarmText,
 } from "../flows/outbound/sendText.js";
+import { createClawSwarmReadDocumentTool } from "../openclaw/tools/readDocumentTool.js";
 import { createPluginRuntimeServices, describeRuntimeShape, type PluginRuntimeServices } from "./runtime.js";
 
 interface CreateMessagingConfigParams {
@@ -155,6 +156,12 @@ function createChannelPlugin(api: OpenClawPluginApi) {
             outbound: createOutboundConfig({ api, logger }),
         },
     });
+
+    api.registerTool(
+        createClawSwarmReadDocumentTool({
+            resolveAccount: (accountId?: string) => resolveAccount(api.config, accountId),
+        }),
+    );
 
     // 所有入站 HTTP 接口都统一挂在 /clawswarm/v1/ 前缀下。
     api.registerHttpRoute({

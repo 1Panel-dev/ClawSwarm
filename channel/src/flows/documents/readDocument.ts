@@ -7,7 +7,7 @@ interface AgentReadableDocument {
     content?: unknown;
 }
 
-export interface DocumentReadParams {
+export interface ReadDocumentContentParams {
     account: AccountConfig;
     uri: string;
 }
@@ -28,7 +28,7 @@ export function buildClawSwarmDocumentApiPath(uri: string): string {
     return `/api/v1/clawswarm/${segments.map(encodeURIComponent).join("/")}`;
 }
 
-export async function readDocumentMarkdown(params: DocumentReadParams): Promise<string> {
+export async function readDocumentContent(params: ReadDocumentContentParams): Promise<string> {
     const url = new URL(buildClawSwarmDocumentApiPath(params.uri), params.account.baseUrl).toString();
     const response = await request(url, {
         method: "GET",

@@ -55,10 +55,3 @@ export function sendJson(res: HttpResponse, status: number, obj: unknown) {
     res.setHeader("content-type", "application/json; charset=utf-8");
     res.end(JSON.stringify(obj));
 }
-
-// 返回 Markdown 文本给 Agent，避免它再从 JSON 里二次提取正文。
-export function sendMarkdown(res: HttpResponse, status: number, content: string) {
-    res.statusCode = status;
-    res.setHeader("content-type", "text/markdown; charset=utf-8");
-    res.end(content);
-}

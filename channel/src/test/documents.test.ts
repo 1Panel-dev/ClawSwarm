@@ -7,8 +7,8 @@ vi.mock("undici", () => ({
 import { request } from "undici";
 
 import { AccountConfigSchema } from "../config.js";
-import { buildClawSwarmDocumentApiPath, readDocumentMarkdown } from "../flows/documents/readDocument.js";
-import { handleDocumentRoutes } from "../http/documentRoutes.js";
+import { buildClawSwarmDocumentApiPath, readDocumentContent } from "../flows/documents/readDocument.js";
+import { createClawSwarmReadDocumentTool } from "../openclaw/tools/readDocumentTool.js";
 
 const requestMock = vi.mocked(request);
 
@@ -17,20 +17,6 @@ const account = AccountConfigSchema.parse({
     outboundToken: "outbound-token",
     inboundSigningSecret: "1234567890123456",
 });
-
-function createResponseRecorder() {
-    return {
-        statusCode: 0,
-        headers: {} as Record<string, string>,
-        body: "",
-        setHeader(name: string, value: string) {
-            this.headers[name.toLowerCase()] = value;
-        },
-        end(value: string) {
-            this.body = value;
-        },
-    };
-}
 
 describe("clawswarm document links", () => {
     it("converts clawswarm document URIs to backend API paths", () => {
@@ -66,7 +52,7 @@ describe("clawswarm document links", () => {
         } as never);
 
         await expect(
-            readDocumentMarkdown({
+            readDocumentContent({
                 account,
                 uri: "clawswarm://projects/project-1/documents/doc-1",
             }),
@@ -83,7 +69,7 @@ describe("clawswarm document links", () => {
         );
     });
 
-    it("returns markdown from the generic document HTTP resolver", async () => {
+    it("reads documents through the OpenClaw tool", async () => {
         requestMock.mockResolvedValueOnce({
             statusCode: 200,
             body: {
@@ -99,20 +85,18 @@ describe("clawswarm document links", () => {
             },
         } as never);
 
-        const res = createResponseRecorder();
-        const handled = await handleDocumentRoutes({
-            pathname: "/clawswarm/v1/documents/read",
-            method: "GET",
-            searchParams: new URLSearchParams({
-                uri: "clawswarm://projects/project-1/documents/doc-1",
-            }),
-            res,
-            getAccount: () => ({ ...account, accountId: "default" }),
+        const tool = createClawSwarmReadDocumentTool({
+            resolveAccount: () => account,
+        });
+        const result = await tool.execute("tool-call-1", {
+            uri: "clawswarm://projects/project-1/documents/doc-1",
         });
 
-        expect(handled).toBe(true);
-        expect(res.statusCode).toBe(200);
-        expect(res.headers["content-type"]).toBe("text/markdown; charset=utf-8");
-        expect(res.body).toBe("# 需求\n\n- A");
+        expect(result).toEqual({
+            content: [{ type: "text", text: "# 需求\n\n- A" }],
+            details: {
+                uri: "clawswarm://projects/project-1/documents/doc-1",
+            },
+        });
     });
 });
