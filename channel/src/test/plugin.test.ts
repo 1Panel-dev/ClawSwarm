@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 import plugin from "../index.js";
 
@@ -34,5 +36,15 @@ describe("plugin registerChannel config schema", () => {
             sensitive: true,
             label: "Outbound Token",
         });
+    });
+});
+
+describe("openclaw.plugin.json channel config metadata", () => {
+    it("publishes channelConfigs for OpenClaw 2026.4.11 config pages", () => {
+        const manifestPath = fileURLToPath(new URL("../../openclaw.plugin.json", import.meta.url));
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+
+        expect(manifest.channelConfigs.clawswarm.schema).toEqual(manifest.configSchema);
+        expect(manifest.channelConfigs.clawswarm.uiHints).toEqual(manifest.uiHints);
     });
 });
