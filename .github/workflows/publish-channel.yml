@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_latest_release:
-        description: "确认发布正式版 latest（未勾选将阻止 main 分支发布）"
+        description: "确认发布正式版 latest（未勾选将阻止 channel 分支发布）"
         required: false
         type: boolean
         default: false
@@ -60,20 +60,20 @@ jobs:
             exit 0
           fi
 
-          if [[ "${BRANCH_NAME}" == "main" ]]; then
+          if [[ "${BRANCH_NAME}" == "channel" ]]; then
             if [[ "${PACKAGE_VERSION}" == *"-beta"* ]]; then
-              echo "main branch cannot publish a beta version"
+              echo "channel branch cannot publish a beta version"
               exit 1
             fi
             if [[ "${CONFIRM_LATEST_RELEASE}" != "true" ]]; then
-              echo "main branch publish requires confirm_latest_release=true"
+              echo "channel branch publish requires confirm_latest_release=true"
               exit 1
             fi
             echo "npm_dist_tag=latest" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          echo "Only beta and main branches are allowed for publish"
+          echo "Only beta and channel branches are allowed for publish"
           exit 1
 
       - name: Install dependencies

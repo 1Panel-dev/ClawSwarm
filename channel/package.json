@@ -4,7 +4,7 @@
   "type": "module",
   "description": "OpenClaw ClawSwarm channel plugin.",
   "license": "GPL-3.0 license",
-  "homepage": "https://github.com/1Panel-dev/clawswarm/tree/main/channel",
+  "homepage": "https://github.com/1Panel-dev/clawswarm/tree/channel/channel",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/1Panel-dev/clawswarm.git",
