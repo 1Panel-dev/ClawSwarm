@@ -9,7 +9,9 @@ import {
     channelAccountConfigSchema,
     channelConfigSchema,
     channelConfigUiHints,
+    listAccountIds,
     pluginConfigSchema,
+    resolveAccount,
     resolveGatewayRuntimeConfig,
 } from "../config.js";
 
@@ -149,6 +151,40 @@ describe("config manifest schemas", () => {
         expect(channelConfigUiHints["accounts.*.gateway.token"]).toEqual({
             sensitive: true,
             label: "Gateway Token",
+        });
+    });
+});
+
+describe("host channel config helpers", () => {
+    it("reads accounts from the clawswarm channel section only", () => {
+        const cfg = {
+            channels: {
+                clawswarm: {
+                    accounts: {
+                        default: {
+                            baseUrl: "https://clawswarm.example.com",
+                            outboundToken: "outbound-token",
+                            inboundSigningSecret: "1234567890123456",
+                        },
+                        oc1: {
+                            baseUrl: "https://oc1.example.com",
+                            outboundToken: "outbound-token-1",
+                            inboundSigningSecret: "1234567890123456",
+                        },
+                    },
+                },
+                other: {
+                    accounts: {
+                        ignored: {},
+                    },
+                },
+            },
+        };
+
+        expect(listAccountIds(cfg)).toEqual(["default", "oc1"]);
+        expect(resolveAccount(cfg, "oc1")).toMatchObject({
+            accountId: "oc1",
+            baseUrl: "https://oc1.example.com",
         });
     });
 });

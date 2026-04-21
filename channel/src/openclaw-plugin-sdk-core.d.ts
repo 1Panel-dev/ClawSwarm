@@ -95,6 +95,7 @@ declare module "openclaw/plugin-sdk/core" {
 
         // registerChannel/registerHttpRoute 是当前插件最关键的两个宿主扩展点。
         registerChannel: (args: { plugin: ChannelPlugin<any> }) => void;
+        registerTool: (tool: any, opts?: any) => void;
         registerHook?: (
             event: string,
             handler: (event: any) => Promise<any> | any,

@@ -7,12 +7,12 @@
 import { describe, expect, it } from "vitest";
 
 import { AccountConfigSchema, resolveGatewayRuntimeConfig } from "../config.js";
-import { dispatchDirect } from "../dispatcher/dispatchDirect.js";
-import { createMockOpenClawRuntimeAdapter, createOpenClawRuntimeAdapter } from "../openclaw/adapters.js";
-import { createLogger } from "../observability/logger.js";
-import { InMemoryMessageStateStore } from "../store/messageState.js";
-import { createIdempotencyStore } from "../store/idempotency.js";
-import type { ClawSwarmEvent } from "../callback/client.js";
+import { dispatchDirect } from "../flows/dispatch/dispatchDirect.js";
+import { createMockOpenClawRuntimeAdapter, createOpenClawRuntimeAdapter } from "../openclaw/runtime/adapters.js";
+import { createLogger } from "../logging/logger.js";
+import { InMemoryMessageStateStore } from "../core/message/messageState.js";
+import { createIdempotencyStore } from "../storage/idempotency.js";
+import type { ClawSwarmEvent } from "../flows/callback/client.js";
 
 const gateway = resolveGatewayRuntimeConfig(
     AccountConfigSchema.parse({
@@ -147,7 +147,7 @@ describe("createOpenClawRuntimeAdapter", () => {
             })) {
                 // no-op
             }
-        }).rejects.toThrow("openclaw_plugin_runtime_unavailable");
+        }).rejects.toThrow("OpenClaw plugin runtime is unavailable");
     });
 
     it("uses chat_completions in auto mode when host config enables gateway.http.endpoints.chatCompletions.enabled", async () => {

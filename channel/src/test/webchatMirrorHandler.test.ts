@@ -4,11 +4,11 @@ import {
     findAssistantReplyForTranscriptUser,
     findMirrorableMessagesForTranscriptUser,
     registerWebchatTranscriptMirror,
-} from "../openclaw/webchatMirror.js";
+} from "../openclaw/webchat/webchatMirror.js";
 import {
     clearAllLocalOriginSessionsForTest,
     markLocalOriginSession,
-} from "../openclaw/mirrorOriginRegistry.js";
+} from "../openclaw/webchat/mirrorOriginRegistry.js";
 
 function createApiMock(accountOverride?: Record<string, unknown>) {
     const handlers = new Map<string, (event: any, ctx?: any) => Promise<any> | any>();

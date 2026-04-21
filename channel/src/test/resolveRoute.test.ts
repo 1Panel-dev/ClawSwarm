@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { AccountConfigSchema } from "../config.js";
-import { resolveRoute } from "../router/resolveRoute.js";
+import { resolveRoute } from "../core/routing/resolveRoute.js";
 
 // 用一份最小但完整的配置，避免每个测试重复写 schema 默认值。
 const account = AccountConfigSchema.parse({

@@ -1,5 +1,4 @@
 import type {
-    DocumentTemplateResponse,
     ProjectDetailResponse,
     ProjectDocumentResponse,
     ProjectMemberResponse,
@@ -34,8 +33,6 @@ export type ProjectOutput = Camelized<ProjectResponse>;
 
 export type ProjectDetailOutput = Camelized<ProjectDetailResponse>;
 
-export type DocumentTemplateOutput = Camelized<DocumentTemplateResponse>;
-
 export interface ProjectCreateInput {
     name: string;
     description: string;
@@ -49,7 +46,6 @@ export interface ProjectDocumentCreateInput {
     name?: string;
     category?: string;
     content?: string;
-    templateId?: string;
 }
 
 export interface ProjectDocumentUpdateInput {
@@ -57,12 +53,3 @@ export interface ProjectDocumentUpdateInput {
     category: string;
     content: string;
 }
-
-export interface DocumentTemplateCreateInput {
-    name: string;
-    description: string;
-    category: string;
-    content: string;
-}
-
-export interface DocumentTemplateUpdateInput extends DocumentTemplateCreateInput {}

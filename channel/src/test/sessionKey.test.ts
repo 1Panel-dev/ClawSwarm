@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { buildSessionKey } from "../router/sessionKey.js";
+import { buildSessionKey } from "../core/routing/sessionKey.js";
 
 describe("buildSessionKey", () => {
     it("builds direct session keys in openclaw-native form", () => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { configureOpenClawCliRuntime, runOpenClawCli } from "../openclaw/openclawCli.js";
+import { configureOpenClawCliRuntime, runOpenClawCli } from "../openclaw/agents/openclawCli.js";
 
 describe("runOpenClawCli", () => {
     beforeEach(() => {
@@ -45,7 +45,7 @@ describe("runOpenClawCli", () => {
         });
 
         await expect(runOpenClawCli(["agents", "add", "demo", "--json"])).rejects.toThrow(
-            /openclaw_runtime_command_failed/,
+            "OpenClaw runtime command failed",
         );
     });
 });

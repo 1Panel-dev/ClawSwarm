@@ -6,7 +6,7 @@ export interface SelectableProjectMember {
   name?: string;
   csId: string;
   openclaw: string;
-  role?: string;
+  role: string;
 }
 
 export function toSelectableProjectMember(item: AddressBookAgentOutput, openclaw: string): SelectableProjectMember {
@@ -15,7 +15,7 @@ export function toSelectableProjectMember(item: AddressBookAgentOutput, openclaw
     agentKey: item.agentKey,
     name: item.displayName ?? undefined,
     csId: item.csId,
-    role: item.roleName ?? undefined,
+    role: item.roleName ?? "",
     openclaw,
   };
 }

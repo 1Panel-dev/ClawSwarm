@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { buildCanonicalString, hmacSha256Hex, sha256Hex } from "../security/signature.js";
+import { buildCanonicalString, hmacSha256Hex, parseSignatureHeaders, sha256Hex } from "../http/signature.js";
 
 describe("signature helpers", () => {
     it("builds canonical strings consistently", () => {
@@ -18,5 +18,23 @@ describe("signature helpers", () => {
 
         expect(canonical).toContain("/clawswarm/v1/inbound");
         expect(hmacSha256Hex("secret-1234567890", canonical)).toHaveLength(64);
+    });
+
+    it("parses signature headers regardless of header name casing", () => {
+        expect(
+            parseSignatureHeaders({
+                headers: {
+                    "X-OC-AccountId": "main",
+                    "X-OC-Timestamp": "1000",
+                    "X-OC-Nonce": "nonce-1",
+                    "X-OC-Signature": `v1=${"a".repeat(64)}`,
+                },
+            }),
+        ).toEqual({
+            accountId: "main",
+            timestampMs: 1000,
+            nonce: "nonce-1",
+            signatureHex: "a".repeat(64),
+        });
     });
 });

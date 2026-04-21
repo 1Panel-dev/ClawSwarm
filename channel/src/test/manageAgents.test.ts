@@ -4,8 +4,8 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getRealOpenClawAgentProfile, updateRealOpenClawAgent } from "../openclaw/manageAgents.js";
-import { configureOpenClawCliRuntime } from "../openclaw/openclawCli.js";
+import { getRealOpenClawAgentProfile, updateRealOpenClawAgent } from "../openclaw/agents/manageAgents.js";
+import { configureOpenClawCliRuntime } from "../openclaw/agents/openclawCli.js";
 
 describe("updateRealOpenClawAgent", () => {
     let workspaceDir: string;

@@ -2,6 +2,7 @@ export interface ProjectMemberResponse {
     agent_key: string;
     cs_id: string;
     openclaw: string;
+    role: string;
 }
 
 export interface ProjectDocumentResponse {
@@ -28,17 +29,6 @@ export interface ProjectResponse {
 
 export interface ProjectDetailResponse extends ProjectResponse {
     documents: ProjectDocumentResponse[];
-}
-
-export interface DocumentTemplateResponse {
-    id: string;
-    name: string;
-    description: string;
-    category: string;
-    content: string;
-    is_builtin: boolean;
-    created_at: string;
-    updated_at: string;
 }
 
 export interface AgentReadableProjectDocumentResponse {

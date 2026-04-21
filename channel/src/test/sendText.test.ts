@@ -22,7 +22,7 @@ import {
     resolveClawSwarmMessagingTarget,
     resolveClawSwarmTarget,
     sendClawSwarmText,
-} from "../outbound/sendText.js";
+} from "../flows/outbound/sendText.js";
 
 const requestMock = vi.mocked(request);
 

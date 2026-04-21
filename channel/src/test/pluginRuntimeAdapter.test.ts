@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { AccountConfigSchema, resolveGatewayRuntimeConfig } from "../config.js";
-import { createPluginRuntimeAdapter } from "../openclaw/pluginRuntimeAdapter.js";
+import { createPluginRuntimeAdapter } from "../openclaw/runtime/pluginRuntimeAdapter.js";
 
 const dispatchInboundDirectDmWithRuntimeMock = vi.fn();
 
@@ -91,7 +91,7 @@ describe("createPluginRuntimeAdapter", () => {
             })) {
                 // no-op
             }
-        }).rejects.toThrow("openclaw_plugin_runtime_unavailable");
+        }).rejects.toThrow("OpenClaw plugin runtime is unavailable");
     });
 
     it("keeps the explicitly selected direct route when using the official direct-DM helper", async () => {

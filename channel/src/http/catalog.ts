@@ -1,15 +1,17 @@
 import type { AccountConfig } from "../config.js";
 import type { GroupDescriptor } from "../types.js";
 import { discoverAgents } from "../config.js";
-import { sendJson } from "./common.js";
+import { sendJson, type HttpResponse } from "./common.js";
 
-export async function handleCatalogRoutes(params: {
+export interface CatalogRouteParams {
     pathname: string;
     method: string;
-    res: any;
+    res: HttpResponse;
     channelId: string;
     getAccount: (accountId?: string) => AccountConfig & { accountId: string };
-}): Promise<boolean> {
+}
+
+export async function handleCatalogRoutes(params: CatalogRouteParams): Promise<boolean> {
     const { pathname, method, res, channelId, getAccount } = params;
 
     // 健康检查接口，主要给运维和联调使用。

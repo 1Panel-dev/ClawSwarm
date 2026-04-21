@@ -117,3 +117,19 @@ Why it is bad:
 - topic is vague
 - message is vague
 - expected output is unclear
+
+## Example 5: Read a ClawSwarm Document
+
+Document URI:
+
+```text
+clawswarm://projects/d7e341a3-30de-40be-9545-f39cc1bddca8/documents/c9dc2a9c-19ea-41d2-a35e-b94871301190
+```
+
+Call `clawswarm_read_document` with:
+
+```json
+{
+  "uri": "clawswarm://projects/d7e341a3-30de-40be-9545-f39cc1bddca8/documents/c9dc2a9c-19ea-41d2-a35e-b94871301190"
+}
+```

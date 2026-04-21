@@ -1,24 +1,17 @@
 import { defineStore } from "pinia";
 
 import {
-    createDocumentTemplate as createDocumentTemplateRequest,
     createProject as createProjectRequest,
     createProjectDocument as createProjectDocumentRequest,
-    deleteDocumentTemplate as deleteDocumentTemplateRequest,
+    deleteProject as deleteProjectRequest,
     deleteProjectDocument as deleteProjectDocumentRequest,
-    fetchDocumentTemplate,
-    fetchDocumentTemplates,
     fetchProjectDetail,
     fetchProjectDocument,
     fetchProjects,
-    updateDocumentTemplate as updateDocumentTemplateRequest,
     updateProject as updateProjectRequest,
     updateProjectDocument as updateProjectDocumentRequest,
 } from "@/api/projects";
 import type {
-    DocumentTemplateCreateInput,
-    DocumentTemplateUpdateInput,
-    DocumentTemplateOutput,
     ProjectCreateInput,
     ProjectDetailOutput,
     ProjectDocumentCreateInput,
@@ -60,31 +53,16 @@ function replaceDocument(items: ProjectDocumentOutput[], nextItem: ProjectDocume
     });
 }
 
-function replaceTemplate(items: DocumentTemplateOutput[], nextItem: DocumentTemplateOutput): DocumentTemplateOutput[] {
-    const found = items.some((item) => item.id === nextItem.id);
-    const nextItems = found ? items.map((item) => (item.id === nextItem.id ? nextItem : item)) : [nextItem, ...items];
-    return nextItems.sort((a, b) => {
-        if (a.isBuiltin !== b.isBuiltin) {
-            return a.isBuiltin ? -1 : 1;
-        }
-        return a.updatedAt < b.updatedAt ? 1 : -1;
-    });
-}
-
 export const useProjectManagementStore = defineStore("projectManagement", {
     state: () => ({
         projects: [] as ProjectOutput[],
-        templates: [] as DocumentTemplateOutput[],
         activeProject: null as ProjectDetailOutput | null,
         activeDocumentId: null as string | null,
         loadingProjects: false,
         loadingProjectDetail: false,
-        loadingTemplates: false,
         submittingProject: false,
         submittingDocument: false,
-        submittingTemplate: false,
         projectsError: "",
-        templatesError: "",
     }),
     getters: {
         activeDocument(state): ProjectDocumentOutput | null {
@@ -148,6 +126,19 @@ export const useProjectManagementStore = defineStore("projectManagement", {
                 this.submittingProject = false;
             }
         },
+        async deleteProject(projectId: string) {
+            this.submittingProject = true;
+            try {
+                await deleteProjectRequest(projectId);
+                this.projects = this.projects.filter((item) => item.id !== projectId);
+                if (this.activeProject?.id === projectId) {
+                    this.activeProject = null;
+                    this.activeDocumentId = null;
+                }
+            } finally {
+                this.submittingProject = false;
+            }
+        },
         async createDocument(projectId: string, payload: ProjectDocumentCreateInput) {
             this.submittingDocument = true;
             try {
@@ -185,49 +176,6 @@ export const useProjectManagementStore = defineStore("projectManagement", {
                 }
             } finally {
                 this.submittingDocument = false;
-            }
-        },
-        async loadTemplates() {
-            this.loadingTemplates = true;
-            this.templatesError = "";
-            try {
-                this.templates = await fetchDocumentTemplates();
-            } catch (error) {
-                this.templatesError = error instanceof Error ? error.message : String(error);
-            } finally {
-                this.loadingTemplates = false;
-            }
-        },
-        async loadTemplate(templateId: string) {
-            return await fetchDocumentTemplate(templateId);
-        },
-        async createTemplate(payload: DocumentTemplateCreateInput) {
-            this.submittingTemplate = true;
-            try {
-                const item = await createDocumentTemplateRequest(payload);
-                this.templates = replaceTemplate(this.templates, item);
-                return item;
-            } finally {
-                this.submittingTemplate = false;
-            }
-        },
-        async updateTemplate(templateId: string, payload: DocumentTemplateUpdateInput) {
-            this.submittingTemplate = true;
-            try {
-                const item = await updateDocumentTemplateRequest(templateId, payload);
-                this.templates = replaceTemplate(this.templates, item);
-                return item;
-            } finally {
-                this.submittingTemplate = false;
-            }
-        },
-        async deleteTemplate(templateId: string) {
-            this.submittingTemplate = true;
-            try {
-                await deleteDocumentTemplateRequest(templateId);
-                this.templates = this.templates.filter((item) => item.id !== templateId);
-            } finally {
-                this.submittingTemplate = false;
             }
         },
         selectDocument(documentId: string | null) {

@@ -6,7 +6,6 @@ from src.models.app_user import AppUser
 from src.models.chat_group import ChatGroup
 from src.models.chat_group_member import ChatGroupMember
 from src.models.conversation import Conversation
-from src.models.document_template import DocumentTemplate
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
@@ -23,7 +22,6 @@ __all__ = [
     "ChatGroup",
     "ChatGroupMember",
     "Conversation",
-    "DocumentTemplate",
     "Message",
     "MessageCallbackEvent",
     "MessageDispatch",

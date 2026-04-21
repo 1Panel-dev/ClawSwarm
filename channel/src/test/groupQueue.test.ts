@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { AccountConfigSchema } from "../config.js";
-import { createGroupDispatchQueue } from "../dispatcher/groupQueue.js";
+import { createGroupDispatchQueue } from "../flows/dispatch/groupQueue.js";
 
 describe("createGroupDispatchQueue", () => {
     it("serializes tasks with the same account, agent, and session key", async () => {

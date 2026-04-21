@@ -1,15 +1,17 @@
-import { verifyInboundSignature } from "../security/signature.js";
+import { verifyInboundSignature } from "./signature.js";
 import type { AccountConfig } from "../config.js";
-import type { IdempotencyStore } from "../store/idempotency.js";
-import { readRawBody, sendJson } from "./common.js";
+import type { IdempotencyStore } from "../storage/idempotency.js";
+import { readRawBody, sendJson, type HttpRequest, type HttpResponse } from "./common.js";
 
-export async function readVerifiedJsonBody(params: {
-    req: any;
-    res: any;
+export interface VerifiedJsonBodyParams {
+    req: HttpRequest;
+    res: HttpResponse;
     pathname: string;
     accountConfig: AccountConfig;
     idempotency: IdempotencyStore;
-}): Promise<{ ok: true; json: unknown } | { ok: false }> {
+}
+
+export async function readVerifiedJsonBody(params: VerifiedJsonBodyParams): Promise<{ ok: true; json: unknown } | { ok: false }> {
     const { req, res, pathname, accountConfig, idempotency } = params;
 
     let raw: Uint8Array;

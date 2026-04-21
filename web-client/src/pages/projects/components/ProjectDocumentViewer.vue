@@ -76,7 +76,6 @@ import { computed, reactive, ref, watch } from "vue";
 import ProjectMarkdownPreview from "@/pages/projects/components/ProjectMarkdownPreview.vue";
 import { useI18n } from "@/composables/useI18n";
 import { PROJECT_DOCUMENT_CATEGORIES, type ProjectDocumentOutput, type ProjectDocumentUpdateInput } from "@/types/view/project-management";
-import { formatServerDateTime } from "@/utils/datetime";
 
 const props = defineProps<{
     projectId: string;
@@ -111,21 +110,11 @@ const isDirty = computed(() => {
 });
 
 const readOnlyLink = computed(() => {
-    if (!props.document || typeof window === "undefined") {
+    if (!props.document) {
         return "";
     }
-    return `${window.location.origin}/projects/${props.projectId}/documents/${props.document.id}/read`;
+    return `clawswarm://projects/${props.projectId}/documents/${props.document.id}`;
 });
-
-function formatDateTime(value: string) {
-    return formatServerDateTime(value, "zh-CN", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
 
 watch(
     () => props.document,

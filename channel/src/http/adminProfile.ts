@@ -1,20 +1,22 @@
 import type { AccountConfig } from "../config.js";
-import type { IdempotencyStore } from "../store/idempotency.js";
-import type { OpenClawAgentWorkspaceConfig } from "../openclaw/manageAgents.js";
-import { getRealOpenClawAgentProfile, updateRealOpenClawAgent } from "../openclaw/manageAgents.js";
-import { sendJson } from "./common.js";
+import type { IdempotencyStore } from "../storage/idempotency.js";
+import type { OpenClawAgentWorkspaceConfig } from "../openclaw/agents/manageAgents.js";
+import { getRealOpenClawAgentProfile, updateRealOpenClawAgent } from "../openclaw/agents/manageAgents.js";
+import { sendJson, type HttpRequest, type HttpResponse } from "./common.js";
 import { AgentAdminUpdateSchema } from "./adminSchemas.js";
 import { readVerifiedJsonBody } from "./adminBody.js";
 
-export async function handleAdminAgentProfileRoute(params: {
+export interface AdminAgentProfileRouteParams {
     pathname: string;
     method: string;
-    req: any;
-    res: any;
+    req: HttpRequest;
+    res: HttpResponse;
     getAccount: (accountId?: string) => AccountConfig & { accountId: string };
     idempotency: IdempotencyStore;
     loadHostConfig?: () => unknown;
-}): Promise<boolean> {
+}
+
+export async function handleAdminAgentProfileRoute(params: AdminAgentProfileRouteParams): Promise<boolean> {
     const { pathname, method, req, res, getAccount, idempotency, loadHostConfig } = params;
     const hostConfig = loadHostConfig?.() as OpenClawAgentWorkspaceConfig | undefined;
 

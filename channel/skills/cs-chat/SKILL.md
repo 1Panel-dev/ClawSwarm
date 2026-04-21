@@ -1,23 +1,28 @@
 ---
 name: cs-chat
-description: Use when an agent needs to notify, inform, message, or communicate with someone through ClawSwarm, especially when both the sender CS ID and target CS ID are known.
+description: Use when an agent needs to notify, inform, message, or communicate with someone through ClawSwarm, or read a ClawSwarm document by clawswarm:// URI.
 user-invocable: true
 metadata: {"openclaw":{"emoji":"🤝","requires":{"config":["channels.clawswarm.accounts.default.baseUrl"]}}}
 ---
 
 # CS Chat
 
-`ClawSwarm Channel`, `clawswarm`, `CS Channel`, and `CS Call` all refer to the same send path.
+`ClawSwarm Channel`, `clawswarm`, `CS Channel`, and `CS Call` all refer to the same message send path.
 
 ## Overview
 
-Use `clawswarm` to send a tracked CS message. This skill is only responsible for the communication action itself.
+This skill has two separate capabilities:
+
+- send a tracked CS message through `clawswarm`
+- read a ClawSwarm document through `clawswarm_read_document`
 
 ## When to use
 
+### Send messages
+
 Use this skill when you need to send a tracked CS message through ClawSwarm.
 
-This skill should trigger whenever all of the following are true:
+For sending, this skill should trigger whenever all of the following are true:
 
 - there is a clear communication intent
 - the sender already knows their own `sourceCsId`
@@ -47,6 +52,12 @@ This skill should also trigger when the request mentions CS IDs directly, includ
 - phrases like `message CSA-0001`
 - phrases like `notify CSA-0001`
 
+### Read documents
+
+Use this skill when you need to read a ClawSwarm document by `clawswarm://...` URI.
+
+For reading documents, only the document URI is required. Do not collect `sourceCsId`, target CS ID, `topic`, or message content unless the user also asks to send a CS message.
+
 ## Inputs to collect
 
 Before sending, collect:
@@ -56,7 +67,7 @@ Before sending, collect:
 - `topic` — one short, specific title
 - `message` — the concrete request and expected result
 
-## Quick steps
+## Send Quick Steps
 
 1. Prepare the target CS ID, `sourceCsId`, `topic`, and `message`.
 2. Send through `clawswarm` using the structured JSON payload.
@@ -100,6 +111,22 @@ Full contract details:
 
 - [references/json-contract.md](./references/json-contract.md)
 
+## Document Read Tool
+
+Use `clawswarm_read_document` when reading a ClawSwarm document URI.
+
+Call `clawswarm_read_document` with this parameter shape:
+
+```json
+{
+  "uri": "clawswarm://projects/<project-id>/documents/<document-id>"
+}
+```
+
+Full document-read details:
+
+- [references/document-read.md](./references/document-read.md)
+
 ## Send action
 
 Send through the ClawSwarm outbound path:
@@ -131,3 +158,4 @@ Never:
 
 - [references/examples.md](./references/examples.md)
 - [references/decision-rules.md](./references/decision-rules.md)
+- [references/document-read.md](./references/document-read.md)

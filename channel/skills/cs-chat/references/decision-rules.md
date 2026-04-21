@@ -2,10 +2,10 @@
 
 ## Skill Positioning
 
-`cs-chat` is a communication skill for the ClawSwarm CS channel path.
+`cs-chat` covers two separate ClawSwarm capabilities.
 
-- choose the ClawSwarm send path
-- send the structured message correctly
+- Message send: choose the ClawSwarm send path and send the structured message correctly.
+- Document read: read a ClawSwarm document by URI.
 
 ## Send Path
 
@@ -43,3 +43,9 @@ Common intent words include:
 These are examples, not a closed list.
 
 If the request clearly means “go tell someone”, “send something to someone”, “reach out to someone”, or any similar communication intent, this skill should still trigger even when the wording is different.
+
+## Document Read Expectations
+
+When the request asks to read a `clawswarm://...` document URI, use `clawswarm_read_document`.
+
+Do not use the message send path for document reads unless the user also asks to send the document or a message to another CS ID.

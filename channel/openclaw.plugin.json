@@ -76,5 +76,82 @@
     "accounts.*.inboundSigningSecret": { "sensitive": true, "label": "Inbound Signing Secret" },
     "accounts.*.webchatMirror.includeIntermediateMessages": { "label": "同步中间过程消息" },
     "accounts.*.gateway.token": { "sensitive": true, "label": "Gateway Token" }
+  },
+  "channelConfigs": {
+    "clawswarm": {
+      "label": "ClawSwarm",
+      "description": "ClawSwarm 与 OpenClaw 的桥接通道，支持单聊、群聊、@mention",
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean", "default": true },
+                "baseUrl": {
+                  "type": "string",
+                  "description": "ClawSwarm 后端地址（例如 http://127.0.0.1:8080）"
+                },
+                "outboundToken": {
+                  "type": "string",
+                  "description": "插件调用 ClawSwarm 时使用的 Token"
+                },
+                "inboundSigningSecret": {
+                  "type": "string",
+                  "description": "ClawSwarm 调用插件 webhook 时的签名密钥"
+                },
+                "webchatMirror": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "includeIntermediateMessages": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "是否同步工具调用和中间过程消息"
+                    }
+                  }
+                },
+                "gateway": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "baseUrl": { "type": "string" },
+                    "token": { "type": "string" },
+                    "transport": { "type": "string" },
+                    "model": { "type": "string", "default": "openclaw" },
+                    "stream": { "type": "boolean", "default": true },
+                    "allowInsecureTls": { "type": "boolean", "default": true }
+                  }
+                },
+                "agentDirectory": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "allowedAgentIds": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "aliases": {
+                      "type": "object",
+                      "additionalProperties": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "uiHints": {
+        "accounts.*.outboundToken": { "sensitive": true, "label": "Outbound Token" },
+        "accounts.*.inboundSigningSecret": { "sensitive": true, "label": "Inbound Signing Secret" },
+        "accounts.*.webchatMirror.includeIntermediateMessages": { "label": "同步中间过程消息" },
+        "accounts.*.gateway.token": { "sensitive": true, "label": "Gateway Token" }
+      }
+    }
   }
 }

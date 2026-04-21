@@ -27,7 +27,7 @@ from src.services.project_document_service import (
     list_project_documents,
     update_project_document,
 )
-from src.services.project_service import create_project, get_project_detail, list_projects, update_project
+from src.services.project_service import create_project, delete_project, get_project_detail, list_projects, update_project
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 agent_router = APIRouter(prefix="/api/v1/clawswarm/projects", tags=["projects"])
@@ -51,6 +51,12 @@ def get_project_detail_route(project_id: str, db: Session = Depends(db_session))
 @router.put("/{project_id}", response_model=ProjectRead)
 def update_project_route(project_id: str, payload: ProjectUpdate, db: Session = Depends(db_session)) -> ProjectRead:
     return update_project(db, project_id, payload)
+
+
+@router.delete("/{project_id}", response_model=ApiMessage)
+def delete_project_route(project_id: str, db: Session = Depends(db_session)) -> ApiMessage:
+    delete_project(db, project_id)
+    return ApiMessage(message="ok")
 
 
 @router.get("/{project_id}/documents", response_model=list[ProjectDocumentRead])

@@ -32,7 +32,6 @@ from src.models.agent_dialogue import AgentDialogue
 from src.models.chat_group import ChatGroup
 from src.models.chat_group_member import ChatGroupMember
 from src.models.conversation import Conversation
-from src.models.document_template import DocumentTemplate
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
@@ -46,18 +45,10 @@ from src.schemas.agent import AgentCreate
 from src.services.agent_profile_service import create_agent_for_instance
 from src.services.auth import build_session_cookie_value, ensure_default_user, get_auth_cookie_name
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
-from src.services.document_template_service import PROJECT_INTRO_TEMPLATE_NAME, ensure_builtin_document_templates
-from src.services.document_template_service import (
-    create_document_template,
-    delete_document_template as delete_document_template_service,
-    list_document_templates,
-    update_document_template,
-)
+from src.services.project_service import PROJECT_INTRO_TEMPLATE_NAME
 from src.services.project_document_service import create_project_document, delete_project_document, update_project_document
-from src.services.project_service import create_project
+from src.services.project_service import create_project, delete_project
 from src.schemas.project_management import (
-    DocumentTemplateCreate,
-    DocumentTemplateUpdate,
     ProjectCreate,
     ProjectDocumentCreate,
     ProjectDocumentUpdate,
@@ -347,7 +338,6 @@ class Stage1BackendTests(unittest.TestCase):
         inspector = inspect(self.engine)
         self.assertEqual(inspector.get_foreign_keys("projects"), [])
         self.assertEqual(inspector.get_foreign_keys("project_documents"), [])
-        self.assertEqual(inspector.get_foreign_keys("document_templates"), [])
 
         with self.SessionLocal() as db:
             detail = create_project(
@@ -367,8 +357,8 @@ class Stage1BackendTests(unittest.TestCase):
             UUID(detail.id)
             self.assertEqual(project.current_progress, "已完成设计讨论")
             self.assertEqual(json.loads(project.members_json), [
-                {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
-                {"agent_key": "worker", "cs_id": "CSA-0002", "openclaw": "OC2"},
+                {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1", "role": ""},
+                {"agent_key": "worker", "cs_id": "CSA-0002", "openclaw": "OC2", "role": ""},
             ])
             self.assertEqual(len(detail.members), 2)
 
@@ -379,9 +369,8 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertTrue(core_doc.is_core)
             self.assertIn("项目基本信息", core_doc.content)
 
-    def test_project_management_services_support_templates_and_document_crud(self) -> None:
+    def test_project_management_services_support_document_crud(self) -> None:
         with self.SessionLocal() as db:
-            ensure_builtin_document_templates(db)
             detail = create_project(
                 db,
                 ProjectCreate(
@@ -392,26 +381,13 @@ class Stage1BackendTests(unittest.TestCase):
                 ),
             )
 
-            template = create_document_template(
-                db,
-                DocumentTemplateCreate(
-                    name="接口约定模板.md",
-                    description="接口模板",
-                    category="接口",
-                    content="# 接口约定\n\n## 字段\n",
-                ),
-            )
-            templates = list_document_templates(db)
-            self.assertTrue(any(item.is_builtin for item in templates))
-            self.assertTrue(templates[0].is_builtin)
-            self.assertTrue(any(item.id == template.id for item in templates))
-
             created_doc = create_project_document(
                 db,
                 detail.id,
                 ProjectDocumentCreate(
-                    template_id=template.id,
                     name="支付接口.md",
+                    category="接口",
+                    content="# 接口约定\n\n## 字段\n",
                 ),
             )
             self.assertEqual(created_doc.category, "接口")
@@ -429,18 +405,6 @@ class Stage1BackendTests(unittest.TestCase):
             )
             self.assertEqual(updated_doc.name, "支付接口 V2.md")
             self.assertEqual(updated_doc.category, "后端")
-
-            updated_template = update_document_template(
-                db,
-                template.id,
-                DocumentTemplateUpdate(
-                    name="接口约定模板.md",
-                    description="接口模板已更新",
-                    category="接口",
-                    content="# 新版接口约定",
-                ),
-            )
-            self.assertIn("已更新", updated_template.description)
 
             with self.assertRaises(HTTPException) as rename_core_error:
                 update_project_document(
@@ -462,8 +426,12 @@ class Stage1BackendTests(unittest.TestCase):
             delete_project_document(db, detail.id, created_doc.id)
             self.assertIsNone(db.get(ProjectDocument, created_doc.id))
 
-            delete_document_template_service(db, template.id)
-            self.assertIsNone(db.get(DocumentTemplate, template.id))
+            delete_project(db, detail.id)
+            self.assertIsNone(db.get(Project, detail.id))
+            self.assertEqual(
+                list(db.scalars(select(ProjectDocument).where(ProjectDocument.project_id == detail.id))),
+                [],
+            )
 
     def test_project_management_routes_cover_crud_and_agent_readonly(self) -> None:
         create_response = self.client.post(
@@ -473,7 +441,7 @@ class Stage1BackendTests(unittest.TestCase):
                 "description": "接口路由测试",
                 "current_progress": "排期中",
                 "members": [
-                    {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1"},
+                    {"agent_key": "main", "cs_id": "CSA-0001", "openclaw": "OC1", "role": "项目经理"},
                 ],
             },
         )
@@ -483,28 +451,18 @@ class Stage1BackendTests(unittest.TestCase):
         core_document_id = project_payload["documents"][0]["id"]
         self.assertEqual(len(project_payload["members"]), 1)
         self.assertEqual(project_payload["members"][0]["cs_id"], "CSA-0001")
+        self.assertEqual(project_payload["members"][0]["role"], "项目经理")
 
         list_response = self.client.get("/api/projects")
         self.assertEqual(list_response.status_code, 200)
         self.assertTrue(any(item["id"] == project_id for item in list_response.json()))
 
-        template_create = self.client.post(
-            "/api/document-templates",
-            json={
-                "name": "前端页面模板.md",
-                "description": "页面模板",
-                "category": "前端",
-                "content": "# 页面方案",
-            },
-        )
-        self.assertEqual(template_create.status_code, 200)
-        template_id = template_create.json()["id"]
-
         create_doc_response = self.client.post(
             f"/api/projects/{project_id}/documents",
             json={
-                "template_id": template_id,
                 "name": "登录页方案.md",
+                "category": "前端",
+                "content": "# 页面方案",
             },
         )
         self.assertEqual(create_doc_response.status_code, 200)
@@ -557,19 +515,6 @@ class Stage1BackendTests(unittest.TestCase):
 
         core_delete_response = self.client.delete(f"/api/projects/{project_id}/documents/{core_document_id}")
         self.assertEqual(core_delete_response.status_code, 400)
-
-    def test_project_management_templates_seed_builtins_first(self) -> None:
-        with self.SessionLocal() as db:
-            ensure_builtin_document_templates(db)
-            names = [item.name for item in db.scalars(select(DocumentTemplate).order_by(DocumentTemplate.is_builtin.desc()))]
-            self.assertIn(PROJECT_INTRO_TEMPLATE_NAME, names)
-
-            templates = list_document_templates(db)
-            self.assertTrue(templates)
-            self.assertTrue(templates[0].is_builtin)
-            self.assertEqual(len([item for item in templates if item.is_builtin]), 1)
-            with self.assertRaises(HTTPException):
-                delete_document_template_service(db, templates[0].id)
 
     def test_list_conversations_hides_direct_conversations_for_disabled_instance(self) -> None:
         with self.SessionLocal() as db:
@@ -2735,7 +2680,7 @@ class Stage1BackendTests(unittest.TestCase):
             conversation_id = conversation.id
 
         mocked_send = AsyncMock(return_value={"traceId": "trace-group-context"})
-        with patch("src.api.routes.conversations.channel_client.send_inbound", new=mocked_send):
+        with patch("src.services.conversation_dispatch_service.channel_client.send_inbound", new=mocked_send):
             response = self.client.post(
                 f"/api/conversations/{conversation_id}/messages",
                 json={"content": "请先分别介绍自己，再说明你负责什么。", "mentions": []},

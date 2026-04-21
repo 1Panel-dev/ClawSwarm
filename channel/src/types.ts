@@ -1,6 +1,6 @@
 /**
  * 这个文件集中放置跨模块共享的业务类型。
- * 维护时优先在这里统一术语，避免 http/router/dispatcher 各自定义一套名字。
+ * 维护时优先在这里统一术语，避免 http/core/flows 各自定义一套名字。
  */
 export type RoutingMode = "DIRECT" | "GROUP_BROADCAST" | "GROUP_MENTION";
 

@@ -5,6 +5,7 @@
       :project="project"
       @back="router.push('/projects')"
       @edit="projectDrawerVisible = true"
+      @delete="confirmDeleteProject"
     />
 
     <div class="project-workspace">
@@ -37,7 +38,6 @@
 
     <DocumentCreateDrawer
       :visible="documentDrawerVisible"
-      :templates="store.templates"
       :submitting="store.submittingDocument"
       @update:visible="documentDrawerVisible = $event"
       @submit="handleCreateDocument"
@@ -55,7 +55,7 @@ import ProjectDocumentList from "@/pages/projects/components/ProjectDocumentList
 import ProjectDocumentViewer from "@/pages/projects/components/ProjectDocumentViewer.vue";
 import ProjectHeaderCard from "@/pages/projects/components/ProjectHeaderCard.vue";
 import { useProjectManagementStore } from "@/stores/projectManagement";
-import type { ProjectDocumentCreateInput, ProjectDocumentUpdateInput, ProjectUpdateInput } from "@/types/view/project-management";
+import type { ProjectDetailOutput, ProjectDocumentCreateInput, ProjectDocumentUpdateInput, ProjectUpdateInput } from "@/types/view/project-management";
 import { useI18n } from "@/composables/useI18n";
 
 const store = useProjectManagementStore();
@@ -75,7 +75,6 @@ async function loadProject() {
     }
     await Promise.all([
         store.loadProjectDetail(projectId.value),
-        store.loadTemplates(),
     ]);
 }
 
@@ -161,6 +160,29 @@ async function handleUpdateProject(payload: ProjectUpdateInput) {
     }
 }
 
+async function confirmDeleteProject(project: ProjectDetailOutput) {
+    try {
+        await confirmDiscardIfNeeded();
+        await ElMessageBox.confirm(
+            t("projects.deleteProjectConfirm", {name: project.name}),
+            t("common.confirm"),
+            {
+                type: "warning",
+                confirmButtonText: t("common.confirm"),
+                cancelButtonText: t("common.cancel"),
+            },
+        );
+        await store.deleteProject(project.id);
+        ElMessage.success(t("common.deleted"));
+        await router.push("/projects");
+    } catch (error) {
+        if (error === "cancel" || error === "close") {
+            return;
+        }
+        ElMessage.error(error instanceof Error ? error.message : String(error));
+    }
+}
+
 onBeforeRouteLeave(async () => confirmDiscardIfNeeded());
 </script>
 
@@ -170,6 +192,7 @@ onBeforeRouteLeave(async () => confirmDiscardIfNeeded());
   grid-template-columns: minmax(280px, 320px) minmax(0, 1fr);
   gap: 12px;
   min-height: 0;
+  height: calc(100vh - 206px);
 }
 
 .project-workspace__sidebar,
