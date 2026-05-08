@@ -82,9 +82,7 @@ export function normalizeAccountConfigInput(raw: RawAccountConfig): RawAccountCo
         },
         idempotency: {
             ...idempotency,
-            mode: asString(idempotency.mode) ?? asString(raw.idempotencyMode),
             ttlSeconds: asNumber(idempotency.ttlSeconds) ?? asNumber(raw.idempotencyTtlSeconds),
-            redisUrl: asString(idempotency.redisUrl) ?? asString(raw.redisUrl),
         },
         retry: {
             ...retry,

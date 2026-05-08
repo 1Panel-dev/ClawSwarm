@@ -2,7 +2,6 @@
  * 这个文件负责幂等去重存储。
  * 任何“同一消息不要重复执行”的约束，都应该通过这里统一实现。
  */
-import Redis from "ioredis";
 import type { Logger } from "../logging/logger.js";
 
 export interface IdempotencyStore {
@@ -12,8 +11,6 @@ export interface IdempotencyStore {
 }
 
 export interface CreateIdempotencyStoreParams {
-    mode: "memory" | "redis";
-    redisUrl?: string;
     logger: Logger;
 }
 
@@ -23,7 +20,7 @@ export interface MessageAgentDedupeKeyParams {
     agentId: string;
 }
 
-// 内存实现适合本地开发和单进程测试。
+// 内存实现适合当前单插件进程内的消息去重。
 class MemoryIdempotencyStore implements IdempotencyStore {
     private map = new Map<string, number>();
 
@@ -51,43 +48,8 @@ class MemoryIdempotencyStore implements IdempotencyStore {
     }
 }
 
-// Redis 实现适合多实例部署，能让不同进程共享去重结果。
-class RedisIdempotencyStore implements IdempotencyStore {
-    private redis: Redis;
-
-    constructor(redisUrl: string, private logger: Logger) {
-        this.redis = new Redis(redisUrl, {
-            lazyConnect: true,
-            maxRetriesPerRequest: 1,
-            enableReadyCheck: true,
-        });
-    }
-
-    async setIfNotExists(key: string, ttlSeconds: number): Promise<boolean> {
-        // lazyConnect 模式下，第一次真正使用时再建连接。
-        if (this.redis.status === "wait" || this.redis.status === "end") {
-            await this.redis.connect();
-        }
-        const res = await this.redis.set(key, "1", "EX", ttlSeconds, "NX");
-        return res === "OK";
-    }
-
-    async close(): Promise<void> {
-        try {
-            await this.redis.quit();
-        } catch {
-            // ignore
-        }
-        this.logger.info({}, "redis idempotency store closed");
-    }
-}
-
-// 工厂函数根据配置返回合适的去重实现。
+// 工厂函数统一创建幂等存储，后续如果增加新实现也只改这里。
 export function createIdempotencyStore(params: CreateIdempotencyStoreParams): IdempotencyStore {
-    if (params.mode === "redis" && params.redisUrl) {
-        params.logger.info({ redisUrl: redactUrl(params.redisUrl) }, "using redis idempotency store");
-        return new RedisIdempotencyStore(params.redisUrl, params.logger);
-    }
     params.logger.info({}, "using memory idempotency store");
     return new MemoryIdempotencyStore(params.logger);
 }
@@ -95,15 +57,4 @@ export function createIdempotencyStore(params: CreateIdempotencyStoreParams): Id
 // messageId + agentId 是当前插件里最重要的幂等粒度。
 export function dedupeKeyForMessageAgent(params: MessageAgentDedupeKeyParams): string {
     return `oc:dedupe:${params.accountId}:${params.messageId}:${params.agentId}`;
-}
-
-// 打日志时不要把 Redis 密码明文打出来。
-function redactUrl(url: string): string {
-    try {
-        const u = new URL(url);
-        if (u.password) u.password = "****";
-        return u.toString();
-    } catch {
-        return "<invalid-url>";
-    }
 }

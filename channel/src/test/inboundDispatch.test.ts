@@ -57,7 +57,7 @@ describe("runInboundDispatch", () => {
                 inboundSigningSecret: "1234567890123456",
             }),
             logger,
-            idempotency: createIdempotencyStore({ mode: "memory", logger }),
+            idempotency: createIdempotencyStore({ logger }),
             messageState,
             clawSwarm: { sendEvent: vi.fn() } as ClawSwarmCallbackClient,
             openclaw: {} as OpenClawRuntimeAdapter,

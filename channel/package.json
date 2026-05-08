@@ -35,7 +35,6 @@
     "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
-    "ioredis": "^5.4.1",
     "undici": "^6.19.8",
     "zod": "^3.24.1"
   },
