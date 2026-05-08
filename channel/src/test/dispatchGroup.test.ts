@@ -23,7 +23,7 @@ describe("dispatchGroup", () => {
         });
         const logger = createLogger();
         const messageState = new InMemoryMessageStateStore();
-        const idempotency = createIdempotencyStore({ mode: "memory", logger });
+        const idempotency = createIdempotencyStore({ logger });
         const events: ClawSwarmEvent[] = [];
 
         messageState.create({
