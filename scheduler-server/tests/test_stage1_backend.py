@@ -2707,6 +2707,118 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertIn("项目经理 (项目经理, CSA-0001)", second_payload["text"])
         self.assertIn("Instruction:", second_payload["text"])
 
+    def test_group_dispatch_commits_pending_dispatch_before_channel_call(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Group Visible",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="pm",
+                display_name="项目经理",
+                role_name="项目经理",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            group = ChatGroup(name="项目群", description="测试群聊事务边界")
+            db.add(group)
+            db.flush()
+
+            db.add(ChatGroupMember(group_id=group.id, instance_id=instance.id, agent_id=agent.id))
+            db.flush()
+
+            conversation = Conversation(type="group", title="项目群", group_id=group.id)
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+            agent_id = agent.id
+
+        async def mocked_send(*, instance, payload):
+            with self.SessionLocal() as check_db:
+                visible_dispatch = check_db.scalar(
+                    select(MessageDispatch).where(
+                        MessageDispatch.message_id == payload["messageId"],
+                        MessageDispatch.instance_id == instance.id,
+                        MessageDispatch.agent_id == agent_id,
+                    )
+                )
+                self.assertIsNotNone(visible_dispatch)
+                self.assertEqual(visible_dispatch.status, "pending")
+            return {"traceId": "trace-group-visible"}
+
+        with patch("src.services.conversation_dispatch_service.channel_client.send_inbound", new=mocked_send):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "大家同步一下进度", "mentions": []},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_direct_dispatch_commits_pending_dispatch_before_channel_call(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Direct",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw Direct / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+            agent_id = agent.id
+
+        async def mocked_send(*, instance, payload):
+            with self.SessionLocal() as check_db:
+                visible_dispatch = check_db.scalar(
+                    select(MessageDispatch).where(
+                        MessageDispatch.message_id == payload["messageId"],
+                        MessageDispatch.instance_id == instance.id,
+                        MessageDispatch.agent_id == agent_id,
+                    )
+                )
+                self.assertIsNotNone(visible_dispatch)
+                self.assertEqual(visible_dispatch.status, "pending")
+            return {"traceId": "trace-direct-visible"}
+
+        with patch("src.services.conversation_dispatch_service.channel_client.send_inbound", new=mocked_send):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "你好"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+
     def test_delete_group_removes_group_conversation_history(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(

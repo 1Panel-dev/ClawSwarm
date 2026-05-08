@@ -161,17 +161,26 @@ async def dispatch_agent_dialogue_turn(
         sender_label=sender_label,
     )
 
-    response = await channel_client.send_inbound(
-        instance=instance,
-        payload={
-            "messageId": message.id,
-            "accountId": instance.channel_account_id,
-            "chat": {"type": "direct", "chatId": f"{AGENT_DIALOGUE_CHANNEL_PREFIX}-{conversation.id}"},
-            "from": {"userId": sender_user_id, "displayName": sender_label},
-            "text": packaged_text,
-            "directAgentId": recipient_agent.agent_key,
-        },
-    )
+    # 先提交本地消息和 dispatch，避免持有 SQLite 写锁等待外部 OpenClaw 调用。
+    db.commit()
+
+    try:
+        response = await channel_client.send_inbound(
+            instance=instance,
+            payload={
+                "messageId": message.id,
+                "accountId": instance.channel_account_id,
+                "chat": {"type": "direct", "chatId": f"{AGENT_DIALOGUE_CHANNEL_PREFIX}-{conversation.id}"},
+                "from": {"userId": sender_user_id, "displayName": sender_label},
+                "text": packaged_text,
+                "directAgentId": recipient_agent.agent_key,
+            },
+        )
+    except Exception:
+        dispatch.status = "failed"
+        dispatch.error_message = "OpenClaw request failed"
+        db.commit()
+        raise
 
     dispatch.status = "accepted"
     dispatch.channel_trace_id = response.get("traceId")
