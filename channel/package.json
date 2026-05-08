@@ -21,7 +21,10 @@
     "node": ">=22.16.0"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"]
+    "extensions": ["./src/index.ts"],
+    "runtimeExtensions": ["./dist/index.js"],
+    "setupEntry": "./src/setup-entry.ts",
+    "runtimeSetupEntry": "./dist/setup-entry.js"
   },
   "files": ["dist", "skills", "openclaw.plugin.json", "README.md"],
   "scripts": {

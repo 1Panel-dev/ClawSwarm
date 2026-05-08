@@ -53,7 +53,8 @@ export const channelConfigSchema = {
     },
 } as const;
 
-// 顶层 manifest 也保持同构，避免再出现多套路径结构。
+// 2026.5.5 主要读取 channelConfigs.<channelId>，但旧宿主和旧配置页仍会读取顶层 configSchema。
+// 这里保留同构副本，不改成空 schema，避免同一 npm 包在 4.11-era 宿主上丢失配置页。
 export const pluginConfigSchema = channelConfigSchema;
 
 export const channelConfigUiHints = {

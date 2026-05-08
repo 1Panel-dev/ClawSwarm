@@ -4,6 +4,11 @@
 
 ## npm release install steps
 
+Requirements:
+
+- OpenClaw `2026.5.5+`.
+- The package must include `dist/index.js`, `dist/setup-entry.js`, `openclaw.plugin.json`, and `skills/cs-chat`.
+
 1. Install the plugin.
 
 ```bash
@@ -106,3 +111,18 @@ openclaw skills list
 - Gateway restarted
 - health OK
 - agents OK
+
+Additional verification:
+
+```bash
+cd /home/node/.openclaw/extensions/clawswarm
+node -e "const p=require('./package.json'); console.log(p.openclaw)"
+ls dist/index.js dist/setup-entry.js skills/cs-chat/SKILL.md
+```
+
+Troubleshooting rules:
+
+- If the config page does not render, check `openclaw.plugin.json` for `channelConfigs.clawswarm`.
+- If `clawswarm_read_document` exists but the agent does not use it, check whether `cs-chat` was refreshed in `openclaw skills list`.
+- If the package is source-only or missing built files, reinstall or update the npm package before changing config.
+- If setup loads but runtime does not, inspect `openclaw.runtimeExtensions` and `openclaw.runtimeSetupEntry`.
