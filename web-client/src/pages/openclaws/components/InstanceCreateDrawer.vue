@@ -216,6 +216,9 @@ function buildOpenClawConfig(maskSecrets: boolean) {
             entries: {
                 "clawswarm": {
                     enabled: true,
+                    hooks: {
+                        allowConversationAccess: true,
+                    },
                     config: {},
                 },
             },

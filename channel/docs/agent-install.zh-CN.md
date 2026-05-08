@@ -4,6 +4,11 @@
 
 ## npm 发布版安装步骤
 
+要求：
+
+- OpenClaw `2026.5.5+`。
+- 安装包内必须包含 `dist/index.js`、`dist/setup-entry.js`、`openclaw.plugin.json`、`skills/cs-chat`。
+
 1. 安装插件。
 
 ```bash
@@ -106,3 +111,18 @@ openclaw skills list
 - 已重启 Gateway
 - health 正常
 - agents 正常
+
+附加验证：
+
+```bash
+cd /home/node/.openclaw/extensions/clawswarm
+node -e "const p=require('./package.json'); console.log(p.openclaw)"
+ls dist/index.js dist/setup-entry.js skills/cs-chat/SKILL.md
+```
+
+排障规则：
+
+- 如果配置页面无法显示，检查 `openclaw.plugin.json` 中是否存在 `channelConfigs.clawswarm`。
+- 如果 `clawswarm_read_document` 工具存在但 Agent 不会使用，检查 `openclaw skills list` 中的 `cs-chat` 是否已刷新。
+- 如果安装包只有源码入口或缺少构建文件，先重新安装或更新 npm 包，不要先改配置。
+- 如果 setup 能加载但 runtime 不能加载，检查 `openclaw.runtimeExtensions` 和 `openclaw.runtimeSetupEntry`。

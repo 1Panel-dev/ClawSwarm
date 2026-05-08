@@ -9,7 +9,17 @@
 declare module "openclaw/plugin-sdk/core" {
     export type OpenClawConfig = any;
 
-    // 这里只保留当前项目实际用到的最小接口集合。
+    export type PluginRegistrationMode =
+        | "full"
+        | "discovery"
+        | "tool-discovery"
+        | "cli-metadata"
+        | "setup-only"
+        | "setup-runtime";
+
+    export type PluginRuntime = any;
+
+    // 这里只保留 ClawSwarm channel 实际用到的 ChannelPlugin 字段。
     export type ChannelPlugin<TResolvedAccount = any> = {
         id: string;
         meta?: {
@@ -65,7 +75,7 @@ declare module "openclaw/plugin-sdk/core" {
         };
 
         outbound: {
-            deliveryMode: "direct" | "broadcast";
+            deliveryMode: "direct" | "gateway" | "hybrid";
             resolveTarget?: (args: {
                 cfg?: any;
                 to?: string;
@@ -85,8 +95,9 @@ declare module "openclaw/plugin-sdk/core" {
             error: Function;
             debug?: Function;
         };
-        registrationMode?: "full" | "setup";
-        runtime?: any;
+        // OpenClaw 2026.5.5 会提供 registrationMode；这里保留可选是为了兼容旧宿主和旧测试。
+        registrationMode?: PluginRegistrationMode;
+        runtime?: PluginRuntime;
         on?: <K extends string>(
             hookName: K,
             handler: (event: any, ctx: any) => Promise<any> | any,
@@ -113,16 +124,15 @@ declare module "openclaw/plugin-sdk/core" {
         }) => void;
     };
 
-    export const emptyPluginConfigSchema: any;
-
-    // defineChannelPluginEntry 的声明也按当前项目实际用法做了放宽。
+    // OpenClaw 2026.5.5 的 channel entry helper。只声明当前入口实际使用的字段。
     export function defineChannelPluginEntry<TPlugin extends ChannelPlugin<any>>(args: {
         id: string;
         name: string;
         description: string;
-        plugin?: TPlugin;
+        plugin: TPlugin;
         configSchema?: any;
-        setRuntime?: (runtime: any) => void;
+        setRuntime?: (runtime: PluginRuntime) => void;
+        registerCliMetadata?: (api: OpenClawPluginApi) => void;
         registerFull?: (api: OpenClawPluginApi) => void;
     }): {
         id: string;
@@ -130,8 +140,11 @@ declare module "openclaw/plugin-sdk/core" {
         description: string;
         configSchema: any;
         register: (api: OpenClawPluginApi) => void;
+        channelPlugin: TPlugin;
+        setChannelRuntime?: (runtime: PluginRuntime) => void;
     };
 
-    export const DEFAULT_ACCOUNT_ID: string;
-    export function normalizeAccountId(accountId?: string): string;
+    export function defineSetupPluginEntry<TPlugin extends ChannelPlugin<any>>(plugin: TPlugin): {
+        plugin: TPlugin;
+    };
 }

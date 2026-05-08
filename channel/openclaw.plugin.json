@@ -6,6 +6,9 @@
   "kind": "channel",
   "channels": ["clawswarm"],
   "skills": ["./skills"],
+  "contracts": {
+    "tools": ["clawswarm_read_document"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

@@ -4,6 +4,11 @@
 
 ## npm release install
 
+Requirements:
+
+- OpenClaw `2026.5.5+`.
+- The package must include `dist/index.js`, `dist/setup-entry.js`, `openclaw.plugin.json`, and `skills/cs-chat`.
+
 1. Install the plugin.
 
 ```bash
@@ -120,3 +125,17 @@ You should see:
 
 - `clawswarm` status is `loaded`
 - `CS Chat` skill (`cs-chat`) status is `ready`
+
+Optional package checks:
+
+```bash
+node -e "const p=require('./package.json'); console.log(p.openclaw)"
+ls dist/index.js dist/setup-entry.js skills/cs-chat/SKILL.md
+```
+
+Troubleshooting:
+
+- Config page does not render: confirm `openclaw.plugin.json` contains `channelConfigs.clawswarm`.
+- Tool exists but the skill is stale: restart OpenClaw and verify `openclaw skills list` shows `cs-chat`.
+- Install/update produced a source-only package: confirm `dist/index.js` and `dist/setup-entry.js` exist in the installed plugin directory.
+- Setup phase loads but runtime does not: inspect the package metadata and confirm `openclaw.runtimeExtensions` and `openclaw.runtimeSetupEntry` point to existing built files.
