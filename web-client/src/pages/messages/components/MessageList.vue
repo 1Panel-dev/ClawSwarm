@@ -38,6 +38,13 @@
             <span v-if="message.source === 'webchat'" class="message-list__source-badge">
               {{ t("conversation.sourceWebchat") }}
             </span>
+            <span
+              v-if="messageStatusLabel(message)"
+              class="message-list__status-badge"
+              :class="messageStatusClass(message)"
+            >
+              {{ messageStatusLabel(message) }}
+            </span>
           </div>
           <div class="message-list__meta-side">
             <span>{{ formatDateTime(message.updatedAt) }}</span>
@@ -78,6 +85,13 @@
               :compact-title="compactToolTitle(message, part)"
             />
           </template>
+          <div
+            v-if="shouldShowStatusPlaceholder(message)"
+            class="message-list__status-placeholder"
+            :class="messageStatusClass(message)"
+          >
+            {{ messageStatusLabel(message) }}
+          </div>
         </div>
 
         <div v-if="!isCompactProcessMessage(message)" class="message-list__actions">
@@ -161,7 +175,7 @@ const SPEAKER_COLORS = [
 ];
 
 const resolvedSenderMetaMap = computed(() => props.senderMetaMap ?? {});
-const visibleMessages = computed(() => props.messages.filter((item) => item.parts.length > 0));
+const visibleMessages = computed(() => props.messages.filter(shouldRenderMessage));
 
 const latestMessageTrigger = computed(() => {
     const lastMessage = props.messages.at(-1);
@@ -253,6 +267,43 @@ function senderMetaFor(message: MessageOutput) {
         return resolvedSenderMetaMap.value[label];
     }
     return undefined;
+}
+
+function isActiveMessage(message: MessageOutput) {
+    return message.status === "pending" || message.status === "running" || message.status === "streaming";
+}
+
+function isFailedMessage(message: MessageOutput) {
+    return message.status === "failed";
+}
+
+function canShowActiveStatus(message: MessageOutput) {
+    return message.senderType !== "user" && isActiveMessage(message);
+}
+
+function shouldRenderMessage(message: MessageOutput) {
+    return message.parts.length > 0 || canShowActiveStatus(message) || isFailedMessage(message);
+}
+
+function shouldShowStatusPlaceholder(message: MessageOutput) {
+    return message.parts.length === 0 && Boolean(messageStatusLabel(message));
+}
+
+function messageStatusLabel(message: MessageOutput) {
+    if (isFailedMessage(message)) {
+        return t("conversation.messageFailed");
+    }
+    if (canShowActiveStatus(message)) {
+        return t("conversation.replying");
+    }
+    return "";
+}
+
+function messageStatusClass(message: MessageOutput) {
+    return {
+        "message-list__status-badge--failed": isFailedMessage(message),
+        "message-list__status-placeholder--failed": isFailedMessage(message),
+    };
 }
 
 function messageItemClass(message: MessageOutput) {
@@ -541,6 +592,23 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.message-list__status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f1f3f6;
+  color: #7a828e;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.message-list__status-badge--failed {
+  background: color-mix(in srgb, var(--color-danger) 10%, white);
+  color: var(--color-danger);
+}
+
 .message-list__meta-side {
   display: flex;
   align-items: center;
@@ -581,6 +649,16 @@ onBeforeUnmount(() => {
 .message-list__parts {
   display: grid;
   gap: 10px;
+}
+
+.message-list__status-placeholder {
+  color: #8f949d;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.message-list__status-placeholder--failed {
+  color: var(--color-danger);
 }
 
 .message-list__actions {

@@ -33,6 +33,9 @@ class ConversationRead(TimestampedModel):
     direct_instance_id: int | None
     direct_agent_id: int | None
     direct_runtime_target_id: int | None = None
+    runtime_type: str | None = None
+    runtime_target_display_name: str | None = None
+    runtime_target_cs_id: str | None = None
     agent_dialogue_id: int | None = None
 
 

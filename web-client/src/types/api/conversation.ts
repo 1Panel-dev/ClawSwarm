@@ -41,6 +41,9 @@ export interface ConversationResponse {
     direct_instance_id: number | null;
     direct_agent_id: number | null;
     direct_runtime_target_id?: number | null;
+    runtime_type?: string | null;
+    runtime_target_display_name?: string | null;
+    runtime_target_cs_id?: string | null;
     agent_dialogue_id?: number | null;
     created_at: string;
     updated_at: string;

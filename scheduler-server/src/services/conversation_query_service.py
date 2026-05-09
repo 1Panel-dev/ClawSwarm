@@ -154,6 +154,11 @@ def load_conversation_messages_response(
 ) -> ConversationMessagesResponse:
     """Load one conversation page plus dispatch metadata for the frontend."""
     dialogue = db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == conversation.id))
+    runtime_target = (
+        db.get(RuntimeTarget, conversation.direct_runtime_target_id)
+        if conversation.direct_runtime_target_id and not conversation.direct_agent_id
+        else None
+    )
 
     finalize_stale_dispatches(db=db, conversation_id=conversation.id)
 
@@ -184,6 +189,9 @@ def load_conversation_messages_response(
             direct_instance_id=conversation.direct_instance_id,
             direct_agent_id=conversation.direct_agent_id,
             direct_runtime_target_id=conversation.direct_runtime_target_id,
+            runtime_type=runtime_target.runtime_type if runtime_target else None,
+            runtime_target_display_name=runtime_target.display_name if runtime_target else None,
+            runtime_target_cs_id=runtime_target.cs_id if runtime_target else None,
             agent_dialogue_id=dialogue.id if dialogue else None,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,

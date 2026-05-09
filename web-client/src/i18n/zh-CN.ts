@@ -81,6 +81,7 @@ export const zhCN = {
     loadingMessages: "正在加载会话消息...",
     emptyMessages: "还没有消息，先发一条试试看。",
     replying: "正在思考或执行中...",
+    messageFailed: "消息处理失败",
     copy: "复制",
     copied: "已复制",
     sourceWebchat: "OpenClaw Web UI",

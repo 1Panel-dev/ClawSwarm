@@ -81,6 +81,7 @@ export const en = {
     loadingMessages: "Loading conversation messages...",
     emptyMessages: "No messages yet. Send one to get started.",
     replying: "Thinking or executing...",
+    messageFailed: "Message failed",
     copy: "Copy",
     copied: "Copied",
     sourceWebchat: "OpenClaw Web UI",

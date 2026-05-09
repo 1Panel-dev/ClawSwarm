@@ -93,7 +93,13 @@ const title = computed(() => {
 });
 const directConversationCsId = computed(() => {
     const conversation = conversationStore.currentConversation;
-    if (!conversation || conversation.type !== "direct" || !conversation.directInstanceId || !conversation.directAgentId) {
+    if (!conversation || conversation.type !== "direct") {
+        return "";
+    }
+    if (conversation.directRuntimeTargetId) {
+        return conversation.runtimeTargetCsId ?? "";
+    }
+    if (!conversation.directInstanceId || !conversation.directAgentId) {
         return "";
     }
     const instance = addressBookStore.instances.find((item) => item.id === conversation.directInstanceId);
