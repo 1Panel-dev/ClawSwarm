@@ -95,6 +95,92 @@ def ensure_runtime_schema() -> None:
             statements.append("ALTER TABLE messages ADD COLUMN sender_cs_id VARCHAR(32)")
             statements.append("CREATE INDEX IF NOT EXISTS ix_messages_sender_cs_id ON messages (sender_cs_id)")
 
+    if "conversations" in table_names:
+        conversation_columns = {column["name"] for column in inspector.get_columns("conversations")}
+        if "direct_runtime_target_id" not in conversation_columns:
+            statements.append("ALTER TABLE conversations ADD COLUMN direct_runtime_target_id INTEGER")
+            statements.append(
+                "CREATE INDEX IF NOT EXISTS ix_conversations_direct_runtime_target_id "
+                "ON conversations (direct_runtime_target_id)"
+            )
+
+    if "message_dispatches" in table_names:
+        dispatch_column_map = {column["name"]: column for column in inspector.get_columns("message_dispatches")}
+        dispatch_columns = set(dispatch_column_map)
+        dispatch_needs_nullable_rebuild = (
+            is_sqlite
+            and (
+                dispatch_column_map.get("instance_id", {}).get("nullable") is False
+                or dispatch_column_map.get("agent_id", {}).get("nullable") is False
+            )
+        )
+        if dispatch_needs_nullable_rebuild:
+            with engine.begin() as connection:
+                connection.execute(text("PRAGMA foreign_keys=OFF"))
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS message_dispatches__new (
+                            id VARCHAR(64) NOT NULL PRIMARY KEY,
+                            message_id VARCHAR NOT NULL,
+                            conversation_id INTEGER NOT NULL,
+                            instance_id INTEGER NULL,
+                            agent_id INTEGER NULL,
+                            runtime_target_id INTEGER NULL,
+                            dispatch_mode VARCHAR(32) NOT NULL,
+                            channel_message_id VARCHAR(64) NULL,
+                            channel_trace_id VARCHAR(64) NULL,
+                            session_key VARCHAR(255) NULL,
+                            status VARCHAR(32) NOT NULL,
+                            error_message VARCHAR(500) NULL,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                runtime_target_select = "runtime_target_id" if "runtime_target_id" in dispatch_columns else "NULL"
+                connection.execute(
+                    text(
+                        f"""
+                        INSERT INTO message_dispatches__new (
+                            id, message_id, conversation_id, instance_id, agent_id, runtime_target_id,
+                            dispatch_mode, channel_message_id, channel_trace_id, session_key,
+                            status, error_message, created_at, updated_at
+                        )
+                        SELECT
+                            id, message_id, conversation_id, instance_id, agent_id, {runtime_target_select},
+                            dispatch_mode, channel_message_id, channel_trace_id, session_key,
+                            status, error_message, created_at, updated_at
+                        FROM message_dispatches
+                        """
+                    )
+                )
+                connection.execute(text("DROP TABLE message_dispatches"))
+                connection.execute(text("ALTER TABLE message_dispatches__new RENAME TO message_dispatches"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_message_dispatches_message_id ON message_dispatches (message_id)"))
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_message_dispatches_conversation_id ON message_dispatches (conversation_id)")
+                )
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_message_dispatches_instance_id ON message_dispatches (instance_id)"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_message_dispatches_agent_id ON message_dispatches (agent_id)"))
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_message_dispatches_runtime_target_id ON message_dispatches (runtime_target_id)")
+                )
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_message_dispatches_channel_message_id ON message_dispatches (channel_message_id)")
+                )
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_message_dispatches_channel_trace_id ON message_dispatches (channel_trace_id)")
+                )
+                connection.execute(text("PRAGMA foreign_keys=ON"))
+        elif "runtime_target_id" not in dispatch_columns:
+            statements.append("ALTER TABLE message_dispatches ADD COLUMN runtime_target_id INTEGER")
+            statements.append(
+                "CREATE INDEX IF NOT EXISTS ix_message_dispatches_runtime_target_id "
+                "ON message_dispatches (runtime_target_id)"
+            )
+
     if "agent_profiles" in table_names:
         agent_columns = {column["name"] for column in inspector.get_columns("agent_profiles")}
         if "created_via_clawswarm" not in agent_columns:

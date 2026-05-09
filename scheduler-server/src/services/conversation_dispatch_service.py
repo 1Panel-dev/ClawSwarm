@@ -31,6 +31,11 @@ async def dispatch_direct_message(
     payload: MessageCreate,
 ) -> list[str]:
     """为 direct 会话创建一条 dispatch 并调用 channel。"""
+    if conversation.direct_runtime_target_id and not conversation.direct_agent_id:
+        from src.services.hermes_dispatch_service import dispatch_hermes_direct_message
+
+        return await dispatch_hermes_direct_message(db=db, conversation=conversation, message=message)
+
     instance = db.get(OpenClawInstance, conversation.direct_instance_id)
     agent = db.get(AgentProfile, conversation.direct_agent_id)
     if not instance or not agent:

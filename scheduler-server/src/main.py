@@ -17,6 +17,7 @@ from src.api.routes import (
     conversations,
     groups,
     health,
+    hermes,
     instances,
     projects,
     ws,
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(hermes.router)
     app.include_router(instances.router)
     app.include_router(agents.router)
     app.include_router(agent_dialogues.router)

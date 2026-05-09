@@ -32,12 +32,16 @@ from src.models.agent_dialogue import AgentDialogue
 from src.models.chat_group import ChatGroup
 from src.models.chat_group_member import ChatGroupMember
 from src.models.conversation import Conversation
+from src.models.hermes_conversation_state import HermesConversationState
+from src.models.hermes_instance import HermesInstance
+from src.models.hermes_profile import HermesProfile
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.models.project import Project
 from src.models.project_document import ProjectDocument
+from src.models.runtime_target import RuntimeTarget
 from src.core.config import settings
 from src.api.routes.agents import sync_instance_agents
 from src.api.routes import instances as instances_route
@@ -45,6 +49,7 @@ from src.schemas.agent import AgentCreate
 from src.services.agent_profile_service import create_agent_for_instance
 from src.services.auth import build_session_cookie_value, ensure_default_user, get_auth_cookie_name
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
+from src.services.hermes_dispatch_service import run_hermes_direct_dispatch
 from src.services.project_service import PROJECT_INTRO_TEMPLATE_NAME
 from src.services.project_document_service import create_project_document, delete_project_document, update_project_document
 from src.services.project_service import create_project, delete_project
@@ -3461,6 +3466,374 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertEqual(db.get(OpenClawInstance, active_id).status, "active")
             self.assertEqual(db.get(OpenClawInstance, offline_id).status, "active")
             self.assertEqual(db.get(OpenClawInstance, disabled_id).status, "disabled")
+
+    def test_hermes_instance_response_does_not_leak_api_key(self) -> None:
+        response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Local",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "coder",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertTrue(payload["api_key_configured"])
+        self.assertNotIn("api_key", payload)
+
+        list_response = self.client.get("/api/hermes/instances")
+        self.assertEqual(list_response.status_code, 200)
+        self.assertNotIn("api_key", list_response.json()[0])
+
+    def test_create_hermes_profile_creates_runtime_target_and_cs_id(self) -> None:
+        instance_response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Profiles",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "assistant",
+            },
+        )
+        instance_id = instance_response.json()["id"]
+
+        profile_response = self.client.post(
+            f"/api/hermes/instances/{instance_id}/profiles",
+            json={
+                "profile_key": "coder",
+                "display_name": "Coder",
+                "role_name": "Engineer",
+                "model": "coder",
+            },
+        )
+
+        self.assertEqual(profile_response.status_code, 200, profile_response.text)
+        payload = profile_response.json()
+        self.assertEqual(payload["profile_key"], "coder")
+        self.assertTrue(payload["cs_id"].startswith("CSH-"))
+        self.assertIsInstance(payload["runtime_target_id"], int)
+
+        with self.SessionLocal() as db:
+            profile = db.get(HermesProfile, payload["id"])
+            assert profile is not None
+            target = db.get(RuntimeTarget, payload["runtime_target_id"])
+            assert target is not None
+            self.assertEqual(target.runtime_type, "hermes")
+            self.assertEqual(target.runtime_instance_id, instance_id)
+            self.assertEqual(target.runtime_profile_id, profile.id)
+            self.assertEqual(target.target_key, "coder")
+            self.assertEqual(target.cs_id, profile.cs_id)
+
+    def test_create_hermes_profile_conversation_uses_runtime_target(self) -> None:
+        instance_response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Chat",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "assistant",
+            },
+        )
+        instance_id = instance_response.json()["id"]
+        profile_response = self.client.post(
+            f"/api/hermes/instances/{instance_id}/profiles",
+            json={
+                "profile_key": "assistant",
+                "display_name": "Hermes Assistant",
+                "role_name": "Assistant",
+                "model": "assistant",
+            },
+        )
+        profile_id = profile_response.json()["id"]
+        runtime_target_id = profile_response.json()["runtime_target_id"]
+
+        conversation_response = self.client.post(f"/api/hermes/profiles/{profile_id}/conversation")
+
+        self.assertEqual(conversation_response.status_code, 200, conversation_response.text)
+        payload = conversation_response.json()
+        self.assertEqual(payload["type"], "direct")
+        self.assertEqual(payload["direct_runtime_target_id"], runtime_target_id)
+        self.assertIsNone(payload["direct_instance_id"])
+        self.assertIsNone(payload["direct_agent_id"])
+
+        list_response = self.client.get("/api/conversations")
+        self.assertEqual(list_response.status_code, 200)
+        item = list_response.json()[0]
+        self.assertEqual(item["direct_runtime_target_id"], runtime_target_id)
+        self.assertEqual(item["runtime_type"], "hermes")
+        self.assertEqual(item["runtime_target_display_name"], "Hermes Assistant")
+
+    def test_send_message_to_hermes_profile_uses_responses_api(self) -> None:
+        instance_response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Send",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "assistant",
+            },
+        )
+        instance_id = instance_response.json()["id"]
+        profile_response = self.client.post(
+            f"/api/hermes/instances/{instance_id}/profiles",
+            json={
+                "profile_key": "assistant",
+                "display_name": "Hermes Assistant",
+                "role_name": "Assistant",
+                "model": "assistant",
+            },
+        )
+        profile_id = profile_response.json()["id"]
+        conversation_id = self.client.post(f"/api/hermes/profiles/{profile_id}/conversation").json()["id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            self.assertEqual(instance.id, instance_id)
+            self.assertEqual(payload["model"], "assistant")
+            self.assertEqual(payload["input"], "你好 Hermes")
+            self.assertEqual(payload["conversation"], f"clawswarm-conversation-{conversation_id}")
+            yield {"type": "response.created", "response": {"id": "resp_001", "conversation": "conv_001"}}
+            yield {"type": "response.output_text.delta", "delta": "你好，我是 Hermes。"}
+            yield {"type": "response.completed", "response": {"id": "resp_001", "conversation": "conv_001"}}
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "你好 Hermes"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "pending")
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+        with self.SessionLocal() as db:
+            messages = list(db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)))
+            self.assertEqual(len(messages), 2)
+            self.assertEqual(messages[0].content, "你好 Hermes")
+            self.assertEqual(messages[0].status, "completed")
+            self.assertEqual(messages[1].sender_label, "Hermes Assistant")
+            self.assertEqual(messages[1].sender_cs_id, profile_response.json()["cs_id"])
+            self.assertEqual(messages[1].content, "你好，我是 Hermes。")
+
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id))
+            assert dispatch is not None
+            self.assertEqual(dispatch.status, "completed")
+            self.assertEqual(dispatch.runtime_target_id, profile_response.json()["runtime_target_id"])
+            self.assertIsNone(dispatch.instance_id)
+            self.assertIsNone(dispatch.agent_id)
+
+    def test_hermes_dispatch_streams_response_into_agent_message(self) -> None:
+        instance_response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Stream",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "assistant",
+            },
+        )
+        instance_id = instance_response.json()["id"]
+        profile_response = self.client.post(
+            f"/api/hermes/instances/{instance_id}/profiles",
+            json={
+                "profile_key": "assistant",
+                "display_name": "Hermes Stream",
+                "model": "assistant",
+            },
+        )
+        profile_id = profile_response.json()["id"]
+        conversation_id = self.client.post(f"/api/hermes/profiles/{profile_id}/conversation").json()["id"]
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "stream please"},
+            )
+
+        async def mocked_stream_response(*, instance, payload):
+            self.assertEqual(instance.id, instance_id)
+            self.assertEqual(payload["model"], "assistant")
+            self.assertEqual(payload["input"], "stream please")
+            yield {"type": "response.created", "response": {"id": "resp_stream", "conversation": "conv_stream"}}
+            yield {"type": "response.output_text.delta", "delta": "你"}
+            yield {"type": "response.output_text.delta", "delta": "好"}
+            yield {"type": "response.completed", "response": {"id": "resp_stream", "conversation": "conv_stream"}}
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+        with self.SessionLocal() as db:
+            messages = list(db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)))
+            self.assertEqual(len(messages), 2)
+            self.assertEqual(messages[0].content, "stream please")
+            self.assertEqual(messages[0].status, "completed")
+            self.assertEqual(messages[1].sender_label, "Hermes Stream")
+            self.assertEqual(messages[1].content, "你好")
+            self.assertEqual(messages[1].status, "completed")
+
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id))
+            assert dispatch is not None
+            self.assertEqual(dispatch.status, "completed")
+            self.assertEqual(dispatch.channel_trace_id, "resp_stream")
+
+            state = db.scalar(select(HermesConversationState).where(HermesConversationState.conversation_id == conversation_id))
+            assert state is not None
+            self.assertEqual(state.last_response_id, "resp_stream")
+            self.assertEqual(state.hermes_conversation_key, "conv_stream")
+
+    def test_send_message_to_hermes_profile_returns_user_message_before_dispatch(self) -> None:
+        instance_response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Async",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "assistant",
+            },
+        )
+        instance_id = instance_response.json()["id"]
+        profile_response = self.client.post(
+            f"/api/hermes/instances/{instance_id}/profiles",
+            json={
+                "profile_key": "assistant",
+                "display_name": "Hermes Async",
+                "model": "assistant",
+            },
+        )
+        conversation_id = self.client.post(f"/api/hermes/profiles/{profile_response.json()['id']}/conversation").json()["id"]
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch") as schedule_dispatch:
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "show immediately"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        schedule_dispatch.assert_called_once()
+        payload = response.json()
+        self.assertEqual(payload["content"], "show immediately")
+        self.assertEqual(payload["status"], "pending")
+
+        with self.SessionLocal() as db:
+            messages = list(db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)))
+            self.assertEqual(len(messages), 1)
+            self.assertEqual(messages[0].content, "show immediately")
+            self.assertEqual(messages[0].status, "pending")
+
+    def test_hermes_dispatch_commits_pending_dispatch_before_api_call(self) -> None:
+        instance_response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Visible",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "assistant",
+            },
+        )
+        instance_id = instance_response.json()["id"]
+        profile_response = self.client.post(
+            f"/api/hermes/instances/{instance_id}/profiles",
+            json={
+                "profile_key": "assistant",
+                "display_name": "Hermes Visible",
+                "model": "assistant",
+            },
+        )
+        runtime_target_id = profile_response.json()["runtime_target_id"]
+        conversation_id = self.client.post(f"/api/hermes/profiles/{profile_response.json()['id']}/conversation").json()["id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            with self.SessionLocal() as check_db:
+                visible_dispatch = check_db.scalar(
+                    select(MessageDispatch).where(
+                        MessageDispatch.conversation_id == conversation_id,
+                        MessageDispatch.runtime_target_id == runtime_target_id,
+                    )
+                )
+                self.assertIsNotNone(visible_dispatch)
+                self.assertEqual(visible_dispatch.status, "pending")
+            yield {"type": "response.created", "response": {"id": "resp_visible"}}
+            yield {"type": "response.output_text.delta", "delta": "visible"}
+            yield {"type": "response.completed", "response": {"id": "resp_visible"}}
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "check visibility"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+    def test_hermes_timeout_marks_message_and_dispatch_failed(self) -> None:
+        instance_response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Timeout",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "assistant",
+            },
+        )
+        instance_id = instance_response.json()["id"]
+        profile_response = self.client.post(
+            f"/api/hermes/instances/{instance_id}/profiles",
+            json={"profile_key": "assistant", "display_name": "Hermes Timeout", "model": "assistant"},
+        )
+        conversation_id = self.client.post(f"/api/hermes/profiles/{profile_response.json()['id']}/conversation").json()["id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            raise httpx.TimeoutException("timeout")
+            yield
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "timeout please"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "pending")
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+        with self.SessionLocal() as db:
+            message = db.scalar(select(Message).where(Message.conversation_id == conversation_id))
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id))
+            assert message is not None
+            assert dispatch is not None
+            self.assertEqual(message.status, "failed")
+            self.assertEqual(dispatch.status, "failed")
+            self.assertEqual(dispatch.error_message, "Hermes timed out")
 
     def test_connect_instance_generates_separate_credentials_and_returns_them(self) -> None:
         with patch("src.api.routes.instances.fetch_channel_agents", return_value=[{"id": "main", "name": "Main"}]):

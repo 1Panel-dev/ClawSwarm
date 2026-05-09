@@ -23,3 +23,4 @@ class Conversation(Base, TimestampMixin):
     group_id: Mapped[int | None] = mapped_column(ForeignKey("chat_groups.id"), nullable=True, index=True)
     direct_instance_id: Mapped[int | None] = mapped_column(ForeignKey("openclaw_instances.id"), nullable=True, index=True)
     direct_agent_id: Mapped[int | None] = mapped_column(ForeignKey("agent_profiles.id"), nullable=True, index=True)
+    direct_runtime_target_id: Mapped[int | None] = mapped_column(nullable=True, index=True)

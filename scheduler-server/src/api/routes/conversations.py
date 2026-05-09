@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,7 @@ from src.services.conversation_dispatch_service import dispatch_direct_message, 
 from src.services.conversation_events import conversation_event_hub
 from src.services.conversation_query_service import list_conversation_items, load_conversation_messages_response
 from src.services.default_user import get_default_user_identity
+from src.services.hermes_dispatch_service import run_hermes_direct_dispatch
 from src.services.local_agent_mock import simulate_local_agent_reply
 from src.schemas.conversation import (
     build_message_read,
@@ -118,6 +120,7 @@ def list_conversation_messages(
 async def send_message(
     conversation_id: int,
     payload: MessageCreate,
+    request: Request,
     db: Session = Depends(db_session),
 ) -> MessageRead:
     # 先落库用户消息，后续 dispatch 和 callback 才能围绕同一个稳定消息 id 工作。
@@ -137,6 +140,21 @@ async def send_message(
     db.add(message)
     db.commit()
     db.refresh(message)
+
+    if is_hermes_direct_conversation(conversation):
+        await conversation_event_hub.publish_update(
+            conversation.id,
+            {
+                "source": "send_message",
+                "messageId": message.id,
+            },
+        )
+        schedule_hermes_direct_dispatch(
+            session_local=request.app.state.session_local,
+            conversation_id=conversation.id,
+            message_id=message.id,
+        )
+        return build_message_read(message)
 
     dispatch_ids: list[str] = []
     if conversation.type == "direct":
@@ -165,3 +183,17 @@ async def send_message(
         },
     )
     return build_message_read(message)
+
+
+def is_hermes_direct_conversation(conversation: Conversation) -> bool:
+    return conversation.type == "direct" and conversation.direct_runtime_target_id is not None and conversation.direct_agent_id is None
+
+
+def schedule_hermes_direct_dispatch(*, session_local, conversation_id: int, message_id: str) -> None:
+    asyncio.create_task(
+        run_hermes_direct_dispatch(
+            session_local=session_local,
+            conversation_id=conversation_id,
+            message_id=message_id,
+        )
+    )

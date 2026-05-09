@@ -1,40 +1,51 @@
 <template>
   <div class="page-container">
-    <section class="page-container__body" v-loading="syncingAgents" element-loading-background="rgba(122, 122, 122, 0.8)">
-      <el-card shadow="never">
-        <template #header>
-          <div class="openclaws-page__panel-header">
-            <el-space wrap>
-              <h2 class="page-section-title">{{ t("openclaw.instanceList") }}</h2>
-              <el-tag type="info" effect="plain">{{ instances.length }}</el-tag>
-            </el-space>
-            <el-button type="primary" :disabled="pageBusy" @click="openCreateInstance">
-              {{ t("openclaw.addInstance") }}
-            </el-button>
-          </div>
-        </template>
+    <el-tabs v-model="activeTab" class="openclaws-page__tabs" @tab-change="handleTabChange">
+      <el-tab-pane label="OpenClaw" name="openclaw">
+        <section
+          class="page-container__body"
+          v-loading="syncingAgents"
+          element-loading-background="rgba(122, 122, 122, 0.8)"
+        >
+          <el-card shadow="never">
+            <template #header>
+              <div class="openclaws-page__panel-header">
+                <el-space wrap>
+                  <h2 class="page-section-title">{{ t("openclaw.instanceList") }}</h2>
+                  <el-tag type="info" effect="plain">{{ instances.length }}</el-tag>
+                </el-space>
+                <el-button type="primary" :disabled="pageBusy" @click="openCreateInstance">
+                  {{ t("openclaw.addInstance") }}
+                </el-button>
+              </div>
+            </template>
 
-        <el-empty v-if="loading && !instances.length" :description="t('openclaw.loadingInstances')"/>
-        <el-empty v-else-if="!instances.length" :description="t('openclaw.noInstances')"/>
+            <el-empty v-if="loading && !instances.length" :description="t('openclaw.loadingInstances')"/>
+            <el-empty v-else-if="!instances.length" :description="t('openclaw.noInstances')"/>
 
-        <div v-else class="openclaws-page__instance-list">
-          <InstanceCard
-            v-for="instance in instances"
-            :key="instance.id"
-            :instance="instance"
-            :page-busy="pageBusy"
-            :syncing="savingId === `instance:${instance.id}:sync`"
-            @create-agent="openAgentCreate"
-            @sync="syncAgents"
-            @edit-instance="openInstanceEdit"
-            @toggle-instance="toggleInstance"
-            @delete-instance="confirmDeleteInstance"
-            @edit-agent="handleAgentTableEdit"
-            @toggle-agent="toggleAgent"
-          />
-        </div>
-      </el-card>
-    </section>
+            <div v-else class="openclaws-page__instance-list">
+              <InstanceCard
+                v-for="instance in instances"
+                :key="instance.id"
+                :instance="instance"
+                :page-busy="pageBusy"
+                :syncing="savingId === `instance:${instance.id}:sync`"
+                @create-agent="openAgentCreate"
+                @sync="syncAgents"
+                @edit-instance="openInstanceEdit"
+                @toggle-instance="toggleInstance"
+                @delete-instance="confirmDeleteInstance"
+                @edit-agent="handleAgentTableEdit"
+                @toggle-agent="toggleAgent"
+              />
+            </div>
+          </el-card>
+        </section>
+      </el-tab-pane>
+      <el-tab-pane label="Hermes" name="hermes">
+        <HermesManagementPane />
+      </el-tab-pane>
+    </el-tabs>
 
     <InstanceCreateDrawer
       v-model:visible="createDrawerVisible"
@@ -68,8 +79,10 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 import AgentCreateDrawer from "@/pages/openclaws/components/AgentCreateDrawer.vue";
+import HermesManagementPane from "@/pages/openclaws/components/HermesManagementPane.vue";
 import InstanceCreateDrawer from "@/pages/openclaws/components/InstanceCreateDrawer.vue";
 import InstanceCard from "@/pages/openclaws/components/InstanceCard.vue";
 import { useI18n } from "@/composables/useI18n";
@@ -87,8 +100,11 @@ import type {
 
 const openClawStore = useOpenClawStore();
 const {t} = useI18n();
+const route = useRoute();
+const router = useRouter();
 
 const createDrawerVisible = ref(false);
+const activeTab = ref<"openclaw" | "hermes">(route.query.tab === "hermes" ? "hermes" : "openclaw");
 const editDrawerVisible = ref(false);
 const agentDrawerVisible = ref(false);
 const agentDrawerMode = ref<"create" | "edit">("create");
@@ -160,6 +176,16 @@ function stopInstancePolling() {
     window.clearInterval(refreshTimer.value);
     refreshTimer.value = null;
   }
+}
+
+function handleTabChange(tabName: string | number) {
+  const nextTab = tabName === "hermes" ? "hermes" : "openclaw";
+  void router.replace({
+    query: {
+      ...route.query,
+      tab: nextTab === "hermes" ? "hermes" : undefined,
+    },
+  });
 }
 
 async function toggleInstance(instanceId: number, enable: boolean) {
@@ -320,6 +346,14 @@ function handleAgentSubmit(
   height: 100%;
   min-height: 0;
   overflow: auto;
+}
+
+.openclaws-page__tabs {
+  width: 100%;
+}
+
+.openclaws-page__tabs :deep(.el-tabs__header) {
+  margin: 0 0 var(--space-3);
 }
 
 .openclaws-page__panel-header {

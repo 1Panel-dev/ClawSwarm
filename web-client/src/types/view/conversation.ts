@@ -27,6 +27,9 @@ export interface ConversationListItemOutput {
     subtitle: string;
     instanceName: string | null;
     agentDisplayName: string | null;
+    runtimeType: string | null;
+    runtimeTargetDisplayName: string | null;
+    runtimeTargetCsId: string | null;
     preview: string;
     timeText: string;
     status: string | null;
@@ -41,9 +44,13 @@ export function toConversationListItemOutput(item: ConversationListItemResponse)
         subtitle:
             item.type === "group"
                 ? item.group_name ?? ""
-                : [item.instance_name, item.agent_display_name].filter(Boolean).join(" / "),
+                : [item.instance_name, item.agent_display_name].filter(Boolean).join(" / ")
+                    || [item.runtime_type, item.runtime_target_display_name].filter(Boolean).join(" / "),
         instanceName: item.instance_name,
         agentDisplayName: item.agent_display_name,
+        runtimeType: item.runtime_type ?? null,
+        runtimeTargetDisplayName: item.runtime_target_display_name ?? null,
+        runtimeTargetCsId: item.runtime_target_cs_id ?? null,
         preview: item.last_message_preview ?? "暂无消息",
         timeText: item.last_message_at ?? item.updated_at,
         status: item.last_message_status,
