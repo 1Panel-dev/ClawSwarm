@@ -4,8 +4,10 @@ import type { Camelized } from "@/utils/case";
 export type AgentDialogueOutput = Camelized<AgentDialogueResponse>;
 
 export interface AgentDialogueCreateInput {
-    sourceAgentId: number;
-    targetAgentId: number;
+    sourceAgentId?: number;
+    targetAgentId?: number;
+    sourceRuntimeTargetId?: number;
+    targetRuntimeTargetId?: number;
     topic: string;
     windowSeconds?: number;
     softMessageLimit?: number;

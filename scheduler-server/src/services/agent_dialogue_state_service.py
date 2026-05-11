@@ -25,11 +25,27 @@ def pick_next_agent_id(dialogue: AgentDialogue, current_speaker_agent_id: int) -
     return None
 
 
+def pick_next_runtime_target_id(dialogue: AgentDialogue, current_speaker_runtime_target_id: int) -> int | None:
+    """根据当前发言者，返回对侧参与者的 Runtime Target id。"""
+    if current_speaker_runtime_target_id == dialogue.source_runtime_target_id:
+        return dialogue.target_runtime_target_id
+    if current_speaker_runtime_target_id == dialogue.target_runtime_target_id:
+        return dialogue.source_runtime_target_id
+    return None
+
+
 def next_agent_id_for_dialogue(dialogue: AgentDialogue) -> int | None:
     """在只知道 dialogue 状态时，推导下一位应该发言的 agent。"""
     if dialogue.last_speaker_agent_id is None:
         return dialogue.source_agent_id
     return pick_next_agent_id(dialogue, dialogue.last_speaker_agent_id)
+
+
+def next_runtime_target_id_for_dialogue(dialogue: AgentDialogue) -> int | None:
+    """在只知道 dialogue 状态时，推导下一位应该发言的 Runtime Target。"""
+    if dialogue.last_speaker_runtime_target_id is None:
+        return dialogue.source_runtime_target_id
+    return pick_next_runtime_target_id(dialogue, dialogue.last_speaker_runtime_target_id)
 
 
 def count_recent_dialogue_messages(*, db: Session, dialogue: AgentDialogue) -> int:

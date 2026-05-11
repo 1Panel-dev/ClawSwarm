@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.models.agent_dialogue import AgentDialogue
 from src.models.agent_profile import AgentProfile
 from src.models.message import Message
+from src.models.runtime_target import RuntimeTarget
 from src.services.agent_cs_id import ensure_agent_cs_id
 from src.services.agent_dialogue_state_service import count_recent_dialogue_messages
 from src.services.default_user import get_default_user_identity
@@ -47,6 +48,50 @@ def build_agent_dialogue_context_text(
             f"Topic: {dialogue.topic}",
             f"Your identity: {recipient_agent.display_name} ({recipient_agent.cs_id})",
             f"Current partner: {partner_agent.display_name} ({partner_agent.cs_id})",
+            f"Window guard: {dialogue.window_seconds}s, soft {dialogue.soft_message_limit}, hard {dialogue.hard_message_limit}",
+            f"Recent message count in window: {recent_message_count}",
+            (
+                f"Last speaker: {sender_label}"
+                if sender_label
+                else "Last speaker: Unknown"
+            ),
+            "Instruction: Continue the ongoing ClawSwarm agent dialogue with your current partner. Reply to the partner directly and stay focused on the topic.",
+            "",
+            message_intro,
+            message.content,
+        ]
+    )
+
+
+def build_runtime_dialogue_context_text(
+    *,
+    db: Session,
+    dialogue: AgentDialogue,
+    recipient_target: RuntimeTarget,
+    message: Message,
+    sender_label: str,
+) -> str:
+    """把单条 dialogue 消息包成任意 Runtime Target 可直接理解的上下文文本。"""
+    source_target = db.get(RuntimeTarget, dialogue.source_runtime_target_id) if dialogue.source_runtime_target_id else None
+    target_target = db.get(RuntimeTarget, dialogue.target_runtime_target_id) if dialogue.target_runtime_target_id else None
+    if not source_target or not target_target:
+        return message.content
+
+    partner_target = target_target if recipient_target.id == source_target.id else source_target
+    recent_message_count = count_recent_dialogue_messages(db=db, dialogue=dialogue)
+    if message.sender_type == "user":
+        message_intro = f"Human guidance from {DEFAULT_USER.label_with_cs_id}:"
+    else:
+        message_intro = f"Partner message from {sender_label}:"
+
+    return "\n".join(
+        [
+            AGENT_DIALOGUE_CONTEXT_HEADER,
+            "",
+            f"Dialogue ID: AD-{dialogue.id:04d}",
+            f"Topic: {dialogue.topic}",
+            f"Your identity: {recipient_target.display_name} ({recipient_target.cs_id})",
+            f"Current partner: {partner_target.display_name} ({partner_target.cs_id})",
             f"Window guard: {dialogue.window_seconds}s, soft {dialogue.soft_message_limit}, hard {dialogue.hard_message_limit}",
             f"Recent message count in window: {recent_message_count}",
             (

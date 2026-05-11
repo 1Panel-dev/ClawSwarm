@@ -20,8 +20,10 @@ class AgentDialogue(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), unique=True, index=True)
-    source_agent_id: Mapped[int] = mapped_column(ForeignKey("agent_profiles.id"), index=True)
-    target_agent_id: Mapped[int] = mapped_column(ForeignKey("agent_profiles.id"), index=True)
+    source_agent_id: Mapped[int | None] = mapped_column(ForeignKey("agent_profiles.id"), nullable=True, index=True)
+    target_agent_id: Mapped[int | None] = mapped_column(ForeignKey("agent_profiles.id"), nullable=True, index=True)
+    source_runtime_target_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
+    target_runtime_target_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
     topic: Mapped[str] = mapped_column(String(500))
     status: Mapped[str] = mapped_column(String(20), default="active")
     initiator_type: Mapped[str] = mapped_column(String(20), default="user")
@@ -36,3 +38,4 @@ class AgentDialogue(Base, TimestampMixin):
     hard_message_limit: Mapped[int] = mapped_column(Integer, default=20)
     soft_limit_warned_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_speaker_agent_id: Mapped[int | None] = mapped_column(ForeignKey("agent_profiles.id"), nullable=True, index=True)
+    last_speaker_runtime_target_id: Mapped[int | None] = mapped_column(nullable=True, index=True)

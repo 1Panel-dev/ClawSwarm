@@ -10,25 +10,45 @@
       <p class="drawer-body__hint">{{ t("conversation.agentDialogueHint") }}</p>
 
       <el-form label-position="top">
-        <el-form-item :label="t('conversation.sourceAgent')">
-          <el-select v-model="sourceAgentId" filterable style="width: 100%">
+        <el-form-item :label="t('conversation.sourceRuntimeTarget')">
+          <el-select
+            v-model="sourceRuntimeTargetId"
+            filterable
+            popper-class="agent-dialogue-runtime-select"
+            style="width: 100%"
+          >
             <el-option
-              v-for="agent in agentOptions"
-              :key="agent.value"
-              :label="agent.label"
-              :value="agent.value"
-            />
+              v-for="target in runtimeTargetOptions"
+              :key="target.value"
+              :label="target.label"
+              :value="target.value"
+            >
+              <div class="runtime-option">
+                <span class="runtime-option__name">{{ target.displayName }}</span>
+                <span class="runtime-option__meta">{{ target.meta }}</span>
+              </div>
+            </el-option>
           </el-select>
         </el-form-item>
 
-        <el-form-item :label="t('conversation.targetAgent')">
-          <el-select v-model="targetAgentId" filterable style="width: 100%">
+        <el-form-item :label="t('conversation.targetRuntimeTarget')">
+          <el-select
+            v-model="targetRuntimeTargetId"
+            filterable
+            popper-class="agent-dialogue-runtime-select"
+            style="width: 100%"
+          >
             <el-option
-              v-for="agent in targetOptions"
-              :key="agent.value"
-              :label="agent.label"
-              :value="agent.value"
-            />
+              v-for="target in targetOptions"
+              :key="target.value"
+              :label="target.label"
+              :value="target.value"
+            >
+              <div class="runtime-option">
+                <span class="runtime-option__name">{{ target.displayName }}</span>
+                <span class="runtime-option__meta">{{ target.meta }}</span>
+              </div>
+            </el-option>
           </el-select>
         </el-form-item>
 
@@ -70,17 +90,25 @@
 import { computed, ref, watch } from "vue";
 
 import { useI18n } from "@/composables/useI18n";
+import type { RuntimeTargetOutput } from "@/types/view/runtime-target";
+
+type RuntimeTargetOption = {
+    value: number;
+    label: string;
+    displayName: string;
+    meta: string;
+};
 
 const props = defineProps<{
     visible: boolean;
-    agentOptions: Array<{ value: number; label: string }>;
+    runtimeTargets: RuntimeTargetOutput[];
 }>();
 
 const emit = defineEmits<{
     "update:visible": [value: boolean];
     submit: [payload: {
-        sourceAgentId: number;
-        targetAgentId: number;
+        sourceRuntimeTargetId: number;
+        targetRuntimeTargetId: number;
         topic: string;
         windowSeconds: number;
         softMessageLimit: number;
@@ -89,22 +117,37 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const sourceAgentId = ref<number | null>(null);
-const targetAgentId = ref<number | null>(null);
+const sourceRuntimeTargetId = ref<number | null>(null);
+const targetRuntimeTargetId = ref<number | null>(null);
 const topic = ref("");
 const windowSeconds = ref(300);
 const softMessageLimit = ref(12);
 const hardMessageLimit = ref(20);
 
+const runtimeTargetOptions = computed<RuntimeTargetOption[]>(() =>
+    props.runtimeTargets.map((target) => {
+        const runtimeLabel = target.runtimeType === "hermes"
+            ? t("conversation.runtimeHermesEndpoint")
+            : t("conversation.runtimeOpenClawAgent");
+        const meta = [target.instanceName, runtimeLabel, target.csId].filter(Boolean).join(" / ");
+        return {
+            value: target.id,
+            label: `${target.displayName} / ${meta}`,
+            displayName: target.displayName,
+            meta,
+        };
+    }),
+);
+
 const targetOptions = computed(() =>
-    props.agentOptions.filter((item) => item.value !== sourceAgentId.value),
+    runtimeTargetOptions.value.filter((item) => item.value !== sourceRuntimeTargetId.value),
 );
 
 const canSubmit = computed(() => {
     return (
-        !!sourceAgentId.value
-        && !!targetAgentId.value
-        && sourceAgentId.value !== targetAgentId.value
+        !!sourceRuntimeTargetId.value
+        && !!targetRuntimeTargetId.value
+        && sourceRuntimeTargetId.value !== targetRuntimeTargetId.value
         && !!topic.value.trim()
         && softMessageLimit.value < hardMessageLimit.value
     );
@@ -116,8 +159,8 @@ watch(
         if (!visible) {
             return;
         }
-        sourceAgentId.value = null;
-        targetAgentId.value = null;
+        sourceRuntimeTargetId.value = null;
+        targetRuntimeTargetId.value = null;
         topic.value = "";
         windowSeconds.value = 300;
         softMessageLimit.value = 12;
@@ -126,12 +169,12 @@ watch(
 );
 
 function submit() {
-    if (!canSubmit.value || sourceAgentId.value === null || targetAgentId.value === null) {
+    if (!canSubmit.value || sourceRuntimeTargetId.value === null || targetRuntimeTargetId.value === null) {
         return;
     }
     emit("submit", {
-        sourceAgentId: sourceAgentId.value,
-        targetAgentId: targetAgentId.value,
+        sourceRuntimeTargetId: sourceRuntimeTargetId.value,
+        targetRuntimeTargetId: targetRuntimeTargetId.value,
         topic: topic.value.trim(),
         windowSeconds: windowSeconds.value,
         softMessageLimit: softMessageLimit.value,
@@ -157,5 +200,30 @@ function submit() {
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.runtime-option {
+  display: grid;
+  gap: 2px;
+  padding: 4px 0;
+  line-height: 1.35;
+}
+
+.runtime-option__name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.runtime-option__meta {
+  font-size: 0.78rem;
+  color: var(--color-text-secondary);
+}
+
+:global(.agent-dialogue-runtime-select .el-select-dropdown__item) {
+  height: auto;
+  min-height: 48px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  line-height: normal;
 }
 </style>

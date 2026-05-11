@@ -1,7 +1,7 @@
 """Agent dialogue 生命周期控制路由。"""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from src.api.deps import db_session
@@ -19,8 +19,12 @@ router = APIRouter(prefix="/api/agent-dialogues", tags=["agent-dialogues"])
 
 
 @router.post("", response_model=AgentDialogueRead)
-async def create_agent_dialogue(payload: AgentDialogueCreate, db: Session = Depends(db_session)) -> AgentDialogueRead:
-    dialogue = await create_agent_dialogue_service(db=db, payload=payload)
+async def create_agent_dialogue(
+    payload: AgentDialogueCreate,
+    request: Request,
+    db: Session = Depends(db_session),
+) -> AgentDialogueRead:
+    dialogue = await create_agent_dialogue_service(db=db, payload=payload, session_local=request.app.state.session_local)
     return serialize_agent_dialogue(db, dialogue)
 
 
@@ -35,8 +39,12 @@ def pause_agent_dialogue(dialogue_id: int, db: Session = Depends(db_session)) ->
 
 
 @router.post("/{dialogue_id}/resume", response_model=AgentDialogueRead)
-async def resume_agent_dialogue(dialogue_id: int, db: Session = Depends(db_session)) -> AgentDialogueRead:
-    dialogue = await resume_agent_dialogue_service(db=db, dialogue_id=dialogue_id)
+async def resume_agent_dialogue(dialogue_id: int, request: Request, db: Session = Depends(db_session)) -> AgentDialogueRead:
+    dialogue = await resume_agent_dialogue_service(
+        db=db,
+        dialogue_id=dialogue_id,
+        session_local=request.app.state.session_local,
+    )
     return serialize_agent_dialogue(db, dialogue)
 
 
@@ -49,6 +57,12 @@ def stop_agent_dialogue(dialogue_id: int, db: Session = Depends(db_session)) -> 
 async def add_agent_dialogue_message(
     dialogue_id: int,
     payload: AgentDialogueMessageCreate,
+    request: Request,
     db: Session = Depends(db_session),
 ) -> dict[str, str]:
-    return await add_agent_dialogue_message_service(db=db, dialogue_id=dialogue_id, content=payload.content)
+    return await add_agent_dialogue_message_service(
+        db=db,
+        dialogue_id=dialogue_id,
+        content=payload.content,
+        session_local=request.app.state.session_local,
+    )

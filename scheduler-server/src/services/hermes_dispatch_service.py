@@ -1,4 +1,4 @@
-"""Hermes Profile 消息分发服务。"""
+"""Hermes Endpoint 消息分发服务。"""
 
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from src.integrations.hermes_client import hermes_client
 from src.models.conversation import Conversation
 from src.models.hermes_conversation_state import HermesConversationState
 from src.models.hermes_instance import HermesInstance
-from src.models.hermes_profile import HermesProfile
 from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.runtime_target import RuntimeTarget
@@ -30,16 +29,15 @@ async def dispatch_hermes_direct_message(
     conversation: Conversation,
     message: Message,
 ) -> list[str]:
-    """把用户消息发送给 Hermes Profile，并同步写入回复。"""
+    """把用户消息发送给 Hermes Endpoint，并同步写入回复。"""
     target = db.get(RuntimeTarget, conversation.direct_runtime_target_id)
     if not target or target.runtime_type != "hermes":
         raise HTTPException(status_code=400, detail="invalid Hermes conversation target")
-    profile = db.get(HermesProfile, target.runtime_profile_id)
     instance = db.get(HermesInstance, target.runtime_instance_id)
-    if not profile or profile.removed or not instance:
-        raise HTTPException(status_code=404, detail="Hermes profile not found")
-    if instance.status == "disabled" or not profile.enabled or not target.enabled:
-        raise HTTPException(status_code=400, detail="Hermes profile is disabled")
+    if not instance:
+        raise HTTPException(status_code=404, detail="Hermes endpoint not found")
+    if instance.status == "disabled" or not target.enabled:
+        raise HTTPException(status_code=400, detail="Hermes endpoint is disabled")
 
     dispatch = MessageDispatch(
         id=f"dsp_{uuid.uuid4().hex[:24]}",
@@ -56,25 +54,24 @@ async def dispatch_hermes_direct_message(
     state = db.scalar(
         select(HermesConversationState).where(
             HermesConversationState.conversation_id == conversation.id,
-            HermesConversationState.hermes_profile_id == profile.id,
+            HermesConversationState.hermes_instance_id == instance.id,
         )
     )
     if state is None:
         state = HermesConversationState(
             conversation_id=conversation.id,
             hermes_instance_id=instance.id,
-            hermes_profile_id=profile.id,
             hermes_conversation_key=f"clawswarm-conversation-{conversation.id}",
         )
         db.add(state)
         db.flush()
 
-    payload = build_hermes_response_payload(instance=instance, profile=profile, state=state, message=message)
+    payload = build_hermes_response_payload(instance=instance, state=state, message=message)
     reply_message = Message(
         id=f"msg_hermes_{dispatch.id}",
         conversation_id=conversation.id,
         sender_type="agent",
-        sender_label=profile.display_name,
+        sender_label=target.display_name,
         sender_cs_id=target.cs_id,
         content="",
         status="pending",
@@ -230,15 +227,15 @@ async def run_hermes_direct_dispatch(
 def build_hermes_response_payload(
     *,
     instance: HermesInstance,
-    profile: HermesProfile,
     state: HermesConversationState,
     message: Message,
+    input_text: str | None = None,
 ) -> dict[str, Any]:
     """构造 Hermes Responses API 请求。"""
-    model = (profile.model or instance.default_model or profile.profile_key).strip()
+    model = (instance.default_model or instance.instance_key).strip()
     payload: dict[str, Any] = {
         "model": model,
-        "input": message.content,
+        "input": input_text if input_text is not None else message.content,
     }
     if state.last_response_id:
         payload["previous_response_id"] = state.last_response_id

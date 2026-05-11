@@ -4,101 +4,85 @@
       <template #header>
         <div class="hermes-pane__header">
           <el-space wrap>
-            <h2 class="page-section-title">{{ t("hermes.instanceList") }}</h2>
-            <el-tag type="info" effect="plain">{{ instances.length }}</el-tag>
+            <h2 class="page-section-title">{{ t("hermes.endpointList") }}</h2>
+            <el-tag type="info" effect="plain">{{ endpoints.length }}</el-tag>
           </el-space>
-          <el-button type="primary" @click="openInstanceCreate">
-            {{ t("hermes.addInstance") }}
+          <el-button type="primary" @click="openEndpointCreate">
+            {{ t("hermes.addEndpoint") }}
           </el-button>
         </div>
       </template>
 
-      <el-empty v-if="store.loading && !instances.length" :description="t('hermes.loadingInstances')" />
-      <el-empty v-else-if="!instances.length" :description="t('hermes.noInstances')" />
+      <el-empty v-if="store.loading && !endpoints.length" :description="t('hermes.loadingInstances')" />
+      <el-empty v-else-if="!endpoints.length" :description="t('hermes.noEndpoints')" />
 
       <div v-else class="hermes-pane__list">
-        <el-card v-for="instance in instances" :key="instance.id" shadow="hover" class="hermes-instance-card">
-          <div class="hermes-instance-card__header">
-            <div>
+        <el-card v-for="endpoint in endpoints" :key="endpoint.id" shadow="hover" class="hermes-endpoint-card">
+          <div class="hermes-endpoint-card__header">
+            <div class="hermes-endpoint-card__main">
               <el-space wrap>
-                <strong>{{ instance.name }}</strong>
-                <el-tag :type="instance.status === 'active' ? 'success' : 'info'" effect="plain">
-                  {{ instance.status === "active" ? t("openclaw.online") : t("openclaw.inactive") }}
+                <strong>{{ endpoint.displayName }}</strong>
+                <el-tag type="info" effect="plain">{{ endpoint.csId }}</el-tag>
+                <el-tag :type="endpoint.status === 'active' ? 'success' : 'info'" effect="plain">
+                  {{ endpoint.status === "active" ? t("openclaw.online") : t("openclaw.inactive") }}
                 </el-tag>
               </el-space>
-              <p class="hermes-instance-card__meta">{{ instance.apiBaseUrl }}</p>
+              <p class="hermes-endpoint-card__meta">
+                {{ endpoint.name }} · {{ endpoint.defaultModel || endpoint.instanceKey }}
+              </p>
+              <p class="hermes-endpoint-card__url">{{ endpoint.apiBaseUrl }}</p>
             </div>
             <el-space wrap>
-              <el-tooltip :content="t('hermes.addProfile')" placement="top">
-                <el-button circle type="primary" @click="openProfileCreate(instance)">
-                  <el-icon><Plus /></el-icon>
+              <el-tooltip :content="t('hermes.chat')" placement="top">
+                <el-button circle type="primary" @click="openConversation(endpoint)">
+                  <el-icon><ChatDotRound /></el-icon>
                 </el-button>
               </el-tooltip>
               <el-tooltip :content="t('hermes.testConnection')" placement="top">
-                <el-button circle @click="testInstance(instance)">
+                <el-button circle @click="testEndpoint(endpoint)">
                   <el-icon><Connection /></el-icon>
                 </el-button>
               </el-tooltip>
               <el-tooltip :content="t('common.edit')" placement="top">
-                <el-button circle @click="openInstanceEdit(instance)">
+                <el-button circle @click="openEndpointEdit(endpoint)">
                   <el-icon><EditPen /></el-icon>
                 </el-button>
               </el-tooltip>
-              <el-tooltip :content="instance.status === 'active' ? t('common.disable') : t('common.enable')" placement="top">
-                <el-button circle :type="instance.status === 'active' ? 'warning' : 'success'" @click="toggleInstance(instance)">
+              <el-tooltip :content="endpoint.status === 'active' ? t('common.disable') : t('common.enable')" placement="top">
+                <el-button circle :type="endpoint.status === 'active' ? 'warning' : 'success'" @click="toggleEndpoint(endpoint)">
                   <el-icon>
-                    <component :is="instance.status === 'active' ? SwitchButton : VideoPlay" />
+                    <component :is="endpoint.status === 'active' ? SwitchButton : VideoPlay" />
                   </el-icon>
                 </el-button>
               </el-tooltip>
               <el-tooltip :content="t('common.delete')" placement="top">
-                <el-button circle type="danger" @click="confirmDeleteInstance(instance)">
+                <el-button circle type="danger" @click="confirmDeleteEndpoint(endpoint)">
                   <el-icon><Delete /></el-icon>
                 </el-button>
               </el-tooltip>
             </el-space>
           </div>
-
-          <el-table v-if="instance.profiles.length" :data="instance.profiles" border class="hermes-instance-card__table">
-            <el-table-column prop="profileKey" :label="t('hermes.profileKey')" min-width="160" />
-            <el-table-column prop="displayName" :label="t('hermes.displayName')" min-width="160" />
-            <el-table-column prop="csId" label="CS ID" min-width="120" />
-            <el-table-column prop="model" :label="t('hermes.model')" min-width="160" />
-            <el-table-column :label="t('openclaw.actions')" width="220" fixed="right">
-              <template #default="{ row }">
-                <el-space>
-                  <el-button link type="primary" @click="openConversation(row.id)">
-                    {{ t("hermes.chat") }}
-                  </el-button>
-                  <el-button link @click="openProfileEdit(instance, row)">
-                    {{ t("common.edit") }}
-                  </el-button>
-                  <el-button link :type="row.enabled ? 'warning' : 'success'" @click="toggleProfile(row)">
-                    {{ row.enabled ? t("common.disable") : t("common.enable") }}
-                  </el-button>
-                  <el-button link type="danger" @click="confirmDeleteProfile(row)">
-                    {{ t("common.delete") }}
-                  </el-button>
-                </el-space>
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-else :description="t('hermes.noProfiles')" />
         </el-card>
       </div>
     </el-card>
 
-    <el-drawer v-model="instanceDrawerVisible" :title="instanceDrawerTitle" size="520px">
+    <el-drawer v-model="drawerVisible" :title="drawerTitle" size="520px">
       <el-form label-position="top">
-        <el-form-item :label="t('hermes.instanceName')">
-          <el-input v-model="instanceForm.name" maxlength="120" />
+        <el-form-item :label="t('hermes.endpointName')">
+          <el-input v-model="form.name" maxlength="120" />
+        </el-form-item>
+        <el-form-item :label="t('hermes.displayName')">
+          <el-input v-model="form.displayName" maxlength="120" />
+        </el-form-item>
+        <el-form-item :label="t('hermes.roleName')">
+          <el-input v-model="form.roleName" maxlength="120" />
         </el-form-item>
         <el-form-item :label="t('hermes.apiBaseUrl')">
-          <el-input v-model="instanceForm.apiBaseUrl" maxlength="500" />
+          <el-input v-model="form.apiBaseUrl" maxlength="500" />
         </el-form-item>
         <el-form-item label="API Key">
           <el-input
-            v-model="instanceForm.apiKey"
+            v-model="form.apiKey"
             type="password"
             show-password
             maxlength="255"
@@ -107,33 +91,12 @@
           />
         </el-form-item>
         <el-form-item :label="t('hermes.defaultModel')">
-          <el-input v-model="instanceForm.defaultModel" maxlength="120" />
+          <el-input v-model="form.defaultModel" maxlength="120" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="instanceDrawerVisible = false">{{ t("common.cancel") }}</el-button>
-        <el-button type="primary" @click="submitInstance">{{ t("common.save") }}</el-button>
-      </template>
-    </el-drawer>
-
-    <el-drawer v-model="profileDrawerVisible" :title="profileDrawerTitle" size="520px">
-      <el-form label-position="top">
-        <el-form-item :label="t('hermes.profileKey')">
-          <el-input v-model="profileForm.profileKey" :disabled="profileMode === 'edit'" maxlength="120" />
-        </el-form-item>
-        <el-form-item :label="t('hermes.displayName')">
-          <el-input v-model="profileForm.displayName" maxlength="120" />
-        </el-form-item>
-        <el-form-item :label="t('hermes.roleName')">
-          <el-input v-model="profileForm.roleName" maxlength="120" />
-        </el-form-item>
-        <el-form-item :label="t('hermes.model')">
-          <el-input v-model="profileForm.model" maxlength="120" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="profileDrawerVisible = false">{{ t("common.cancel") }}</el-button>
-        <el-button type="primary" @click="submitProfile">{{ t("common.save") }}</el-button>
+        <el-button @click="drawerVisible = false">{{ t("common.cancel") }}</el-button>
+        <el-button type="primary" @click="submitEndpoint">{{ t("common.save") }}</el-button>
       </template>
     </el-drawer>
   </section>
@@ -142,161 +105,106 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { Connection, Delete, EditPen, Plus, SwitchButton, VideoPlay } from "@element-plus/icons-vue";
+import { ChatDotRound, Connection, Delete, EditPen, SwitchButton, VideoPlay } from "@element-plus/icons-vue";
 
 import { useI18n } from "@/composables/useI18n";
 import { useConversationStore } from "@/stores/conversation";
 import { useHermesStore } from "@/stores/hermes";
-import type { HermesInstanceOutput, HermesProfileOutput } from "@/types/view/hermes";
+import type { HermesInstanceOutput } from "@/types/view/hermes";
 
 const store = useHermesStore();
 const conversationStore = useConversationStore();
 const router = useRouter();
 const {t} = useI18n();
 
-const instanceDrawerVisible = ref(false);
-const profileDrawerVisible = ref(false);
-const instanceMode = ref<"create" | "edit">("create");
-const profileMode = ref<"create" | "edit">("create");
-const editingInstanceId = ref<number | null>(null);
-const activeInstanceId = ref<number | null>(null);
-const editingProfileId = ref<number | null>(null);
+const drawerVisible = ref(false);
+const mode = ref<"create" | "edit">("create");
+const editingEndpointId = ref<number | null>(null);
 
-const instanceForm = reactive({
+const form = reactive({
   name: "",
+  displayName: "",
+  roleName: "",
   apiBaseUrl: "",
   apiKey: "",
   defaultModel: "",
 });
-const profileForm = reactive({
-  profileKey: "",
-  displayName: "",
-  roleName: "",
-  model: "",
-});
 
-const instances = computed(() => store.instances);
+const endpoints = computed(() => store.instances);
 const pageBusy = computed(() => store.loading || store.creating || store.savingId !== null);
-const instanceDrawerTitle = computed(() => instanceMode.value === "create" ? t("hermes.addInstance") : t("hermes.editInstance"));
-const profileDrawerTitle = computed(() => profileMode.value === "create" ? t("hermes.addProfile") : t("hermes.editProfile"));
+const drawerTitle = computed(() => mode.value === "create" ? t("hermes.addEndpoint") : t("hermes.editEndpoint"));
 
 onMounted(async () => {
-  if (!instances.value.length) {
+  if (!endpoints.value.length) {
     await store.loadInstances();
   }
 });
 
-function resetInstanceForm() {
-  instanceForm.name = "";
-  instanceForm.apiBaseUrl = "";
-  instanceForm.apiKey = "";
-  instanceForm.defaultModel = "";
+function resetForm() {
+  form.name = "";
+  form.displayName = "";
+  form.roleName = "";
+  form.apiBaseUrl = "";
+  form.apiKey = "";
+  form.defaultModel = "";
 }
 
-function resetProfileForm() {
-  profileForm.profileKey = "";
-  profileForm.displayName = "";
-  profileForm.roleName = "";
-  profileForm.model = "";
+function openEndpointCreate() {
+  mode.value = "create";
+  editingEndpointId.value = null;
+  resetForm();
+  drawerVisible.value = true;
 }
 
-function openInstanceCreate() {
-  instanceMode.value = "create";
-  editingInstanceId.value = null;
-  resetInstanceForm();
-  instanceDrawerVisible.value = true;
+function openEndpointEdit(endpoint: HermesInstanceOutput) {
+  mode.value = "edit";
+  editingEndpointId.value = endpoint.id;
+  form.name = endpoint.name;
+  form.displayName = endpoint.displayName;
+  form.roleName = endpoint.roleName ?? "";
+  form.apiBaseUrl = endpoint.apiBaseUrl;
+  form.apiKey = "";
+  form.defaultModel = endpoint.defaultModel ?? "";
+  drawerVisible.value = true;
 }
 
-function openInstanceEdit(instance: HermesInstanceOutput) {
-  instanceMode.value = "edit";
-  editingInstanceId.value = instance.id;
-  instanceForm.name = instance.name;
-  instanceForm.apiBaseUrl = instance.apiBaseUrl;
-  instanceForm.apiKey = "";
-  instanceForm.defaultModel = instance.defaultModel ?? "";
-  instanceDrawerVisible.value = true;
-}
-
-async function submitInstance() {
+async function submitEndpoint() {
   const payload = {
-    name: instanceForm.name,
-    apiBaseUrl: instanceForm.apiBaseUrl,
-    defaultModel: instanceForm.defaultModel || null,
-    apiKey: instanceMode.value === "create" || instanceForm.apiKey ? instanceForm.apiKey || null : undefined,
+    name: form.name,
+    displayName: form.displayName,
+    roleName: form.roleName || null,
+    apiBaseUrl: form.apiBaseUrl,
+    defaultModel: form.defaultModel || null,
+    apiKey: mode.value === "create" || form.apiKey ? form.apiKey || null : undefined,
   };
   try {
-    if (instanceMode.value === "edit" && editingInstanceId.value !== null) {
-      await store.updateInstance(editingInstanceId.value, payload);
+    if (mode.value === "edit" && editingEndpointId.value !== null) {
+      await store.updateInstance(editingEndpointId.value, payload);
     } else {
       await store.createInstance(payload);
     }
-    instanceDrawerVisible.value = false;
+    drawerVisible.value = false;
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error));
   }
 }
 
-function openProfileCreate(instance: HermesInstanceOutput) {
-  profileMode.value = "create";
-  activeInstanceId.value = instance.id;
-  editingProfileId.value = null;
-  resetProfileForm();
-  profileDrawerVisible.value = true;
-}
-
-function openProfileEdit(instance: HermesInstanceOutput, profile: HermesProfileOutput) {
-  profileMode.value = "edit";
-  activeInstanceId.value = instance.id;
-  editingProfileId.value = profile.id;
-  profileForm.profileKey = profile.profileKey;
-  profileForm.displayName = profile.displayName;
-  profileForm.roleName = profile.roleName ?? "";
-  profileForm.model = profile.model ?? "";
-  profileDrawerVisible.value = true;
-}
-
-async function submitProfile() {
-  if (activeInstanceId.value === null) {
-    return;
-  }
-  const payload = {
-    profileKey: profileForm.profileKey,
-    displayName: profileForm.displayName,
-    roleName: profileForm.roleName || null,
-    model: profileForm.model || null,
-  };
+async function testEndpoint(endpoint: HermesInstanceOutput) {
   try {
-    if (profileMode.value === "edit" && editingProfileId.value !== null) {
-      await store.updateProfile(editingProfileId.value, payload);
-    } else {
-      await store.createProfile(activeInstanceId.value, payload);
-    }
-    profileDrawerVisible.value = false;
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : String(error));
-  }
-}
-
-async function testInstance(instance: HermesInstanceOutput) {
-  try {
-    await store.testInstance(instance.id);
+    await store.testInstance(endpoint.id);
     ElMessage.success(t("hermes.testSuccess"));
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error));
   }
 }
 
-async function toggleInstance(instance: HermesInstanceOutput) {
-  await store.setInstanceEnabled(instance.id, instance.status !== "active");
+async function toggleEndpoint(endpoint: HermesInstanceOutput) {
+  await store.setInstanceEnabled(endpoint.id, endpoint.status !== "active");
 }
 
-async function toggleProfile(profile: HermesProfileOutput) {
-  await store.setProfileEnabled(profile.id, !profile.enabled);
-}
-
-async function confirmDeleteInstance(instance: HermesInstanceOutput) {
+async function confirmDeleteEndpoint(endpoint: HermesInstanceOutput) {
   try {
-    await ElMessageBox.confirm(t("hermes.deleteInstanceConfirm", {name: instance.name}), t("common.confirm"), {
+    await ElMessageBox.confirm(t("hermes.deleteEndpointConfirm", {name: endpoint.displayName}), t("common.confirm"), {
       type: "warning",
       confirmButtonText: t("common.confirm"),
       cancelButtonText: t("common.cancel"),
@@ -304,25 +212,12 @@ async function confirmDeleteInstance(instance: HermesInstanceOutput) {
   } catch {
     return;
   }
-  await store.deleteInstance(instance.id);
+  await store.deleteInstance(endpoint.id);
 }
 
-async function confirmDeleteProfile(profile: HermesProfileOutput) {
+async function openConversation(endpoint: HermesInstanceOutput) {
   try {
-    await ElMessageBox.confirm(t("hermes.deleteProfileConfirm", {name: profile.displayName}), t("common.confirm"), {
-      type: "warning",
-      confirmButtonText: t("common.confirm"),
-      cancelButtonText: t("common.cancel"),
-    });
-  } catch {
-    return;
-  }
-  await store.deleteProfile(profile.id);
-}
-
-async function openConversation(profileId: number) {
-  try {
-    const conversation = await store.openProfileConversation(profileId);
+    const conversation = await store.openInstanceConversation(endpoint.id);
     await conversationStore.openConversation(conversation.id, conversation);
     await router.push(`/messages/conversation/${conversation.id}`);
   } catch (error) {
@@ -333,7 +228,7 @@ async function openConversation(profileId: number) {
 
 <style scoped>
 .hermes-pane__header,
-.hermes-instance-card__header {
+.hermes-endpoint-card__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -345,24 +240,24 @@ async function openConversation(profileId: number) {
   gap: var(--space-4);
 }
 
-.hermes-instance-card {
-  display: grid;
-  gap: var(--space-3);
+.hermes-endpoint-card__main {
+  min-width: 0;
 }
 
-.hermes-instance-card__meta {
+.hermes-endpoint-card__meta,
+.hermes-endpoint-card__url {
   margin: var(--space-1) 0 0;
   color: var(--color-text-secondary);
   font-size: 13px;
 }
 
-.hermes-instance-card__table {
-  margin-top: var(--space-3);
+.hermes-endpoint-card__url {
+  word-break: break-all;
 }
 
 @media (max-width: 960px) {
   .hermes-pane__header,
-  .hermes-instance-card__header {
+  .hermes-endpoint-card__header {
     flex-direction: column;
   }
 }

@@ -44,3 +44,24 @@ def find_reusable_agent_dialogue(
         )
         .order_by(AgentDialogue.updated_at.desc(), AgentDialogue.id.desc())
     )
+
+
+def find_reusable_runtime_target_dialogue(
+    *,
+    db: Session,
+    first_runtime_target_id: int,
+    second_runtime_target_id: int,
+) -> AgentDialogue | None:
+    """按 Runtime Target 查找同一对参与者最近的一条对话。"""
+    return db.scalar(
+        select(AgentDialogue)
+        .where(
+            or_(
+                (AgentDialogue.source_runtime_target_id == first_runtime_target_id)
+                & (AgentDialogue.target_runtime_target_id == second_runtime_target_id),
+                (AgentDialogue.source_runtime_target_id == second_runtime_target_id)
+                & (AgentDialogue.target_runtime_target_id == first_runtime_target_id),
+            )
+        )
+        .order_by(AgentDialogue.updated_at.desc(), AgentDialogue.id.desc())
+    )

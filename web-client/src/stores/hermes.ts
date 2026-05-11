@@ -2,21 +2,15 @@ import { defineStore } from "pinia";
 
 import {
     createHermesInstance,
-    createHermesProfile,
     deleteHermesInstance,
-    deleteHermesProfile,
     disableHermesInstance,
-    disableHermesProfile,
     enableHermesInstance,
-    enableHermesProfile,
     fetchHermesInstances,
-    fetchHermesProfiles,
-    openHermesProfileConversation,
+    openHermesInstanceConversation,
     testHermesInstance,
     updateHermesInstance,
-    updateHermesProfile,
 } from "@/api/hermes";
-import type { HermesInstanceInput, HermesInstanceOutput, HermesProfileInput } from "@/types/view/hermes";
+import type { HermesInstanceInput, HermesInstanceOutput } from "@/types/view/hermes";
 
 export const useHermesStore = defineStore("hermes", {
     state: () => ({
@@ -29,13 +23,7 @@ export const useHermesStore = defineStore("hermes", {
         async loadInstances() {
             this.loading = true;
             try {
-                const instances = await fetchHermesInstances();
-                this.instances = await Promise.all(
-                    instances.map(async (instance) => ({
-                        ...instance,
-                        profiles: await fetchHermesProfiles(instance.id),
-                    })),
-                );
+                this.instances = await fetchHermesInstances();
             } finally {
                 this.loading = false;
             }
@@ -88,46 +76,8 @@ export const useHermesStore = defineStore("hermes", {
                 this.savingId = null;
             }
         },
-        async createProfile(instanceId: number, payload: HermesProfileInput) {
-            this.savingId = `instance:${instanceId}:profile`;
-            try {
-                const item = await createHermesProfile(instanceId, payload);
-                await this.loadInstances();
-                return item;
-            } finally {
-                this.savingId = null;
-            }
-        },
-        async updateProfile(profileId: number, payload: HermesProfileInput) {
-            this.savingId = `profile:${profileId}`;
-            try {
-                const item = await updateHermesProfile(profileId, payload);
-                await this.loadInstances();
-                return item;
-            } finally {
-                this.savingId = null;
-            }
-        },
-        async deleteProfile(profileId: number) {
-            this.savingId = `profile:${profileId}:delete`;
-            try {
-                await deleteHermesProfile(profileId);
-                await this.loadInstances();
-            } finally {
-                this.savingId = null;
-            }
-        },
-        async setProfileEnabled(profileId: number, enabled: boolean) {
-            this.savingId = `profile:${profileId}`;
-            try {
-                await (enabled ? enableHermesProfile(profileId) : disableHermesProfile(profileId));
-                await this.loadInstances();
-            } finally {
-                this.savingId = null;
-            }
-        },
-        async openProfileConversation(profileId: number) {
-            return await openHermesProfileConversation(profileId);
+        async openInstanceConversation(instanceId: number) {
+            return await openHermesInstanceConversation(instanceId);
         },
     },
 });

@@ -20,6 +20,7 @@ from src.api.routes import (
     hermes,
     instances,
     projects,
+    runtime_targets,
     ws,
 )
 from src.core.config import settings
@@ -108,6 +109,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router)
     app.include_router(projects.router)
     app.include_router(projects.agent_router)
+    app.include_router(runtime_targets.router)
     app.include_router(callbacks.router)
     app.include_router(ws.router)
     _configure_web_client_routes(app)

@@ -8,7 +8,6 @@ from src.models.chat_group_member import ChatGroupMember
 from src.models.conversation import Conversation
 from src.models.hermes_conversation_state import HermesConversationState
 from src.models.hermes_instance import HermesInstance
-from src.models.hermes_profile import HermesProfile
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
@@ -28,7 +27,6 @@ __all__ = [
     "Conversation",
     "HermesConversationState",
     "HermesInstance",
-    "HermesProfile",
     "Message",
     "MessageCallbackEvent",
     "MessageDispatch",

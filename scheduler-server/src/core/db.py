@@ -199,8 +199,10 @@ def ensure_runtime_schema() -> None:
                 CREATE TABLE IF NOT EXISTS agent_dialogues (
                     id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
                     conversation_id INTEGER NOT NULL,
-                    source_agent_id INTEGER NOT NULL,
-                    target_agent_id INTEGER NOT NULL,
+                    source_agent_id INTEGER NULL,
+                    target_agent_id INTEGER NULL,
+                    source_runtime_target_id INTEGER NULL,
+                    target_runtime_target_id INTEGER NULL,
                     topic VARCHAR(500) NOT NULL,
                     status VARCHAR(20) NOT NULL DEFAULT 'active',
                     initiator_type VARCHAR(20) NOT NULL DEFAULT 'user',
@@ -212,6 +214,7 @@ def ensure_runtime_schema() -> None:
                     hard_message_limit INTEGER NOT NULL DEFAULT 20,
                     soft_limit_warned_at DATETIME NULL,
                     last_speaker_agent_id INTEGER NULL,
+                    last_speaker_runtime_target_id INTEGER NULL,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY(conversation_id) REFERENCES conversations (id),
@@ -224,20 +227,139 @@ def ensure_runtime_schema() -> None:
                 "CREATE UNIQUE INDEX IF NOT EXISTS ix_agent_dialogues_conversation_id ON agent_dialogues (conversation_id)",
                 "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_source_agent_id ON agent_dialogues (source_agent_id)",
                 "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_target_agent_id ON agent_dialogues (target_agent_id)",
+                "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_source_runtime_target_id ON agent_dialogues (source_runtime_target_id)",
+                "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_target_runtime_target_id ON agent_dialogues (target_runtime_target_id)",
                 "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_initiator_agent_id ON agent_dialogues (initiator_agent_id)",
                 "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_last_speaker_agent_id ON agent_dialogues (last_speaker_agent_id)",
+                "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_last_speaker_runtime_target_id ON agent_dialogues (last_speaker_runtime_target_id)",
             ]
         )
     else:
-        dialogue_columns = {column["name"] for column in inspector.get_columns("agent_dialogues")}
-        if "window_seconds" not in dialogue_columns:
-            statements.append("ALTER TABLE agent_dialogues ADD COLUMN window_seconds INTEGER NOT NULL DEFAULT 300")
-        if "soft_message_limit" not in dialogue_columns:
-            statements.append("ALTER TABLE agent_dialogues ADD COLUMN soft_message_limit INTEGER NOT NULL DEFAULT 12")
-        if "hard_message_limit" not in dialogue_columns:
-            statements.append("ALTER TABLE agent_dialogues ADD COLUMN hard_message_limit INTEGER NOT NULL DEFAULT 20")
-        if "soft_limit_warned_at" not in dialogue_columns:
-            statements.append("ALTER TABLE agent_dialogues ADD COLUMN soft_limit_warned_at DATETIME NULL")
+        dialogue_column_map = {column["name"]: column for column in inspector.get_columns("agent_dialogues")}
+        dialogue_columns = set(dialogue_column_map)
+        dialogue_needs_nullable_rebuild = (
+            is_sqlite
+            and (
+                dialogue_column_map.get("source_agent_id", {}).get("nullable") is False
+                or dialogue_column_map.get("target_agent_id", {}).get("nullable") is False
+            )
+        )
+        if dialogue_needs_nullable_rebuild:
+            with engine.begin() as connection:
+                connection.execute(text("PRAGMA foreign_keys=OFF"))
+                connection.execute(text("DROP TABLE IF EXISTS agent_dialogues__new"))
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS agent_dialogues__new (
+                            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                            conversation_id INTEGER NOT NULL,
+                            source_agent_id INTEGER NULL,
+                            target_agent_id INTEGER NULL,
+                            source_runtime_target_id INTEGER NULL,
+                            target_runtime_target_id INTEGER NULL,
+                            topic VARCHAR(500) NOT NULL,
+                            status VARCHAR(20) NOT NULL DEFAULT 'active',
+                            initiator_type VARCHAR(20) NOT NULL DEFAULT 'user',
+                            initiator_agent_id INTEGER NULL,
+                            max_turns INTEGER NOT NULL DEFAULT 0,
+                            current_turn INTEGER NOT NULL DEFAULT 0,
+                            window_seconds INTEGER NOT NULL DEFAULT 300,
+                            soft_message_limit INTEGER NOT NULL DEFAULT 12,
+                            hard_message_limit INTEGER NOT NULL DEFAULT 20,
+                            soft_limit_warned_at DATETIME NULL,
+                            last_speaker_agent_id INTEGER NULL,
+                            last_speaker_runtime_target_id INTEGER NULL,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                source_runtime_select = "source_runtime_target_id" if "source_runtime_target_id" in dialogue_columns else "NULL"
+                target_runtime_select = "target_runtime_target_id" if "target_runtime_target_id" in dialogue_columns else "NULL"
+                initiator_agent_select = "initiator_agent_id" if "initiator_agent_id" in dialogue_columns else "NULL"
+                max_turns_select = "max_turns" if "max_turns" in dialogue_columns else "0"
+                current_turn_select = "current_turn" if "current_turn" in dialogue_columns else "0"
+                window_seconds_select = "window_seconds" if "window_seconds" in dialogue_columns else "300"
+                soft_message_limit_select = "soft_message_limit" if "soft_message_limit" in dialogue_columns else "12"
+                hard_message_limit_select = "hard_message_limit" if "hard_message_limit" in dialogue_columns else "20"
+                soft_limit_warned_at_select = "soft_limit_warned_at" if "soft_limit_warned_at" in dialogue_columns else "NULL"
+                last_speaker_agent_select = "last_speaker_agent_id" if "last_speaker_agent_id" in dialogue_columns else "NULL"
+                last_speaker_runtime_select = (
+                    "last_speaker_runtime_target_id" if "last_speaker_runtime_target_id" in dialogue_columns else "NULL"
+                )
+                created_at_select = "created_at" if "created_at" in dialogue_columns else "CURRENT_TIMESTAMP"
+                updated_at_select = "updated_at" if "updated_at" in dialogue_columns else "CURRENT_TIMESTAMP"
+                connection.execute(
+                    text(
+                        f"""
+                        INSERT INTO agent_dialogues__new (
+                            id, conversation_id, source_agent_id, target_agent_id,
+                            source_runtime_target_id, target_runtime_target_id,
+                            topic, status, initiator_type, initiator_agent_id,
+                            max_turns, current_turn, window_seconds, soft_message_limit,
+                            hard_message_limit, soft_limit_warned_at, last_speaker_agent_id,
+                            last_speaker_runtime_target_id, created_at, updated_at
+                        )
+                        SELECT
+                            id, conversation_id, source_agent_id, target_agent_id,
+                            {source_runtime_select}, {target_runtime_select},
+                            topic, status, initiator_type, {initiator_agent_select},
+                            {max_turns_select}, {current_turn_select}, {window_seconds_select}, {soft_message_limit_select},
+                            {hard_message_limit_select}, {soft_limit_warned_at_select}, {last_speaker_agent_select},
+                            {last_speaker_runtime_select}, {created_at_select}, {updated_at_select}
+                        FROM agent_dialogues
+                        """
+                    )
+                )
+                connection.execute(text("DROP TABLE agent_dialogues"))
+                connection.execute(text("ALTER TABLE agent_dialogues__new RENAME TO agent_dialogues"))
+                connection.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_agent_dialogues_conversation_id ON agent_dialogues (conversation_id)"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_dialogues_source_agent_id ON agent_dialogues (source_agent_id)"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_dialogues_target_agent_id ON agent_dialogues (target_agent_id)"))
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_agent_dialogues_source_runtime_target_id ON agent_dialogues (source_runtime_target_id)")
+                )
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_agent_dialogues_target_runtime_target_id ON agent_dialogues (target_runtime_target_id)")
+                )
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_dialogues_initiator_agent_id ON agent_dialogues (initiator_agent_id)"))
+                connection.execute(text("CREATE INDEX IF NOT EXISTS ix_agent_dialogues_last_speaker_agent_id ON agent_dialogues (last_speaker_agent_id)"))
+                connection.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_last_speaker_runtime_target_id "
+                        "ON agent_dialogues (last_speaker_runtime_target_id)"
+                    )
+                )
+                connection.execute(text("PRAGMA foreign_keys=ON"))
+        else:
+            if "window_seconds" not in dialogue_columns:
+                statements.append("ALTER TABLE agent_dialogues ADD COLUMN window_seconds INTEGER NOT NULL DEFAULT 300")
+            if "soft_message_limit" not in dialogue_columns:
+                statements.append("ALTER TABLE agent_dialogues ADD COLUMN soft_message_limit INTEGER NOT NULL DEFAULT 12")
+            if "hard_message_limit" not in dialogue_columns:
+                statements.append("ALTER TABLE agent_dialogues ADD COLUMN hard_message_limit INTEGER NOT NULL DEFAULT 20")
+            if "soft_limit_warned_at" not in dialogue_columns:
+                statements.append("ALTER TABLE agent_dialogues ADD COLUMN soft_limit_warned_at DATETIME NULL")
+            if "source_runtime_target_id" not in dialogue_columns:
+                statements.append("ALTER TABLE agent_dialogues ADD COLUMN source_runtime_target_id INTEGER")
+                statements.append(
+                    "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_source_runtime_target_id "
+                    "ON agent_dialogues (source_runtime_target_id)"
+                )
+            if "target_runtime_target_id" not in dialogue_columns:
+                statements.append("ALTER TABLE agent_dialogues ADD COLUMN target_runtime_target_id INTEGER")
+                statements.append(
+                    "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_target_runtime_target_id "
+                    "ON agent_dialogues (target_runtime_target_id)"
+                )
+            if "last_speaker_runtime_target_id" not in dialogue_columns:
+                statements.append("ALTER TABLE agent_dialogues ADD COLUMN last_speaker_runtime_target_id INTEGER")
+                statements.append(
+                    "CREATE INDEX IF NOT EXISTS ix_agent_dialogues_last_speaker_runtime_target_id "
+                    "ON agent_dialogues (last_speaker_runtime_target_id)"
+                )
 
     if "openclaw_instances" in table_names and is_sqlite:
         instance_columns = {column["name"] for column in inspector.get_columns("openclaw_instances")}
@@ -320,6 +442,70 @@ def ensure_runtime_schema() -> None:
                     )
                 )
                 connection.execute(text("PRAGMA foreign_keys=ON"))
+
+    if "hermes_instances" in table_names:
+        hermes_columns = {column["name"] for column in inspector.get_columns("hermes_instances")}
+        if "runtime_target_id" not in hermes_columns:
+            statements.append("ALTER TABLE hermes_instances ADD COLUMN runtime_target_id INTEGER")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_hermes_instances_runtime_target_id ON hermes_instances (runtime_target_id)")
+        if "cs_id" not in hermes_columns:
+            statements.append("ALTER TABLE hermes_instances ADD COLUMN cs_id VARCHAR(32)")
+            statements.append("CREATE INDEX IF NOT EXISTS ix_hermes_instances_cs_id ON hermes_instances (cs_id)")
+        if "display_name" not in hermes_columns:
+            statements.append("ALTER TABLE hermes_instances ADD COLUMN display_name VARCHAR(120)")
+            statements.append("UPDATE hermes_instances SET display_name = name WHERE display_name IS NULL OR display_name = ''")
+        if "role_name" not in hermes_columns:
+            statements.append("ALTER TABLE hermes_instances ADD COLUMN role_name VARCHAR(120)")
+
+    if "hermes_conversation_states" in table_names and is_sqlite:
+        state_columns = {column["name"] for column in inspector.get_columns("hermes_conversation_states")}
+        if "hermes_profile_id" in state_columns:
+            with engine.begin() as connection:
+                connection.execute(text("DROP TABLE IF EXISTS hermes_conversation_states__new"))
+                connection.execute(
+                    text(
+                        """
+                        CREATE TABLE IF NOT EXISTS hermes_conversation_states__new (
+                            id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                            conversation_id INTEGER NOT NULL,
+                            hermes_instance_id INTEGER NOT NULL,
+                            hermes_conversation_key VARCHAR(255) NULL,
+                            last_response_id VARCHAR(255) NULL,
+                            active_run_id VARCHAR(255) NULL,
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                        )
+                        """
+                    )
+                )
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO hermes_conversation_states__new (
+                            id, conversation_id, hermes_instance_id, hermes_conversation_key,
+                            last_response_id, active_run_id, created_at, updated_at
+                        )
+                        SELECT
+                            id, conversation_id, hermes_instance_id, hermes_conversation_key,
+                            last_response_id, active_run_id, created_at, updated_at
+                        FROM hermes_conversation_states
+                        """
+                    )
+                )
+                connection.execute(text("DROP TABLE hermes_conversation_states"))
+                connection.execute(text("ALTER TABLE hermes_conversation_states__new RENAME TO hermes_conversation_states"))
+                connection.execute(
+                    text(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS uq_hermes_conversation_instance "
+                        "ON hermes_conversation_states (conversation_id, hermes_instance_id)"
+                    )
+                )
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_hermes_conversation_states_conversation_id ON hermes_conversation_states (conversation_id)")
+                )
+                connection.execute(
+                    text("CREATE INDEX IF NOT EXISTS ix_hermes_conversation_states_hermes_instance_id ON hermes_conversation_states (hermes_instance_id)")
+                )
 
     if "app_users" in table_names:
         user_columns = {column["name"] for column in inspector.get_columns("app_users")}
