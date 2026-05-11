@@ -27,6 +27,14 @@ def sync_hermes_runtime_target(
 
     target = db.get(RuntimeTarget, instance.runtime_target_id) if instance.runtime_target_id else None
     if target is None:
+        target = db.scalar(
+            select(RuntimeTarget).where(
+                RuntimeTarget.runtime_type == "hermes",
+                RuntimeTarget.runtime_instance_id == instance.id,
+                RuntimeTarget.runtime_profile_id == instance.id,
+            )
+        )
+    if target is None:
         target = RuntimeTarget(
             runtime_type="hermes",
             runtime_instance_id=instance.id,
@@ -39,7 +47,6 @@ def sync_hermes_runtime_target(
         )
         db.add(target)
         db.flush()
-        instance.runtime_target_id = target.id
     else:
         target.runtime_instance_id = instance.id
         target.runtime_profile_id = instance.id
@@ -48,6 +55,7 @@ def sync_hermes_runtime_target(
         target.role_name = instance.role_name
         target.cs_id = cs_id
         target.enabled = instance.status != "disabled"
+    instance.runtime_target_id = target.id
     db.flush()
     return target
 

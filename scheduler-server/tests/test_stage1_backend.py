@@ -3608,6 +3608,46 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertIsNotNone(endpoint.runtime_target_id)
             self.assertEqual(endpoint.cs_id, targets[0]["cs_id"])
 
+    def test_runtime_targets_reuse_existing_orphaned_hermes_target(self) -> None:
+        with self.SessionLocal() as db:
+            endpoint = HermesInstance(
+                name="Hermes Orphaned",
+                display_name="Orphaned Hermes",
+                role_name="assistant",
+                api_base_url="http://127.0.0.1:8642",
+                api_key="secret-key",
+                default_model="assistant",
+                status="active",
+            )
+            db.add(endpoint)
+            db.flush()
+            target = RuntimeTarget(
+                runtime_type="hermes",
+                runtime_instance_id=endpoint.id,
+                runtime_profile_id=endpoint.id,
+                target_key="legacy-key",
+                display_name="Legacy Hermes",
+                role_name=None,
+                cs_id="CSH-9999",
+                enabled=True,
+            )
+            db.add(target)
+            db.commit()
+
+        response = self.client.get("/api/runtime-targets")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        targets = [item for item in response.json() if item["runtime_type"] == "hermes"]
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["display_name"], "Orphaned Hermes")
+        self.assertEqual(targets[0]["cs_id"], "CSH-0001")
+
+        with self.SessionLocal() as db:
+            endpoint = db.scalar(select(HermesInstance).where(HermesInstance.name == "Hermes Orphaned"))
+            assert endpoint is not None
+            self.assertIsNotNone(endpoint.runtime_target_id)
+            self.assertEqual(db.scalar(select(RuntimeTarget).where(RuntimeTarget.runtime_type == "hermes")).id, endpoint.runtime_target_id)
+
     def test_runtime_targets_hide_disabled_or_removed_openclaw_agents(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(
