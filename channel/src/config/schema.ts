@@ -69,10 +69,8 @@ export const AccountConfigSchema = z
 
         idempotency: z
             .object({
-                // 先支持内存和 Redis 两种去重存储，便于本地开发和生产落地。
-                mode: z.enum(["memory", "redis"]).default("memory"),
+                // 同一消息的去重有效期，避免重复 webhook 或重复分发。
                 ttlSeconds: z.number().int().min(10).max(7 * 24 * 3600).default(24 * 3600),
-                redisUrl: z.string().min(1).optional(),
             })
             .default({}),
 

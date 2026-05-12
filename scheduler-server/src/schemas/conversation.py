@@ -32,6 +32,10 @@ class ConversationRead(TimestampedModel):
     group_id: int | None
     direct_instance_id: int | None
     direct_agent_id: int | None
+    direct_runtime_target_id: int | None = None
+    runtime_type: str | None = None
+    runtime_target_display_name: str | None = None
+    runtime_target_cs_id: str | None = None
     agent_dialogue_id: int | None = None
 
 
@@ -44,6 +48,10 @@ class ConversationListItem(TimestampedModel):
     group_id: int | None
     direct_instance_id: int | None
     direct_agent_id: int | None
+    direct_runtime_target_id: int | None = None
+    runtime_type: str | None = None
+    runtime_target_display_name: str | None = None
+    runtime_target_cs_id: str | None = None
     display_title: str
     group_name: str | None
     instance_name: str | None
@@ -110,8 +118,9 @@ class DispatchRead(TimestampedModel):
     id: str
     message_id: str
     conversation_id: int
-    instance_id: int
-    agent_id: int
+    instance_id: int | None
+    agent_id: int | None
+    runtime_target_id: int | None = None
     dispatch_mode: str
     channel_message_id: str | None
     channel_trace_id: str | None

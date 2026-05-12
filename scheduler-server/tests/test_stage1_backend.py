@@ -32,12 +32,15 @@ from src.models.agent_dialogue import AgentDialogue
 from src.models.chat_group import ChatGroup
 from src.models.chat_group_member import ChatGroupMember
 from src.models.conversation import Conversation
+from src.models.hermes_conversation_state import HermesConversationState
+from src.models.hermes_instance import HermesInstance
 from src.models.message import Message
 from src.models.message_callback_event import MessageCallbackEvent
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
 from src.models.project import Project
 from src.models.project_document import ProjectDocument
+from src.models.runtime_target import RuntimeTarget
 from src.core.config import settings
 from src.api.routes.agents import sync_instance_agents
 from src.api.routes import instances as instances_route
@@ -45,6 +48,8 @@ from src.schemas.agent import AgentCreate
 from src.services.agent_profile_service import create_agent_for_instance
 from src.services.auth import build_session_cookie_value, ensure_default_user, get_auth_cookie_name
 from src.services.agent_dialogue_runner import continue_agent_dialogue_after_reply
+from src.services.agent_dialogue_runner import run_agent_dialogue_hermes_dispatch
+from src.services.hermes_dispatch_service import run_hermes_direct_dispatch
 from src.services.project_service import PROJECT_INTRO_TEMPLATE_NAME
 from src.services.project_document_service import create_project_document, delete_project_document, update_project_document
 from src.services.project_service import create_project, delete_project
@@ -104,6 +109,29 @@ class Stage1BackendTests(unittest.TestCase):
 
     def _run_async(self, awaitable):
         return asyncio.run(awaitable)
+
+    def _create_hermes_endpoint(
+        self,
+        *,
+        name: str = "Hermes Endpoint",
+        display_name: str = "Hermes Assistant",
+        role_name: str = "Assistant",
+        default_model: str = "assistant",
+        api_base_url: str = "http://127.0.0.1:8642",
+    ) -> dict:
+        response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": name,
+                "display_name": display_name,
+                "role_name": role_name,
+                "api_base_url": api_base_url,
+                "api_key": "secret-key",
+                "default_model": default_model,
+            },
+        )
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
 
     def test_list_conversations_returns_sidebar_summary(self) -> None:
         """
@@ -2707,6 +2735,118 @@ class Stage1BackendTests(unittest.TestCase):
         self.assertIn("项目经理 (项目经理, CSA-0001)", second_payload["text"])
         self.assertIn("Instruction:", second_payload["text"])
 
+    def test_group_dispatch_commits_pending_dispatch_before_channel_call(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Group Visible",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="pm",
+                display_name="项目经理",
+                role_name="项目经理",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            group = ChatGroup(name="项目群", description="测试群聊事务边界")
+            db.add(group)
+            db.flush()
+
+            db.add(ChatGroupMember(group_id=group.id, instance_id=instance.id, agent_id=agent.id))
+            db.flush()
+
+            conversation = Conversation(type="group", title="项目群", group_id=group.id)
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+            agent_id = agent.id
+
+        async def mocked_send(*, instance, payload):
+            with self.SessionLocal() as check_db:
+                visible_dispatch = check_db.scalar(
+                    select(MessageDispatch).where(
+                        MessageDispatch.message_id == payload["messageId"],
+                        MessageDispatch.instance_id == instance.id,
+                        MessageDispatch.agent_id == agent_id,
+                    )
+                )
+                self.assertIsNotNone(visible_dispatch)
+                self.assertEqual(visible_dispatch.status, "pending")
+            return {"traceId": "trace-group-visible"}
+
+        with patch("src.services.conversation_dispatch_service.channel_client.send_inbound", new=mocked_send):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "大家同步一下进度", "mentions": []},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+
+    def test_direct_dispatch_commits_pending_dispatch_before_channel_call(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Direct",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="main",
+                display_name="Main Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.flush()
+
+            conversation = Conversation(
+                type="direct",
+                title="OpenClaw Direct / Main Agent",
+                direct_instance_id=instance.id,
+                direct_agent_id=agent.id,
+            )
+            db.add(conversation)
+            db.commit()
+            conversation_id = conversation.id
+            agent_id = agent.id
+
+        async def mocked_send(*, instance, payload):
+            with self.SessionLocal() as check_db:
+                visible_dispatch = check_db.scalar(
+                    select(MessageDispatch).where(
+                        MessageDispatch.message_id == payload["messageId"],
+                        MessageDispatch.instance_id == instance.id,
+                        MessageDispatch.agent_id == agent_id,
+                    )
+                )
+                self.assertIsNotNone(visible_dispatch)
+                self.assertEqual(visible_dispatch.status, "pending")
+            return {"traceId": "trace-direct-visible"}
+
+        with patch("src.services.conversation_dispatch_service.channel_client.send_inbound", new=mocked_send):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "你好"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+
     def test_delete_group_removes_group_conversation_history(self) -> None:
         with self.SessionLocal() as db:
             instance = OpenClawInstance(
@@ -3349,6 +3489,745 @@ class Stage1BackendTests(unittest.TestCase):
             self.assertEqual(db.get(OpenClawInstance, active_id).status, "active")
             self.assertEqual(db.get(OpenClawInstance, offline_id).status, "active")
             self.assertEqual(db.get(OpenClawInstance, disabled_id).status, "disabled")
+
+    def test_hermes_instance_response_does_not_leak_api_key(self) -> None:
+        response = self.client.post(
+            "/api/hermes/instances",
+            json={
+                "name": "Hermes Local",
+                "display_name": "Hermes Local",
+                "api_base_url": "http://127.0.0.1:8642",
+                "api_key": "secret-key",
+                "default_model": "coder",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertTrue(payload["api_key_configured"])
+        self.assertNotIn("api_key", payload)
+
+        list_response = self.client.get("/api/hermes/instances")
+        self.assertEqual(list_response.status_code, 200)
+        self.assertNotIn("api_key", list_response.json()[0])
+
+    def test_create_hermes_endpoint_creates_runtime_target_and_cs_id(self) -> None:
+        payload = self._create_hermes_endpoint(
+            name="Hermes Runtime",
+            display_name="Coder",
+            role_name="Engineer",
+            default_model="coder",
+        )
+
+        self.assertEqual(payload["display_name"], "Coder")
+        self.assertTrue(payload["cs_id"].startswith("CSH-"))
+        self.assertIsInstance(payload["runtime_target_id"], int)
+
+        with self.SessionLocal() as db:
+            instance = db.get(HermesInstance, payload["id"])
+            assert instance is not None
+            target = db.get(RuntimeTarget, payload["runtime_target_id"])
+            assert target is not None
+            self.assertEqual(target.runtime_type, "hermes")
+            self.assertEqual(target.runtime_instance_id, instance.id)
+            self.assertEqual(target.runtime_profile_id, instance.id)
+            self.assertEqual(target.target_key, instance.instance_key)
+            self.assertEqual(target.display_name, "Coder")
+            self.assertEqual(target.cs_id, instance.cs_id)
+
+    def test_runtime_targets_include_openclaw_agents_and_hermes_endpoints(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Runtime",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="openclaw-agent",
+                display_name="OpenClaw Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.commit()
+
+        hermes_instance = self._create_hermes_endpoint(
+            name="Hermes Runtime",
+            display_name="Hermes Endpoint",
+            role_name="assistant",
+            default_model="assistant",
+        )
+
+        response = self.client.get("/api/runtime-targets")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        targets = response.json()
+        by_type_and_key = {(item["runtime_type"], item["target_key"]): item for item in targets}
+
+        openclaw_target = by_type_and_key[("openclaw", "openclaw-agent")]
+        self.assertEqual(openclaw_target["display_name"], "OpenClaw Agent")
+        self.assertEqual(openclaw_target["instance_name"], "OpenClaw Runtime")
+        self.assertTrue(openclaw_target["cs_id"].startswith("CSA-"))
+
+        hermes_target = by_type_and_key[("hermes", hermes_instance["instance_key"])]
+        self.assertEqual(hermes_target["display_name"], "Hermes Endpoint")
+        self.assertEqual(hermes_target["instance_name"], "Hermes Runtime")
+        self.assertTrue(hermes_target["cs_id"].startswith("CSH-"))
+
+    def test_runtime_targets_backfill_existing_hermes_endpoints(self) -> None:
+        with self.SessionLocal() as db:
+            endpoint = HermesInstance(
+                name="Hermes Existing",
+                display_name="Existing Hermes",
+                role_name="assistant",
+                api_base_url="http://127.0.0.1:8642",
+                api_key="secret-key",
+                default_model="assistant",
+                status="active",
+            )
+            db.add(endpoint)
+            db.commit()
+
+        response = self.client.get("/api/runtime-targets")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        targets = [item for item in response.json() if item["runtime_type"] == "hermes"]
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["display_name"], "Existing Hermes")
+        self.assertTrue(targets[0]["cs_id"].startswith("CSH-"))
+
+        with self.SessionLocal() as db:
+            endpoint = db.scalar(select(HermesInstance).where(HermesInstance.name == "Hermes Existing"))
+            assert endpoint is not None
+            self.assertIsNotNone(endpoint.runtime_target_id)
+            self.assertEqual(endpoint.cs_id, targets[0]["cs_id"])
+
+    def test_runtime_targets_reuse_existing_orphaned_hermes_target(self) -> None:
+        with self.SessionLocal() as db:
+            endpoint = HermesInstance(
+                name="Hermes Orphaned",
+                display_name="Orphaned Hermes",
+                role_name="assistant",
+                api_base_url="http://127.0.0.1:8642",
+                api_key="secret-key",
+                default_model="assistant",
+                status="active",
+            )
+            db.add(endpoint)
+            db.flush()
+            target = RuntimeTarget(
+                runtime_type="hermes",
+                runtime_instance_id=endpoint.id,
+                runtime_profile_id=endpoint.id,
+                target_key="legacy-key",
+                display_name="Legacy Hermes",
+                role_name=None,
+                cs_id="CSH-9999",
+                enabled=True,
+            )
+            db.add(target)
+            db.commit()
+
+        response = self.client.get("/api/runtime-targets")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        targets = [item for item in response.json() if item["runtime_type"] == "hermes"]
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["display_name"], "Orphaned Hermes")
+        self.assertEqual(targets[0]["cs_id"], "CSH-0001")
+
+        with self.SessionLocal() as db:
+            endpoint = db.scalar(select(HermesInstance).where(HermesInstance.name == "Hermes Orphaned"))
+            assert endpoint is not None
+            self.assertIsNotNone(endpoint.runtime_target_id)
+            self.assertEqual(db.scalar(select(RuntimeTarget).where(RuntimeTarget.runtime_type == "hermes")).id, endpoint.runtime_target_id)
+
+    def test_runtime_targets_hide_disabled_or_removed_openclaw_agents(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Runtime",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+            active_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="active-agent",
+                display_name="Active Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            disabled_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="disabled-agent",
+                display_name="Disabled Agent",
+                role_name="assistant",
+                enabled=False,
+            )
+            removed_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="removed-agent",
+                display_name="Removed Agent",
+                role_name="assistant",
+                enabled=True,
+                removed_from_openclaw=True,
+            )
+            db.add_all([active_agent, disabled_agent, removed_agent])
+            db.flush()
+            db.add_all(
+                [
+                    RuntimeTarget(
+                        runtime_type="openclaw",
+                        runtime_instance_id=instance.id,
+                        runtime_profile_id=disabled_agent.id,
+                        target_key=disabled_agent.agent_key,
+                        display_name=disabled_agent.display_name,
+                        role_name=disabled_agent.role_name,
+                        cs_id="CSA-9998",
+                        enabled=True,
+                    ),
+                    RuntimeTarget(
+                        runtime_type="openclaw",
+                        runtime_instance_id=instance.id,
+                        runtime_profile_id=removed_agent.id,
+                        target_key=removed_agent.agent_key,
+                        display_name=removed_agent.display_name,
+                        role_name=removed_agent.role_name,
+                        cs_id="CSA-9999",
+                        enabled=True,
+                    ),
+                ]
+            )
+            db.commit()
+
+        response = self.client.get("/api/runtime-targets")
+
+        self.assertEqual(response.status_code, 200, response.text)
+        target_keys = {item["target_key"] for item in response.json()}
+        self.assertIn("active-agent", target_keys)
+        self.assertNotIn("disabled-agent", target_keys)
+        self.assertNotIn("removed-agent", target_keys)
+
+    def test_create_agent_dialogue_accepts_openclaw_runtime_targets(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Runtime Dialogue",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+            source_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="source",
+                display_name="Source Agent",
+                role_name="source",
+                enabled=True,
+            )
+            target_agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="target",
+                display_name="Target Agent",
+                role_name="target",
+                enabled=True,
+            )
+            db.add_all([source_agent, target_agent])
+            db.commit()
+
+        runtime_targets_response = self.client.get("/api/runtime-targets")
+        self.assertEqual(runtime_targets_response.status_code, 200, runtime_targets_response.text)
+        runtime_targets = {item["target_key"]: item for item in runtime_targets_response.json()}
+        source_runtime_target_id = runtime_targets["source"]["id"]
+        target_runtime_target_id = runtime_targets["target"]["id"]
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-runtime-dialogue"})):
+            response = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_runtime_target_id": source_runtime_target_id,
+                    "target_runtime_target_id": target_runtime_target_id,
+                    "topic": "请通过 Runtime Target 创建对话",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(payload["source_runtime_target_id"], source_runtime_target_id)
+        self.assertEqual(payload["target_runtime_target_id"], target_runtime_target_id)
+        self.assertEqual(payload["source_agent_display_name"], "Source Agent")
+        self.assertEqual(payload["target_agent_display_name"], "Target Agent")
+
+        with self.SessionLocal() as db:
+            dialogue = db.get(AgentDialogue, payload["id"])
+            assert dialogue is not None
+            self.assertEqual(dialogue.source_runtime_target_id, source_runtime_target_id)
+            self.assertEqual(dialogue.target_runtime_target_id, target_runtime_target_id)
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == dialogue.conversation_id))
+            assert dispatch is not None
+            self.assertEqual(dispatch.runtime_target_id, source_runtime_target_id)
+
+    def test_hermes_runtime_targets_can_take_agent_dialogue_turns(self) -> None:
+        first_endpoint = self._create_hermes_endpoint(
+            name="Hermes Dialogue A",
+            display_name="First Hermes",
+            role_name="First",
+            default_model="first",
+            api_base_url="http://127.0.0.1:8642",
+        )
+        second_endpoint = self._create_hermes_endpoint(
+            name="Hermes Dialogue B",
+            display_name="Second Hermes",
+            role_name="Second",
+            default_model="second",
+            api_base_url="http://127.0.0.1:8643",
+        )
+
+        with patch("src.services.agent_dialogue_runner.schedule_agent_dialogue_hermes_dispatch") as schedule_dispatch:
+            response = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_runtime_target_id": first_endpoint["runtime_target_id"],
+                    "target_runtime_target_id": second_endpoint["runtime_target_id"],
+                    "topic": "请讨论 Hermes 对话调度",
+                    "soft_message_limit": 3,
+                    "hard_message_limit": 6,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        payload = response.json()
+        self.assertEqual(payload["source_runtime_target_id"], first_endpoint["runtime_target_id"])
+        self.assertEqual(payload["target_runtime_target_id"], second_endpoint["runtime_target_id"])
+        self.assertEqual(payload["source_agent_display_name"], "First Hermes")
+        self.assertEqual(payload["target_agent_display_name"], "Second Hermes")
+        schedule_dispatch.assert_called_once()
+        first_dispatch_id = schedule_dispatch.call_args.kwargs["dispatch_id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            self.assertEqual(instance.id, first_endpoint["id"])
+            self.assertEqual(payload["model"], "first")
+            self.assertIn("[ClawSwarm Agent Dialogue]", payload["input"])
+            self.assertIn("Your identity: First Hermes", payload["input"])
+            yield {"type": "response.created", "response": {"id": "resp_dialogue_1", "conversation": "conv_dialogue_1"}}
+            yield {"type": "response.output_text.delta", "delta": "First Hermes 回复。"}
+            yield {"type": "response.completed", "response": {"id": "resp_dialogue_1", "conversation": "conv_dialogue_1"}}
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            with patch("src.services.agent_dialogue_runner.schedule_agent_dialogue_hermes_dispatch") as next_schedule:
+                self._run_async(
+                    run_agent_dialogue_hermes_dispatch(
+                        session_local=self.SessionLocal,
+                        dispatch_id=first_dispatch_id,
+                    )
+                )
+
+        next_schedule.assert_called_once()
+        next_dispatch_id = next_schedule.call_args.kwargs["dispatch_id"]
+        with self.SessionLocal() as db:
+            dialogue = db.get(AgentDialogue, payload["id"])
+            assert dialogue is not None
+            self.assertEqual(dialogue.last_speaker_runtime_target_id, first_endpoint["runtime_target_id"])
+            first_reply = db.get(Message, f"msg_hermes_{first_dispatch_id}")
+            assert first_reply is not None
+            self.assertEqual(first_reply.sender_label, "First Hermes")
+            self.assertEqual(first_reply.sender_cs_id, first_endpoint["cs_id"])
+            self.assertEqual(first_reply.content, "First Hermes 回复。")
+            first_dispatch = db.get(MessageDispatch, first_dispatch_id)
+            assert first_dispatch is not None
+            self.assertEqual(first_dispatch.status, "completed")
+            next_dispatch = db.get(MessageDispatch, next_dispatch_id)
+            assert next_dispatch is not None
+            self.assertEqual(next_dispatch.runtime_target_id, second_endpoint["runtime_target_id"])
+            self.assertEqual(next_dispatch.status, "pending")
+
+    def test_openclaw_reply_can_dispatch_next_turn_to_hermes(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Mixed",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="openclaw-agent",
+                display_name="OpenClaw Agent",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.commit()
+
+        hermes = self._create_hermes_endpoint(name="Hermes Mixed", display_name="Hermes Agent")
+        runtime_targets = {item["target_key"]: item for item in self.client.get("/api/runtime-targets").json()}
+        openclaw_target_id = runtime_targets["openclaw-agent"]["id"]
+
+        with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-openclaw"})):
+            response = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_runtime_target_id": openclaw_target_id,
+                    "target_runtime_target_id": hermes["runtime_target_id"],
+                    "topic": "OpenClaw 和 Hermes 混合对话",
+                    "soft_message_limit": 3,
+                    "hard_message_limit": 6,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        dialogue_payload = response.json()
+        with self.SessionLocal() as db:
+            dialogue = db.get(AgentDialogue, dialogue_payload["id"])
+            assert dialogue is not None
+            openclaw_dispatch = db.scalar(
+                select(MessageDispatch).where(
+                    MessageDispatch.conversation_id == dialogue.conversation_id,
+                    MessageDispatch.runtime_target_id == openclaw_target_id,
+                )
+            )
+            assert openclaw_dispatch is not None
+            reply = Message(
+                id=f"msg_agent_{openclaw_dispatch.id}",
+                conversation_id=dialogue.conversation_id,
+                sender_type="agent",
+                sender_label="OpenClaw Agent",
+                sender_cs_id=runtime_targets["openclaw-agent"]["cs_id"],
+                content="OpenClaw 回复。",
+                status="completed",
+            )
+            db.add(reply)
+            db.commit()
+
+        with self.SessionLocal() as db:
+            dialogue = db.get(AgentDialogue, dialogue_payload["id"])
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == dialogue.conversation_id))
+            reply = db.get(Message, f"msg_agent_{dispatch.id}")
+            assert dialogue is not None
+            assert dispatch is not None
+            assert reply is not None
+            with patch("src.services.agent_dialogue_runner.schedule_agent_dialogue_hermes_dispatch") as schedule_dispatch:
+                self._run_async(
+                    continue_agent_dialogue_after_reply(
+                        db=db,
+                        dialogue=dialogue,
+                        dispatch=dispatch,
+                        reply_message=reply,
+                        session_local=self.SessionLocal,
+                    )
+                )
+
+        schedule_dispatch.assert_called_once()
+        next_dispatch_id = schedule_dispatch.call_args.kwargs["dispatch_id"]
+        with self.SessionLocal() as db:
+            next_dispatch = db.get(MessageDispatch, next_dispatch_id)
+            assert next_dispatch is not None
+            self.assertEqual(next_dispatch.runtime_target_id, hermes["runtime_target_id"])
+            self.assertEqual(next_dispatch.status, "pending")
+
+    def test_hermes_reply_can_dispatch_next_turn_to_openclaw(self) -> None:
+        with self.SessionLocal() as db:
+            instance = OpenClawInstance(
+                name="OpenClaw Mixed Target",
+                channel_base_url="https://example.com",
+                channel_account_id="default",
+                channel_signing_secret="signing-secret-123456",
+                callback_token="callback-token-123",
+                status="active",
+            )
+            db.add(instance)
+            db.flush()
+            agent = AgentProfile(
+                instance_id=instance.id,
+                agent_key="openclaw-target",
+                display_name="OpenClaw Target",
+                role_name="assistant",
+                enabled=True,
+            )
+            db.add(agent)
+            db.commit()
+
+        hermes = self._create_hermes_endpoint(
+            name="Hermes Mixed Source",
+            display_name="Hermes Source",
+            default_model="hermes-source",
+        )
+        runtime_targets = {item["target_key"]: item for item in self.client.get("/api/runtime-targets").json()}
+        openclaw_target_id = runtime_targets["openclaw-target"]["id"]
+
+        with patch("src.services.agent_dialogue_runner.schedule_agent_dialogue_hermes_dispatch") as schedule_dispatch:
+            response = self.client.post(
+                "/api/agent-dialogues",
+                json={
+                    "source_runtime_target_id": hermes["runtime_target_id"],
+                    "target_runtime_target_id": openclaw_target_id,
+                    "topic": "Hermes 和 OpenClaw 混合对话",
+                    "soft_message_limit": 3,
+                    "hard_message_limit": 6,
+                },
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        schedule_dispatch.assert_called_once()
+        first_dispatch_id = schedule_dispatch.call_args.kwargs["dispatch_id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            self.assertEqual(instance.id, hermes["id"])
+            self.assertEqual(payload["model"], "hermes-source")
+            self.assertIn("Your identity: Hermes Source", payload["input"])
+            yield {"type": "response.created", "response": {"id": "resp_mixed_1", "conversation": "conv_mixed_1"}}
+            yield {"type": "response.output_text.delta", "delta": "Hermes 回复。"}
+            yield {"type": "response.completed", "response": {"id": "resp_mixed_1", "conversation": "conv_mixed_1"}}
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            with patch("src.services.agent_dialogue_runner.channel_client.send_inbound", new=AsyncMock(return_value={"traceId": "trace-mixed-openclaw"})) as send_inbound:
+                self._run_async(
+                    run_agent_dialogue_hermes_dispatch(
+                        session_local=self.SessionLocal,
+                        dispatch_id=first_dispatch_id,
+                    )
+                )
+
+        send_inbound.assert_called_once()
+        payload = send_inbound.call_args.kwargs["payload"]
+        self.assertEqual(payload["directAgentId"], "openclaw-target")
+        self.assertIn("Partner message from Hermes Source", payload["text"])
+        self.assertIn("Hermes 回复。", payload["text"])
+
+        with self.SessionLocal() as db:
+            response_payload = response.json()
+            dialogue = db.get(AgentDialogue, response_payload["id"])
+            assert dialogue is not None
+            self.assertEqual(dialogue.last_speaker_runtime_target_id, hermes["runtime_target_id"])
+            openclaw_dispatch = db.scalar(
+                select(MessageDispatch).where(
+                    MessageDispatch.conversation_id == dialogue.conversation_id,
+                    MessageDispatch.runtime_target_id == openclaw_target_id,
+                )
+            )
+            assert openclaw_dispatch is not None
+            self.assertEqual(openclaw_dispatch.status, "accepted")
+
+    def test_create_hermes_endpoint_conversation_uses_runtime_target(self) -> None:
+        endpoint = self._create_hermes_endpoint(name="Hermes Chat", display_name="Hermes Assistant")
+
+        conversation_response = self.client.post(f"/api/hermes/instances/{endpoint['id']}/conversation")
+
+        self.assertEqual(conversation_response.status_code, 200, conversation_response.text)
+        payload = conversation_response.json()
+        self.assertEqual(payload["type"], "direct")
+        self.assertEqual(payload["direct_runtime_target_id"], endpoint["runtime_target_id"])
+        self.assertIsNone(payload["direct_instance_id"])
+        self.assertIsNone(payload["direct_agent_id"])
+
+        list_response = self.client.get("/api/conversations")
+        self.assertEqual(list_response.status_code, 200)
+        item = list_response.json()[0]
+        self.assertEqual(item["direct_runtime_target_id"], endpoint["runtime_target_id"])
+        self.assertEqual(item["runtime_type"], "hermes")
+        self.assertEqual(item["runtime_target_display_name"], "Hermes Assistant")
+
+    def test_send_message_to_hermes_endpoint_uses_responses_api(self) -> None:
+        endpoint = self._create_hermes_endpoint(name="Hermes Send", display_name="Hermes Assistant")
+        conversation_id = self.client.post(f"/api/hermes/instances/{endpoint['id']}/conversation").json()["id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            self.assertEqual(instance.id, endpoint["id"])
+            self.assertEqual(payload["model"], "assistant")
+            self.assertEqual(payload["input"], "你好 Hermes")
+            self.assertEqual(payload["conversation"], f"clawswarm-conversation-{conversation_id}")
+            yield {"type": "response.created", "response": {"id": "resp_001", "conversation": "conv_001"}}
+            yield {"type": "response.output_text.delta", "delta": "你好，我是 Hermes。"}
+            yield {"type": "response.completed", "response": {"id": "resp_001", "conversation": "conv_001"}}
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "你好 Hermes"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "pending")
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+        with self.SessionLocal() as db:
+            messages = list(db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)))
+            self.assertEqual(len(messages), 2)
+            self.assertEqual(messages[0].content, "你好 Hermes")
+            self.assertEqual(messages[0].status, "completed")
+            self.assertEqual(messages[1].sender_label, "Hermes Assistant")
+            self.assertEqual(messages[1].sender_cs_id, endpoint["cs_id"])
+            self.assertEqual(messages[1].content, "你好，我是 Hermes。")
+
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id))
+            assert dispatch is not None
+            self.assertEqual(dispatch.status, "completed")
+            self.assertEqual(dispatch.runtime_target_id, endpoint["runtime_target_id"])
+            self.assertIsNone(dispatch.instance_id)
+            self.assertIsNone(dispatch.agent_id)
+
+    def test_hermes_dispatch_streams_response_into_agent_message(self) -> None:
+        endpoint = self._create_hermes_endpoint(name="Hermes Stream", display_name="Hermes Stream")
+        conversation_id = self.client.post(f"/api/hermes/instances/{endpoint['id']}/conversation").json()["id"]
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "stream please"},
+            )
+
+        async def mocked_stream_response(*, instance, payload):
+            self.assertEqual(instance.id, endpoint["id"])
+            self.assertEqual(payload["model"], "assistant")
+            self.assertEqual(payload["input"], "stream please")
+            yield {"type": "response.created", "response": {"id": "resp_stream", "conversation": "conv_stream"}}
+            yield {"type": "response.output_text.delta", "delta": "你"}
+            yield {"type": "response.output_text.delta", "delta": "好"}
+            yield {"type": "response.completed", "response": {"id": "resp_stream", "conversation": "conv_stream"}}
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+        with self.SessionLocal() as db:
+            messages = list(db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)))
+            self.assertEqual(len(messages), 2)
+            self.assertEqual(messages[0].content, "stream please")
+            self.assertEqual(messages[0].status, "completed")
+            self.assertEqual(messages[1].sender_label, "Hermes Stream")
+            self.assertEqual(messages[1].content, "你好")
+            self.assertEqual(messages[1].status, "completed")
+
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id))
+            assert dispatch is not None
+            self.assertEqual(dispatch.status, "completed")
+            self.assertEqual(dispatch.channel_trace_id, "resp_stream")
+
+            state = db.scalar(select(HermesConversationState).where(HermesConversationState.conversation_id == conversation_id))
+            assert state is not None
+            self.assertEqual(state.last_response_id, "resp_stream")
+            self.assertEqual(state.hermes_conversation_key, "conv_stream")
+
+    def test_send_message_to_hermes_endpoint_returns_user_message_before_dispatch(self) -> None:
+        endpoint = self._create_hermes_endpoint(name="Hermes Async", display_name="Hermes Async")
+        conversation_id = self.client.post(f"/api/hermes/instances/{endpoint['id']}/conversation").json()["id"]
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch") as schedule_dispatch:
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "show immediately"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        schedule_dispatch.assert_called_once()
+        payload = response.json()
+        self.assertEqual(payload["content"], "show immediately")
+        self.assertEqual(payload["status"], "pending")
+
+        with self.SessionLocal() as db:
+            messages = list(db.scalars(select(Message).where(Message.conversation_id == conversation_id).order_by(Message.created_at)))
+            self.assertEqual(len(messages), 1)
+            self.assertEqual(messages[0].content, "show immediately")
+            self.assertEqual(messages[0].status, "pending")
+
+    def test_hermes_dispatch_commits_pending_dispatch_before_api_call(self) -> None:
+        endpoint = self._create_hermes_endpoint(name="Hermes Visible", display_name="Hermes Visible")
+        runtime_target_id = endpoint["runtime_target_id"]
+        conversation_id = self.client.post(f"/api/hermes/instances/{endpoint['id']}/conversation").json()["id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            with self.SessionLocal() as check_db:
+                visible_dispatch = check_db.scalar(
+                    select(MessageDispatch).where(
+                        MessageDispatch.conversation_id == conversation_id,
+                        MessageDispatch.runtime_target_id == runtime_target_id,
+                    )
+                )
+                self.assertIsNotNone(visible_dispatch)
+                self.assertEqual(visible_dispatch.status, "pending")
+            yield {"type": "response.created", "response": {"id": "resp_visible"}}
+            yield {"type": "response.output_text.delta", "delta": "visible"}
+            yield {"type": "response.completed", "response": {"id": "resp_visible"}}
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "check visibility"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+    def test_hermes_timeout_marks_message_and_dispatch_failed(self) -> None:
+        endpoint = self._create_hermes_endpoint(name="Hermes Timeout", display_name="Hermes Timeout")
+        conversation_id = self.client.post(f"/api/hermes/instances/{endpoint['id']}/conversation").json()["id"]
+
+        async def mocked_stream_response(*, instance, payload):
+            raise httpx.TimeoutException("timeout")
+            yield
+
+        with patch("src.api.routes.conversations.schedule_hermes_direct_dispatch"):
+            response = self.client.post(
+                f"/api/conversations/{conversation_id}/messages",
+                json={"content": "timeout please"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["status"], "pending")
+
+        with patch("src.services.hermes_dispatch_service.hermes_client.stream_response", new=mocked_stream_response):
+            self._run_async(
+                run_hermes_direct_dispatch(
+                    session_local=self.SessionLocal,
+                    conversation_id=conversation_id,
+                    message_id=response.json()["id"],
+                )
+            )
+
+        with self.SessionLocal() as db:
+            message = db.scalar(select(Message).where(Message.conversation_id == conversation_id))
+            dispatch = db.scalar(select(MessageDispatch).where(MessageDispatch.conversation_id == conversation_id))
+            assert message is not None
+            assert dispatch is not None
+            self.assertEqual(message.status, "failed")
+            self.assertEqual(dispatch.status, "failed")
+            self.assertEqual(dispatch.error_message, "Hermes timed out")
 
     def test_connect_instance_generates_separate_credentials_and_returns_them(self) -> None:
         with patch("src.api.routes.instances.fetch_channel_agents", return_value=[{"id": "main", "name": "Main"}]):

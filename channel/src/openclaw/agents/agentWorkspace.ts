@@ -142,6 +142,18 @@ function ensureWorkspaceDir(workspaceDir: string): void {
     fs.mkdirSync(workspaceDir, { recursive: true });
 }
 
+function loadUtf8File(filePath: string): string {
+    const fd = fs.openSync(filePath, "r");
+    try {
+        const size = fs.fstatSync(fd).size;
+        const buffer = Buffer.alloc(size);
+        fs.readSync(fd, buffer, 0, size, 0);
+        return buffer.toString("utf8");
+    } finally {
+        fs.closeSync(fd);
+    }
+}
+
 function buildAgentProfileFilePaths(workspaceDir: string) {
     return {
         agentsMd: path.join(workspaceDir, AGENT_PROFILE_FILENAMES.agentsMd),
@@ -273,7 +285,7 @@ export function readAgentProfileFiles(params: ReadAgentProfileFilesParams): Agen
                 continue;
             }
             const filePath = path.join(workspaceDir, entry.name);
-            const content = fs.readFileSync(filePath, "utf8");
+            const content = loadUtf8File(filePath);
             existingFiles.push({
                 name: entry.name,
                 content: content.trim() ? content : "",

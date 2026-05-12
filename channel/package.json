@@ -21,7 +21,10 @@
     "node": ">=22.16.0"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"]
+    "extensions": ["./src/index.ts"],
+    "runtimeExtensions": ["./dist/index.js"],
+    "setupEntry": "./src/setup-entry.ts",
+    "runtimeSetupEntry": "./dist/setup-entry.js"
   },
   "files": ["dist", "skills", "openclaw.plugin.json", "README.md"],
   "scripts": {
@@ -32,7 +35,6 @@
     "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
-    "ioredis": "^5.4.1",
     "undici": "^6.19.8",
     "zod": "^3.24.1"
   },

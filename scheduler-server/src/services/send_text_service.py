@@ -19,6 +19,7 @@ from src.services.agent_dialogue_lookup import find_reusable_agent_dialogue
 from src.services.agent_dialogue_runner import dispatch_agent_dialogue_turn
 from src.services.conversation_events import conversation_event_hub
 from src.services.default_user import get_default_user_identity
+from src.services.runtime_target_service import sync_openclaw_runtime_target
 
 DEFAULT_USER = get_default_user_identity()
 
@@ -114,6 +115,8 @@ async def handle_send_text(
             conversation_id=conversation.id,
             source_agent_id=source_agent.id,
             target_agent_id=target_agent.id,
+            source_runtime_target_id=sync_openclaw_runtime_target(db=db, agent=source_agent).id,
+            target_runtime_target_id=sync_openclaw_runtime_target(db=db, agent=target_agent).id,
             topic=payload.topic.strip(),
             status="active",
             initiator_type="agent",
@@ -123,6 +126,7 @@ async def handle_send_text(
             hard_message_limit=payload.hardMessageLimit,
             soft_limit_warned_at=None,
             last_speaker_agent_id=source_agent.id,
+            last_speaker_runtime_target_id=sync_openclaw_runtime_target(db=db, agent=source_agent).id,
         )
         db.add(dialogue)
         db.flush()
@@ -132,6 +136,8 @@ async def handle_send_text(
             raise HTTPException(status_code=404, detail="conversation not found for reusable agent dialogue")
         dialogue.source_agent_id = source_agent.id
         dialogue.target_agent_id = target_agent.id
+        dialogue.source_runtime_target_id = sync_openclaw_runtime_target(db=db, agent=source_agent).id
+        dialogue.target_runtime_target_id = sync_openclaw_runtime_target(db=db, agent=target_agent).id
         dialogue.topic = payload.topic.strip()
         dialogue.status = "active"
         dialogue.initiator_type = "agent"
@@ -141,6 +147,7 @@ async def handle_send_text(
         dialogue.hard_message_limit = payload.hardMessageLimit
         dialogue.soft_limit_warned_at = None
         dialogue.last_speaker_agent_id = source_agent.id
+        dialogue.last_speaker_runtime_target_id = dialogue.source_runtime_target_id
         conversation.title = f"{source_agent.display_name} ↔ {target_agent.display_name}"
 
     opening_message = Message(
@@ -160,7 +167,7 @@ async def handle_send_text(
         dialogue=dialogue,
         conversation=conversation,
         message=opening_message,
-        recipient_agent=target_agent,
+        recipient_target=sync_openclaw_runtime_target(db=db, agent=target_agent),
         sender_label=source_agent.display_name,
         sender_user_id=f"agent:{source_agent.agent_key}",
         dispatch_mode="agent_dialogue_opening",

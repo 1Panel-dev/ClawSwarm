@@ -66,7 +66,12 @@ async def receive_callback(request: Request, db: Session = Depends(db_session)) 
     if timestamp and signature and not verify_callback_signature(token=token, timestamp=timestamp, body=body, signature=signature):
         raise HTTPException(status_code=401, detail="bad callback signature")
 
-    return await handle_callback_event(db=db, instance=instance, event=json.loads(body.decode("utf-8")))
+    return await handle_callback_event(
+        db=db,
+        instance=instance,
+        event=json.loads(body.decode("utf-8")),
+        session_local=request.app.state.session_local,
+    )
 
 
 @router.post("/webchat-mirror")

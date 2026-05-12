@@ -8,6 +8,7 @@ export interface ConversationListItemResponse {
     group_id: number | null;
     direct_instance_id: number | null;
     direct_agent_id: number | null;
+    direct_runtime_target_id?: number | null;
     agent_dialogue_id?: number | null;
     created_at: string;
     updated_at: string;
@@ -15,6 +16,9 @@ export interface ConversationListItemResponse {
     group_name: string | null;
     instance_name: string | null;
     agent_display_name: string | null;
+    runtime_type?: string | null;
+    runtime_target_display_name?: string | null;
+    runtime_target_cs_id?: string | null;
     dialogue_source_agent_name?: string | null;
     dialogue_target_agent_name?: string | null;
     dialogue_status?: string | null;
@@ -36,6 +40,10 @@ export interface ConversationResponse {
     group_id: number | null;
     direct_instance_id: number | null;
     direct_agent_id: number | null;
+    direct_runtime_target_id?: number | null;
+    runtime_type?: string | null;
+    runtime_target_display_name?: string | null;
+    runtime_target_cs_id?: string | null;
     agent_dialogue_id?: number | null;
     created_at: string;
     updated_at: string;
@@ -76,8 +84,9 @@ export interface DispatchResponse {
     id: string;
     message_id: string;
     conversation_id: number;
-    instance_id: number;
-    agent_id: number;
+    instance_id: number | null;
+    agent_id: number | null;
+    runtime_target_id?: number | null;
     dispatch_mode: string;
     channel_message_id: string | null;
     channel_trace_id: string | null;

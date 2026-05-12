@@ -2,10 +2,12 @@ import { defineStore } from "pinia";
 
 import { fetchAddressBook } from "@/api/addressBook";
 import { fetchConversationList } from "@/api/conversations";
+import { fetchRuntimeTargets } from "@/api/runtime-targets";
 import { fetchMockAddressBook, fetchMockConversationList, isMessageMockEnabled } from "@/mocks/messageWorkbench";
 import { toConversationListItemOutputList } from "@/stores/conversationMappers";
 import type { AddressBookOutput } from "@/types/view/addressBook";
 import type { ConversationListItemOutput } from "@/types/view/conversation";
+import type { RuntimeTargetOutput } from "@/types/view/runtime-target";
 import { camelizeKeys } from "@/utils/case";
 
 const HIDDEN_RECENT_STORAGE_KEY = "clawswarm:hidden-recent-conversations";
@@ -23,6 +25,7 @@ export const useAddressBookStore = defineStore("addressBook", {
         recentLoading: false,
         addressBook: null as AddressBookOutput | null,
         recentConversations: [] as ConversationListItemOutput[],
+        runtimeTargets: [] as RuntimeTargetOutput[],
         hiddenRecentConversationMap: loadHiddenRecentConversationMap(),
     }),
     getters: {
@@ -85,6 +88,9 @@ export const useAddressBookStore = defineStore("addressBook", {
                 ? toConversationListItemOutputList(await fetchMockConversationList())
                 : await fetchConversationList();
             this.reconcileHiddenRecentConversations();
+        },
+        async refreshRuntimeTargets() {
+            this.runtimeTargets = isMessageMockEnabled() ? [] : await fetchRuntimeTargets();
         },
         hideRecentConversation(conversationId: number) {
             const currentConversation = this.recentConversations.find((item) => item.id === conversationId);

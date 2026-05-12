@@ -55,8 +55,6 @@ export function createPluginRuntimeServices(api: OpenClawPluginApi): PluginRunti
 
     // 幂等存储和消息状态存储分别负责“防重复执行”和“便于排障追踪”。
     const idempotency = createIdempotencyStore({
-        mode: bootstrap.idempotency.mode,
-        redisUrl: bootstrap.idempotency.redisUrl,
         logger,
     });
     const messageState = new InMemoryMessageStateStore();

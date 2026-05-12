@@ -1,11 +1,13 @@
 export interface AgentDialogueResponse {
     id: number;
     conversation_id: number;
-    source_agent_id: number;
+    source_agent_id: number | null;
+    source_runtime_target_id?: number | null;
     source_agent_cs_id: string;
     source_agent_display_name: string;
     source_agent_instance_name?: string | null;
-    target_agent_id: number;
+    target_agent_id: number | null;
+    target_runtime_target_id?: number | null;
     target_agent_cs_id: string;
     target_agent_display_name: string;
     target_agent_instance_name?: string | null;
@@ -18,6 +20,7 @@ export interface AgentDialogueResponse {
     hard_message_limit: number;
     soft_limit_warned_at: string | null;
     last_speaker_agent_id: number | null;
+    last_speaker_runtime_target_id?: number | null;
     last_speaker_agent_cs_id: string | null;
     last_speaker_agent_display_name: string | null;
     next_agent_id: number | null;

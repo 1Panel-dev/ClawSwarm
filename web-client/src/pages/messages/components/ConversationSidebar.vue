@@ -30,7 +30,7 @@
           class="sidebar__plus"
           circle
           :title="activePane === 'groups' ? t('conversation.createGroup') : t('conversation.createAgentDialogue')"
-          @click="activePane === 'groups' ? createDrawerVisible = true : agentDialogueDrawerVisible = true"
+          @click="activePane === 'groups' ? createDrawerVisible = true : openAgentDialogueCreateDrawer()"
         >
           <ElIcon><Plus /></ElIcon>
         </ElButton>
@@ -222,7 +222,7 @@
 
     <AgentDialogueCreateDrawer
       v-model:visible="agentDialogueDrawerVisible"
-      :agent-options="agentOptions"
+      :runtime-targets="runtimeTargets"
       @submit="handleCreateAgentDialogue"
     />
 
@@ -280,6 +280,7 @@ const { t } = useI18n();
 const instances = computed(() => addressBookStore.instances);
 const groups = computed(() => addressBookStore.groups);
 const recentConversations = computed(() => addressBookStore.visibleRecentConversations);
+const runtimeTargets = computed(() => addressBookStore.runtimeTargets);
 const recentLoading = computed(() => addressBookStore.recentLoading);
 const currentConversationId = computed(() => conversationStore.currentConversationId);
 const currentConversation = computed(() => conversationStore.currentConversation);
@@ -346,17 +347,6 @@ const filteredGroups = computed(() =>
         );
     }),
 );
-const agentOptions = computed(() =>
-    instances.value.flatMap((instance) =>
-        instance.agents
-            .filter((agent) => agent.enabled)
-            .map((agent) => ({
-                value: agent.id,
-                label: `${agent.displayName} / ${instance.name}`,
-            })),
-    ),
-);
-
 onMounted(async () => {
     if (!addressBookStore.addressBook) {
         await addressBookStore.loadAll();
@@ -506,18 +496,27 @@ async function handleDeleteGroup() {
     }
 }
 
+async function openAgentDialogueCreateDrawer() {
+    await addressBookStore.refreshRuntimeTargets();
+    agentDialogueDrawerVisible.value = true;
+}
+
 async function handleCreateAgentDialogue(payload: {
-    sourceAgentId: number;
-    targetAgentId: number;
+    sourceRuntimeTargetId: number;
+    targetRuntimeTargetId: number;
     topic: string;
     windowSeconds: number;
     softMessageLimit: number;
     hardMessageLimit: number;
 }) {
-    const dialogue = await conversationStore.createAndOpenAgentDialogue(payload);
-    agentDialogueDrawerVisible.value = false;
-    ElMessage.success(t("conversation.agentDialogueCreated"));
-    await router.push(`/messages/conversation/${dialogue.conversationId}`);
+    try {
+        const dialogue = await conversationStore.createAndOpenAgentDialogue(payload);
+        agentDialogueDrawerVisible.value = false;
+        ElMessage.success(t("conversation.agentDialogueCreated"));
+        await router.push(`/messages/conversation/${dialogue.conversationId}`);
+    } catch (error) {
+        ElMessage.error(error instanceof Error ? error.message : String(error));
+    }
 }
 
 function normalizeMessageStatus(status: string) {

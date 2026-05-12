@@ -19,8 +19,9 @@ class MessageDispatch(Base, TimestampMixin):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     message_id: Mapped[str] = mapped_column(ForeignKey("messages.id"), index=True)
     conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), index=True)
-    instance_id: Mapped[int] = mapped_column(ForeignKey("openclaw_instances.id"), index=True)
-    agent_id: Mapped[int] = mapped_column(ForeignKey("agent_profiles.id"), index=True)
+    instance_id: Mapped[int | None] = mapped_column(ForeignKey("openclaw_instances.id"), nullable=True, index=True)
+    agent_id: Mapped[int | None] = mapped_column(ForeignKey("agent_profiles.id"), nullable=True, index=True)
+    runtime_target_id: Mapped[int | None] = mapped_column(nullable=True, index=True)
     # direct / group_broadcast / group_mention
     dispatch_mode: Mapped[str] = mapped_column(String(32))
     channel_message_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)

@@ -149,7 +149,6 @@ describe("clawswarm sendText", () => {
                     nonceTtlSeconds: 600,
                 },
                 idempotency: {
-                    mode: "memory",
                     ttlSeconds: 3600,
                 },
                 retry: {

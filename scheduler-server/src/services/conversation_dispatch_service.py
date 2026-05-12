@@ -31,6 +31,11 @@ async def dispatch_direct_message(
     payload: MessageCreate,
 ) -> list[str]:
     """为 direct 会话创建一条 dispatch 并调用 channel。"""
+    if conversation.direct_runtime_target_id and not conversation.direct_agent_id:
+        from src.services.hermes_dispatch_service import dispatch_hermes_direct_message
+
+        return await dispatch_hermes_direct_message(db=db, conversation=conversation, message=message)
+
     instance = db.get(OpenClawInstance, conversation.direct_instance_id)
     agent = db.get(AgentProfile, conversation.direct_agent_id)
     if not instance or not agent:
@@ -53,6 +58,9 @@ async def dispatch_direct_message(
         message.status = "accepted"
         return [dispatch.id]
 
+    # 先提交本地消息和 dispatch，避免持有 SQLite 写锁等待外部 OpenClaw 调用。
+    db.commit()
+
     try:
         response = await channel_client.send_inbound(
             instance=instance,
@@ -67,10 +75,22 @@ async def dispatch_direct_message(
             },
         )
     except httpx.TimeoutException as exc:
+        dispatch.status = "failed"
+        dispatch.error_message = "OpenClaw timed out"
+        message.status = "failed"
+        db.commit()
         raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
     except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+        dispatch.status = "failed"
+        dispatch.error_message = "OpenClaw instance is unreachable"
+        message.status = "failed"
+        db.commit()
         raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
     except httpx.HTTPStatusError as exc:
+        dispatch.status = "failed"
+        dispatch.error_message = f"OpenClaw request failed with HTTP {exc.response.status_code}"
+        message.status = "failed"
+        db.commit()
         if exc.response.status_code in {401, 403}:
             raise HTTPException(status_code=400, detail="OpenClaw instance signature mismatch") from exc
         if exc.response.status_code == 404:
@@ -82,10 +102,15 @@ async def dispatch_direct_message(
             raise HTTPException(status_code=502, detail="OpenClaw instance failed to process the request") from exc
         raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
     except ValueError as exc:
+        dispatch.status = "failed"
+        dispatch.error_message = "OpenClaw returned an invalid response"
+        message.status = "failed"
+        db.commit()
         raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
     dispatch.status = "accepted"
     dispatch.channel_trace_id = response.get("traceId")
     message.status = "accepted"
+    db.commit()
     return [dispatch.id]
 
 
@@ -168,6 +193,9 @@ async def dispatch_group_message(
                     dispatch.status = "accepted"
             continue
 
+        # 先提交本地 dispatch 记录，外部 OpenClaw 调用期间不持有 SQLite 写锁。
+        db.commit()
+
         group_member_lines = []
         for member_agent in instance_agents:
             role_label = member_agent.role_name or "未设置角色"
@@ -207,13 +235,35 @@ async def dispatch_group_message(
             if mentions:
                 inbound_payload["mentions"] = [agent.agent_key]
 
+            dispatch = db.scalar(
+                select(MessageDispatch).where(
+                    MessageDispatch.message_id == message.id,
+                    MessageDispatch.instance_id == instance_id,
+                    MessageDispatch.agent_id == agent.id,
+                )
+            )
             try:
                 response = await channel_client.send_inbound(instance=instance, payload=inbound_payload)
             except httpx.TimeoutException as exc:
+                if dispatch:
+                    dispatch.status = "failed"
+                    dispatch.error_message = "OpenClaw timed out"
+                message.status = "failed"
+                db.commit()
                 raise HTTPException(status_code=504, detail="OpenClaw timed out") from exc
             except (httpx.ConnectError, httpx.NetworkError, httpx.ProxyError) as exc:
+                if dispatch:
+                    dispatch.status = "failed"
+                    dispatch.error_message = "OpenClaw instance is unreachable"
+                message.status = "failed"
+                db.commit()
                 raise HTTPException(status_code=503, detail="OpenClaw instance is unreachable") from exc
             except httpx.HTTPStatusError as exc:
+                if dispatch:
+                    dispatch.status = "failed"
+                    dispatch.error_message = f"OpenClaw request failed with HTTP {exc.response.status_code}"
+                message.status = "failed"
+                db.commit()
                 if exc.response.status_code in {401, 403}:
                     raise HTTPException(status_code=400, detail="OpenClaw instance signature mismatch") from exc
                 if exc.response.status_code == 404:
@@ -225,16 +275,16 @@ async def dispatch_group_message(
                     raise HTTPException(status_code=502, detail="OpenClaw instance failed to process the request") from exc
                 raise HTTPException(status_code=502, detail="OpenClaw request failed") from exc
             except ValueError as exc:
+                if dispatch:
+                    dispatch.status = "failed"
+                    dispatch.error_message = "OpenClaw returned an invalid response"
+                message.status = "failed"
+                db.commit()
                 raise HTTPException(status_code=502, detail="OpenClaw returned an invalid response") from exc
-            dispatch = db.scalar(
-                select(MessageDispatch).where(
-                    MessageDispatch.message_id == message.id,
-                    MessageDispatch.instance_id == instance_id,
-                    MessageDispatch.agent_id == agent.id,
-                )
-            )
             if dispatch:
                 dispatch.status = "accepted"
                 dispatch.channel_trace_id = response.get("traceId")
+                db.commit()
         message.status = "accepted"
+        db.commit()
     return created_dispatch_ids

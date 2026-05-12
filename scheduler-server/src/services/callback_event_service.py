@@ -22,6 +22,7 @@ async def handle_callback_event(
     db: Session,
     instance: OpenClawInstance,
     event: dict[str, Any],
+    session_local=None,
 ) -> dict[str, bool]:
     """把单条回调事件应用到 dispatch、message 和 dialogue 状态上。"""
     event_id = str(event.get("eventId", "")).strip()
@@ -136,6 +137,7 @@ async def handle_callback_event(
                 dialogue=dialogue,
                 dispatch=dispatch,
                 reply_message=agent_message,
+                session_local=session_local,
             )
 
     await conversation_event_hub.publish_update(

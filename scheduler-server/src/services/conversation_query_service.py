@@ -16,6 +16,7 @@ from src.models.conversation import Conversation
 from src.models.message import Message
 from src.models.message_dispatch import MessageDispatch
 from src.models.openclaw_instance import OpenClawInstance
+from src.models.runtime_target import RuntimeTarget
 from src.schemas.common import validate_orm
 from src.schemas.conversation import (
     DispatchRead,
@@ -44,6 +45,11 @@ def list_conversation_items(db: Session) -> list[ConversationListItem]:
         group = db.get(ChatGroup, conversation.group_id) if conversation.group_id else None
         instance = db.get(OpenClawInstance, conversation.direct_instance_id) if conversation.direct_instance_id else None
         agent = db.get(AgentProfile, conversation.direct_agent_id) if conversation.direct_agent_id else None
+        runtime_target = (
+            db.get(RuntimeTarget, conversation.direct_runtime_target_id)
+            if conversation.direct_runtime_target_id and not conversation.direct_agent_id
+            else None
+        )
         source_agent = db.get(AgentProfile, dialogue.source_agent_id) if dialogue else None
         target_agent = db.get(AgentProfile, dialogue.target_agent_id) if dialogue else None
 
@@ -64,6 +70,8 @@ def list_conversation_items(db: Session) -> list[ConversationListItem]:
         else:
             if instance and agent:
                 display_title = f"{instance.name} / {agent.display_name}"
+            elif runtime_target:
+                display_title = conversation.title or runtime_target.display_name
             else:
                 display_title = conversation.title or f"单聊 {conversation.id}"
 
@@ -88,6 +96,10 @@ def list_conversation_items(db: Session) -> list[ConversationListItem]:
                     group_id=conversation.group_id,
                     direct_instance_id=conversation.direct_instance_id,
                     direct_agent_id=conversation.direct_agent_id,
+                    direct_runtime_target_id=conversation.direct_runtime_target_id,
+                    runtime_type=runtime_target.runtime_type if runtime_target else None,
+                    runtime_target_display_name=runtime_target.display_name if runtime_target else None,
+                    runtime_target_cs_id=runtime_target.cs_id if runtime_target else None,
                     created_at=conversation.created_at,
                     updated_at=conversation.updated_at,
                     display_title=display_title,
@@ -142,6 +154,11 @@ def load_conversation_messages_response(
 ) -> ConversationMessagesResponse:
     """Load one conversation page plus dispatch metadata for the frontend."""
     dialogue = db.scalar(select(AgentDialogue).where(AgentDialogue.conversation_id == conversation.id))
+    runtime_target = (
+        db.get(RuntimeTarget, conversation.direct_runtime_target_id)
+        if conversation.direct_runtime_target_id and not conversation.direct_agent_id
+        else None
+    )
 
     finalize_stale_dispatches(db=db, conversation_id=conversation.id)
 
@@ -171,6 +188,10 @@ def load_conversation_messages_response(
             group_id=conversation.group_id,
             direct_instance_id=conversation.direct_instance_id,
             direct_agent_id=conversation.direct_agent_id,
+            direct_runtime_target_id=conversation.direct_runtime_target_id,
+            runtime_type=runtime_target.runtime_type if runtime_target else None,
+            runtime_target_display_name=runtime_target.display_name if runtime_target else None,
+            runtime_target_cs_id=runtime_target.cs_id if runtime_target else None,
             agent_dialogue_id=dialogue.id if dialogue else None,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
@@ -223,6 +244,10 @@ def build_sender_cs_id_map(
         agent = db.get(AgentProfile, conversation.direct_agent_id)
         if agent and agent.cs_id and agent.display_name.strip():
             mapping[agent.display_name.strip()] = agent.cs_id
+    elif conversation.type == "direct" and conversation.direct_runtime_target_id:
+        target = db.get(RuntimeTarget, conversation.direct_runtime_target_id)
+        if target and target.cs_id and target.display_name.strip():
+            mapping[target.display_name.strip()] = target.cs_id
 
     return mapping
 
